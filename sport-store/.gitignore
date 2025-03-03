@@ -1,0 +1,5 @@
+# Bỏ qua file cấu hình môi trường
+.env
+
+# Bỏ qua node_modules
+node_modules/

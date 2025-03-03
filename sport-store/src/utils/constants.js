@@ -1,0 +1,1 @@
+// quản lý các giá trị cố định như roles
