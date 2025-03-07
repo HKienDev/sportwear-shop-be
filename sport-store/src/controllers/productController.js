@@ -1,7 +1,8 @@
-const Product = require("../models/product");
+import Product from "../models/product.js";
+import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
 
-// Lấy danh sách sản phẩm (có phân trang, chỉ hiển thị sản phẩm đang bật)
-exports.getProducts = async (req, res) => {
+// 📌 Lấy danh sách sản phẩm (có phân trang, chỉ hiển thị sản phẩm đang bật)
+export const getProducts = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
     const products = await Product.find({ isActive: true }) // Chỉ lấy sản phẩm đang bật
@@ -13,8 +14,8 @@ exports.getProducts = async (req, res) => {
   }
 };
 
-// Lấy chi tiết sản phẩm
-exports.getProductById = async (req, res) => {
+// 📌 Lấy chi tiết sản phẩm theo ID
+export const getProductById = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
@@ -24,8 +25,8 @@ exports.getProductById = async (req, res) => {
   }
 };
 
-// Thêm sản phẩm mới (Admin)
-exports.createProduct = async (req, res) => {
+// 📌 Thêm sản phẩm mới (Admin)
+export const createProduct = async (req, res) => {
   try {
     console.log("Headers:", req.headers);
     console.log("Data nhận được từ request body:", req.body);
@@ -86,8 +87,8 @@ exports.createProduct = async (req, res) => {
   }
 };
 
-// Cập nhật sản phẩm (Admin)
-exports.updateProduct = async (req, res) => {
+// 📌 Cập nhật sản phẩm (Admin)
+export const updateProduct = async (req, res) => {
   try {
     const { sku } = req.body;
 
@@ -108,8 +109,8 @@ exports.updateProduct = async (req, res) => {
   }
 };
 
-// Xóa sản phẩm (Admin)
-exports.deleteProduct = async (req, res) => {
+// 📌 Xóa sản phẩm (Admin)
+export const deleteProduct = async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) return res.status(404).json({ message: "Không tìm thấy sản phẩm" });

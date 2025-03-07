@@ -1,5 +1,5 @@
-const mongoose = require("mongoose");
-const Category = require("./category");
+import mongoose from "mongoose";
+import Category from "./category.js"; // Thêm .js vào import
 
 const productSchema = new mongoose.Schema(
   {
@@ -39,4 +39,5 @@ productSchema.post("remove", async function (doc, next) {
   next();
 });
 
-module.exports = mongoose.model("Product", productSchema);
+const Product = mongoose.model("Product", productSchema);
+export default Product;

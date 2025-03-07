@@ -1,8 +1,8 @@
-const passport = require("passport");
-const GoogleStrategy = require("passport-google-oauth20").Strategy;
-const jwt = require("jsonwebtoken");
-const env = require("./env"); // Lấy biến môi trường
-const User = require("../models/user"); // Import model User
+import passport from "passport";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import jwt from "jsonwebtoken";
+import env from "./env.js"; // Lấy biến môi trường
+import User from "../models/user.js"; // Import model User
 
 passport.use(
   new GoogleStrategy(
@@ -51,6 +51,5 @@ passport.use(
   )
 );
 
-
 // Không cần serializeUser & deserializeUser nếu không dùng session
-module.exports = passport;
+export default passport;

@@ -1,4 +1,4 @@
-const { Resend } = require("resend");
+import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -60,4 +60,4 @@ const sendOrderNotification = (to, orderId) =>
         "Đơn hàng của bạn đang được xử lý. Chúng tôi sẽ sớm gửi thông tin cập nhật!"
     ));
 
-module.exports = { sendOtpEmail, sendResetOtpEmail, sendOrderNotification };
+export { sendOtpEmail, sendResetOtpEmail, sendOrderNotification };

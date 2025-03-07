@@ -1,8 +1,17 @@
-const express = require("express");
+import express from "express";
+import mongoose from "mongoose";
+import { 
+  getAllUsers, 
+  getUserProfile, 
+  getUserById, 
+  createUser, 
+  updateUserByAdmin, 
+  deleteUser, 
+  createNewAdmin 
+} from "../controllers/userController.js";
+import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js"; // Import cần thiết
+
 const router = express.Router();
-const mongoose = require("mongoose");
-const userController = require("../controllers/userController");
-const authMiddleware = require("../middlewares/authMiddleware"); // Middleware kiểm tra quyền
 
 // Middleware kiểm tra ObjectId hợp lệ
 const validateObjectId = (req, res, next) => {
@@ -13,10 +22,14 @@ const validateObjectId = (req, res, next) => {
 };
 
 // 🛠 Routes dành cho admin
-router.get("/", authMiddleware.verifyAdmin, userController.getAllUsers); // Admin lấy danh sách user
-router.get("/:id", authMiddleware.verifyAdmin, validateObjectId, userController.getUserById); // Admin lấy thông tin user theo ID
-router.put("/admin/:id", authMiddleware.verifyAdmin, userController.updateUserByAdmin); // Admin update user
-router.delete("/admin/:id", authMiddleware.verifyAdmin, validateObjectId, userController.deleteUser); // Admin xóa user
-router.post("/admin", authMiddleware.verifyAdmin, userController.createUser); // Admin tạo user mới
-router.post("/admin/create-admin", authMiddleware.verifyAdmin, userController.createNewAdmin);
-module.exports = router;
+router.get("/", verifyAdmin, getAllUsers); // Admin lấy danh sách user
+router.get("/:id", verifyAdmin, validateObjectId, getUserById); // Admin lấy thông tin user theo ID
+router.put("/admin/:id", verifyAdmin, updateUserByAdmin); // Admin update user
+router.delete("/admin/:id", verifyAdmin, validateObjectId, deleteUser); // Admin xóa user
+router.post("/admin", verifyAdmin, createUser); // Admin tạo user mới
+router.post("/admin/create-admin", verifyAdmin, createNewAdmin);
+
+// 🛠 Route lấy thông tin user đang đăng nhập
+router.get("/profile", verifyUser, getUserProfile);
+
+export default router;

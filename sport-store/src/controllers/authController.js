@@ -1,9 +1,9 @@
-const jwt = require("jsonwebtoken");
-const redisClient = require("../config/redis");
-const User = require("../models/user");
-const env = require("../config/env");
-const { sendOtpEmail } = require("../utils/sendEmail");
-const bcrypt = require("bcryptjs");
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+import redisClient from "../config/redis.js";
+import User from "../models/user.js";
+import env from "../config/env.js";
+import { sendOtpEmail } from "../utils/sendEmail.js";
 
 /**
  * Helper: Tạo mã OTP ngẫu nhiên 6 chữ số
@@ -38,11 +38,11 @@ const sendAndCacheOTP = async (email, otpKey, data, expiry = 60) => {
 };
 
 // 📌 Đăng ký tài khoản
-const register = async (req, res) => {
+export const register = async (req, res) => {
     try {
         const { email, username, password } = req.body;
 
-        if (await User.exists({ email }).select("_id")) {
+        if (await User.exists({ email })) {
             return res.status(400).json({ message: "Email đã tồn tại" });
         }
 
@@ -59,16 +59,16 @@ const register = async (req, res) => {
 };
 
 // 📌 Xác thực OTP để kích hoạt tài khoản
-const verifyOTP = async (req, res) => {
+export const verifyOTP = async (req, res) => {
     try {
         const { email, otp } = req.body;
         const otpData = await cacheGet(`otp:${email}`);
         if (!otpData) return res.status(400).json({ message: "OTP không hợp lệ hoặc đã hết hạn" });
 
         const { otp: storedOtp, username, hashedPassword } = otpData;
-        if (storedOtp !== otp) return res.status(400).json({ message: "OTP không hợp lệ!" });
+        if (storedOtp !== otp) return res.status(400).json({ message: "OTP không chính xác!" });
 
-        if (await User.exists({ email }).select("_id")) return res.status(400).json({ message: "Email đã tồn tại!" });
+        if (await User.exists({ email })) return res.status(400).json({ message: "Email đã tồn tại!" });
 
         const user = new User({ email, username, password: hashedPassword, isVerified: true });
         await user.save();
@@ -82,46 +82,33 @@ const verifyOTP = async (req, res) => {
 };
 
 // 📌 Đăng nhập
-const login = async (req, res) => {
+export const login = async (req, res) => {
     try {
-        const { email, username, password } = req.body;
-        const user = await User.findOne({ $or: [{ email }, { username }] });
+        const { username, password } = req.body;
+        const user = await User.findOne({ username });
 
-        if (!user || !user.isVerified) {
-            return res.status(400).json({ message: "Tài khoản chưa xác thực hoặc không tồn tại" });
-        }
+        if (!user) return res.status(401).json({ message: "Tài khoản không tồn tại" });
 
-        if (!(await bcrypt.compare(password, user.password))) {
-            return res.status(400).json({ message: "Email/Tên đăng nhập hoặc mật khẩu không đúng" });
-        }
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) return res.status(401).json({ message: "Mật khẩu không chính xác" });
 
-        const accessToken = jwt.sign(
-            { userId: user._id, email: user.email, role: user.role },
-            process.env.ACCESS_TOKEN_SECRET,
-            { expiresIn: "1d" }
-        );
-        const refreshToken = jwt.sign({ userId: user._id }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: "7d" });
+        const accessToken = jwt.sign({ userId: user._id, role: user.role }, env.ACCESS_TOKEN_SECRET, { expiresIn: "30m" });
 
-        // 🔥 Cập nhật refreshToken trong DB
+        const refreshToken = jwt.sign({ userId: user._id }, env.REFRESH_TOKEN_SECRET, { expiresIn: "7d" });
+
         user.refreshToken = refreshToken;
         await user.save();
 
         res.cookie("refreshToken", refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
+            secure: env.NODE_ENV === "production",
             sameSite: "Strict",
-            path: "/",
         });
 
         res.status(200).json({
             message: "Đăng nhập thành công",
             accessToken,
-            user: {
-                _id: user._id,
-                username: user.username,
-                role: user.role,
-                isActive: user.isActive,
-            },
+            user: { _id: user._id, username: user.username, role: user.role, isActive: user.isActive },
         });
     } catch (error) {
         console.error("[LOGIN] Lỗi:", error);
@@ -130,15 +117,23 @@ const login = async (req, res) => {
 };
 
 // 📌 Đăng xuất
-const logout = async (req, res) => {
+export const logout = async (req, res) => {
     try {
         const { refreshToken } = req.cookies;
-        if (!refreshToken) return res.status(401).json({ message: "Không tìm thấy refreshToken" });
+        if (!refreshToken) return res.status(401).json({ message: "Không tìm thấy Refresh Token" });
 
-        const user = await User.findOneAndUpdate({ refreshToken }, { refreshToken: null });
-        if (!user) return res.status(401).json({ message: "Phiên đăng nhập không hợp lệ" });
+        const user = await User.findOne({ refreshToken });
+        if (!user) return res.status(403).json({ message: "Refresh Token không hợp lệ hoặc đã hết hạn" });
 
-        res.clearCookie("refreshToken", { httpOnly: true, sameSite: "Strict" });
+        user.refreshToken = null;
+        await user.save();
+
+        res.clearCookie("refreshToken", {
+            httpOnly: true,
+            secure: env.NODE_ENV === "production",
+            sameSite: "Strict",
+        });
+
         res.status(200).json({ message: "Đăng xuất thành công!" });
     } catch (error) {
         console.error("[LOGOUT] Lỗi:", error);
@@ -147,7 +142,7 @@ const logout = async (req, res) => {
 };
 
 // 📌 Quên mật khẩu
-const forgotPassword = async (req, res) => {
+export const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
         if (!(await User.exists({ email }))) return res.status(404).json({ message: "Email không tồn tại" });
@@ -156,161 +151,20 @@ const forgotPassword = async (req, res) => {
             return res.status(500).json({ message: "Gửi OTP thất bại" });
         }
 
-        res.json({success: true, message: "OTP đã được gửi đến email của bạn!" });
+        res.json({ success: true, message: "OTP đã được gửi đến email của bạn!" });
     } catch (error) {
         console.error("[FORGOT PASSWORD] Lỗi:", error);
         res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 };
 
-// 📌 Xác thực OTP đặt lại mật khẩu
-const verifyForgotPasswordOTP = async (req, res) => {
-    try {
-        const { email, otp } = req.body;
-        const otpData = await redisClient.get(`forgot-password:${email}`);
-        if (!otpData) return res.status(400).json({ message: "OTP không hợp lệ hoặc đã hết hạn" });
-
-        const { otp: storedOtp } = JSON.parse(otpData);
-        if (storedOtp !== otp) return res.status(400).json({ message: "OTP không hợp lệ!" });
-
-        await redisClient.del(`forgot-password:${email}`);
-        res.status(200).json({ message: "OTP hợp lệ", resetToken: jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: "5m" }) });
-    } catch (error) {
-        console.error("[VERIFY FORGOT PASSWORD OTP] Lỗi:", error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
-    }
-};
-
-// 🛠 Hàm kiểm tra username hoặc email đã tồn tại
-const checkExistingUser = async (field, value, userId) => {
-    const existingUser = await User.findOne({ [field]: value }).lean();
-    return existingUser && existingUser._id.toString() !== userId;
-};
-
-// 🚀 Đặt lại mật khẩu
-const resetPassword = async (req, res) => {
-    try {
-        const { resetToken, newPassword } = req.body;
-        const { email } = jwt.verify(resetToken, process.env.JWT_SECRET);
-        const user = await User.findOne({ email });
-
-        if (!user) return res.status(404).json({ message: "Email không tồn tại" });
-
-        user.password = await hashPassword(newPassword);
-        user.refreshToken = null; // Xóa refreshToken để buộc user đăng nhập lại
-        await user.save();
-
-        res.status(200).json({ message: "Mật khẩu đã được đặt lại thành công!" });
-    } catch (error) {
-        res.status(500).json({ message: "Lỗi server", error: error.message });
-    }
-};
-
-// 🚀 Yêu cầu cập nhật thông tin (OTP)
-const requestUpdate = async (req, res) => {
-    try {
-        const { userId, ...updates } = req.body;
-        const user = await User.findById(userId);
-        if (!user) return res.status(404).json({ message: "Không tìm thấy người dùng." });
-
-        // Kiểm tra username hoặc email đã tồn tại
-        for (const field of ["username", "email"]) {
-            if (updates[field] && await checkExistingUser(field, updates[field], userId)) {
-                return res.status(400).json({ message: `${field === "username" ? "Tên người dùng" : "Email"} đã được sử dụng.` });
-            }
-        }
-
-        // Xử lý mật khẩu nếu có
-        if (updates.password) updates.password = await hashPassword(updates.password);
-
-        if (!Object.keys(updates).length) {
-            return res.status(400).json({ message: "Không phát hiện thay đổi." });
-        }
-
-        // Cập nhật thông tin tạm thời & gửi OTP
-        user.pendingUpdate = updates;
-        user.otp = generateOTP();
-        user.otpExpires = Date.now() + 60 * 1000;
-
-        await user.save();
-        await sendOtpEmail(user.email, user.otp);
-
-        res.json({ message: "OTP đã được gửi đến email của bạn!" });
-    } catch (error) {
-        res.status(500).json({ message: "Lỗi máy chủ nội bộ." });
-    }
-};
-
-// 🚀 Xác thực OTP & cập nhật thông tin
-const updateUser = async (req, res) => {
-    try {
-        const { userId, otp } = req.body;
-        const user = await User.findById(userId);
-        if (!user) return res.status(404).json({ message: "Người dùng không tồn tại." });
-
-        if (!user.otp || user.otp !== otp || user.otpExpires < Date.now()) {
-            return res.status(400).json({ message: "OTP không hợp lệ hoặc đã hết hạn." });
-        }
-
-        // Kiểm tra username & email trùng lặp
-        for (const field of ["username", "email"]) {
-            if (user.pendingUpdate[field] && await checkExistingUser(field, user.pendingUpdate[field], userId)) {
-                return res.status(409).json({ message: `${field === "username" ? "Tên người dùng" : "Email"} đã được sử dụng.` });
-            }
-        }
-
-        // Cập nhật user
-        Object.assign(user, user.pendingUpdate);
-        user.pendingUpdate = {};
-        user.otp = user.otpExpires = null;
-
-        // Nếu email thay đổi, yêu cầu xác thực lại
-        if (user.email !== req.body.email) {
-            user.isVerified = false;
-            user.otp = generateOTP();
-            user.otpExpires = Date.now() + 60 * 1000;
-            await sendOtpEmail(user.email, user.otp);
-        }
-
-        await user.save();
-        res.status(200).json({ message: "Cập nhật thành công!", user });
-    } catch (error) {
-        res.status(500).json({ message: "Lỗi máy chủ nội bộ." });
-    }
-};
-
-// 🚀 Đăng nhập bằng Google
-const googleAuth = async (req, res) => {
-    try {
-        if (!req.user) return res.status(400).json({ message: "Không nhận được dữ liệu từ Google!" });
-
-        const { id, displayName, photos, email } = req.user;
-        if (!email) return res.status(400).json({ message: "Không thể lấy email từ Google!" });
-
-        let user = await User.findOne({ email });
-
-        if (user) {
-            if (!user.googleId) user.googleId = id;
-        } else {
-            user = new User({ googleId: id, name: displayName, email, avatar: photos?.[0]?.value, isVerified: true });
-        }
-
-        await user.save();
-        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
-
-        res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
-    } catch (error) {
-        res.status(500).json({ message: "Lỗi xác thực Google!", error: error.message });
-    }
-};
-
 // 🚀 Xác thực token
-const verifyToken = (req, res) => {
+export const verifyToken = (req, res) => {
     const { token } = req.body;
     if (!token) return res.status(400).json({ valid: false, message: "Token không được cung cấp" });
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, env.JWT_SECRET);
         res.status(200).json({ valid: true, decoded });
     } catch (error) {
         const errorMessage = error.name === "TokenExpiredError" ? "Token hết hạn" : "Token không hợp lệ";
@@ -318,38 +172,170 @@ const verifyToken = (req, res) => {
     }
 };
 
-// 🚀 Refresh Token (tránh TH Access Token hết hạn thì user bị logout đột xuất)
-const refreshToken = async (req, res) => {
+// 📌 Hàm tạo Access Token mới từ Refresh Token
+export const refreshToken = async (req, res) => {
     try {
-        const refreshToken = req.cookies.refreshToken;
-        console.log("[DEBUG] Refresh Token từ Cookie:", refreshToken); // debug
-        if (!refreshToken) return res.status(403).json({ message: "Không có Refresh Token" });
+        const { refreshToken } = req.cookies;
+        if (!refreshToken) return res.status(401).json({ message: "Không có Refresh Token" });
 
-        const user = await User.findOne({ refreshToken }).lean();
-        console.log("[DEBUG] User từ DB:", user); // debug
-        if (!user) return res.status(403).json({ message: "Refresh Token không hợp lệ" });
+        const user = await User.findOne({ refreshToken });
+        if (!user) return res.status(403).json({ message: "Refresh Token không hợp lệ hoặc đã hết hạn" });
 
-        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-        const newAccessToken = jwt.sign({ userId: user._id }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1d" });
+        const newAccessToken = jwt.sign(
+            { userId: user._id, role: user.role },
+            env.ACCESS_TOKEN_SECRET,
+            { expiresIn: "30m" }
+        );
 
         res.status(200).json({ accessToken: newAccessToken });
     } catch (error) {
-        res.status(401).json({ message: "Refresh Token không hợp lệ hoặc đã hết hạn" });
+        console.error("[REFRESH TOKEN] Lỗi:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 };
 
-// Xuất các hàm
-module.exports = { 
-    register, 
-    verifyOTP, 
-    login,
-    logout, 
-    forgotPassword,
-    verifyForgotPasswordOTP, 
-    resetPassword, 
-    requestUpdate, 
-    updateUser, 
-    googleAuth,
-    verifyToken,
-    refreshToken
+/**
+ * 📌 Gửi yêu cầu cập nhật thông tin (Gửi OTP về email)
+ */
+export const requestUpdate = async (req, res) => {
+    try {
+        const { authorization } = req.headers;
+        const { userId, email, ...updateData } = req.body;
+
+        if (!authorization) return res.status(401).json({ message: "Không có access token" });
+
+        // Xác thực Access Token
+        const token = authorization.split(" ")[1];
+        let decoded;
+        try {
+            decoded = jwt.verify(token, env.ACCESS_TOKEN_SECRET);
+        } catch (error) {
+            return res.status(401).json({ message: "Access token không hợp lệ hoặc đã hết hạn" });
+        }
+
+        // Kiểm tra userId hợp lệ
+        if (decoded.userId !== userId) return res.status(403).json({ message: "Không có quyền cập nhật thông tin người khác" });
+
+        // Kiểm tra email có tồn tại không
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ message: "Người dùng không tồn tại" });
+
+        // Sinh mã OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6 chữ số
+
+        // Gửi email OTP
+        const emailSent = await sendOtpEmail(user.email, otp);
+        if (!emailSent) return res.status(500).json({ message: "Gửi OTP thất bại" });
+
+        // Lưu dữ liệu cập nhật vào Redis (60 giây)
+        await redisClient.setEx(`update-user:${user.email}`, 60, JSON.stringify({ otp, updateData }));
+
+        res.status(200).json({ message: "OTP đã được gửi. Vui lòng kiểm tra email để xác nhận!" });
+    } catch (error) {
+        console.error("[REQUEST UPDATE] Lỗi:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+};
+
+/**
+ * 📌 Xác thực OTP & cập nhật thông tin người dùng
+ */
+export const updateUser = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+
+        // Lấy dữ liệu từ Redis
+        const cachedData = await redisClient.get(`update-user:${email}`);
+        if (!cachedData) return res.status(400).json({ message: "OTP không hợp lệ hoặc đã hết hạn" });
+
+        const { otp: storedOtp, updateData } = JSON.parse(cachedData);
+
+        // Kiểm tra OTP
+        if (storedOtp !== otp) return res.status(400).json({ message: "OTP không chính xác" });
+
+        // Cập nhật thông tin vào database
+        if (updateData.password) {
+            updateData.password = await bcrypt.hash(updateData.password, 10);
+        }
+
+        const user = await User.findOneAndUpdate({ email }, updateData, { new: true });
+        if (!user) return res.status(404).json({ message: "Người dùng không tồn tại" });
+
+        // Xóa OTP khỏi Redis
+        await redisClient.del(`update-user:${email}`);
+
+        res.status(200).json({ message: "Cập nhật thông tin thành công!", user });
+    } catch (error) {
+        console.error("[UPDATE USER] Lỗi:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+};
+
+/**
+ * 📌 Đổi mật khẩu sau khi xác thực Access Token
+ */
+export const resetPassword = async (req, res) => {
+    try {
+        const { newPassword } = req.body;
+        const { authorization } = req.headers;
+
+        if (!authorization) return res.status(401).json({ message: "Không có access token" });
+
+        // Xác thực Access Token
+        const token = authorization.split(" ")[1];
+        let decoded;
+        try {
+            decoded = jwt.verify(token, env.ACCESS_TOKEN_SECRET);
+        } catch (error) {
+            return res.status(401).json({ message: "Access token không hợp lệ hoặc đã hết hạn" });
+        }
+
+        // Lấy user từ token
+        const user = await User.findById(decoded.userId);
+        if (!user) return res.status(404).json({ message: "Người dùng không tồn tại" });
+
+        // Băm mật khẩu mới
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        // Cập nhật mật khẩu vào database
+        user.password = hashedPassword;
+        await user.save();
+
+        res.status(200).json({ message: "Đổi mật khẩu thành công!" });
+    } catch (error) {
+        console.error("[RESET PASSWORD] Lỗi:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+};
+
+export const verifyForgotPasswordOTP = async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+
+        // Kiểm tra xem email có yêu cầu quên mật khẩu không
+        const cachedData = await redisClient.get(`forgot-password:${email}`);
+        if (!cachedData) return res.status(400).json({ message: "OTP không hợp lệ hoặc đã hết hạn" });
+
+        const { otp: storedOtp } = JSON.parse(cachedData);
+
+        // Kiểm tra OTP
+        if (storedOtp !== otp) return res.status(400).json({ message: "OTP không chính xác" });
+
+        // Kiểm tra user tồn tại không
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ message: "Người dùng không tồn tại" });
+
+        // Băm mật khẩu mới
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        await user.save();
+
+        // Xóa OTP khỏi Redis
+        await redisClient.del(`forgot-password:${email}`);
+
+        res.status(200).json({ message: "Mật khẩu đã được đặt lại thành công!" });
+    } catch (error) {
+        console.error("[VERIFY FORGOT PASSWORD] Lỗi:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
 };

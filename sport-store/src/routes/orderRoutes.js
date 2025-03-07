@@ -1,19 +1,20 @@
-const express = require("express");
-const router = express.Router();
-const { 
+import express from "express";
+import { 
     createOrder,
     updateOrderStatus,
     updateOrderDetails,
     getOrderById,
     getUserOrders,
-    getAllOrders,  // ✅ Fix: Thêm function xem tất cả đơn hàng cho Admin
+    getAllOrders,
     deleteOrder,
     stripeWebhook
-} = require("../controllers/orderController");
-const { verifyUser, verifyAdmin } = require("../middlewares/authMiddleware");
+} from "../controllers/orderController.js";
+import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
+
+const router = express.Router();
 
 // 🚀 ADMIN - Xem tất cả đơn hàng
-router.get("/admin", verifyUser, verifyAdmin, getAllOrders); // ✅ Fix: Đổi getUserOrders → getAllOrders
+router.get("/admin", verifyUser, verifyAdmin, getAllOrders);
 
 // 🚀 ADMIN - Xem chi tiết đơn hàng
 router.get("/admin/:id", verifyUser, verifyAdmin, getOrderById);
@@ -42,8 +43,8 @@ router.delete("/:id", verifyUser, deleteOrder);
 // 🚀 Xử lý Webhook Stripe
 router.post(
   "/stripe-webhook",
-  express.raw({ type: "application/json" }),  // ✅ Kiểm tra đã tách raw() chưa
+  express.raw({ type: "application/json" }),
   stripeWebhook
 );
 
-module.exports = router;
+export default router;

@@ -1,4 +1,4 @@
-const axios = require("axios");
+import axios from "axios";
 
 const getExchangeRate = async () => {
     try {
@@ -16,4 +16,4 @@ const getExchangeRate = async () => {
     }
 };
 
-module.exports = getExchangeRate;
+export default getExchangeRate;

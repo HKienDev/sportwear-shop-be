@@ -1,5 +1,7 @@
-const mongoose = require("mongoose");
-require("dotenv").config();
+import mongoose from "mongoose";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 // Log để kiểm tra biến môi trường
 console.log("MONGO_URI:", process.env.MONGO_URI);
@@ -14,4 +16,4 @@ const connectDB = async () => {
   }
 };
 
-module.exports = connectDB;
+export default connectDB;

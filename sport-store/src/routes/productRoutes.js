@@ -1,21 +1,22 @@
-const express = require("express");
-const router = express.Router();
-const {
-  getProducts,
-  getProductById,
-  createProduct,
-  updateProduct,
-  deleteProduct,
-} = require("../controllers/productController");
-const { protect, admin } = require("../middlewares/authMiddleware");
+import express from "express";
+import { 
+  getProducts, 
+  getProductById, 
+  createProduct, 
+  updateProduct, 
+  deleteProduct 
+} from "../controllers/productController.js";
+import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js"; // ✅ Đúng tên hàm
 
-// Public Routes
+const router = express.Router();
+
+// 📌 Public Routes (Bất kỳ ai cũng có thể truy cập)
 router.get("/", getProducts);
 router.get("/:id", getProductById);
 
-// Private/Admin Routes
-router.post("/", protect, admin, createProduct);
-router.put("/:id", protect, admin, updateProduct);
-router.delete("/:id", protect, admin, deleteProduct);
+// 📌 Private/Admin Routes (Chỉ admin mới có quyền thực hiện)
+router.post("/", verifyUser, verifyAdmin, createProduct);  // ✅ Đổi 'admin' thành 'verifyAdmin'
+router.put("/:id", verifyUser, verifyAdmin, updateProduct);
+router.delete("/:id", verifyUser, verifyAdmin, deleteProduct);
 
-module.exports = router;
+export default router;

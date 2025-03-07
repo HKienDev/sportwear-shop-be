@@ -1,29 +1,42 @@
-// server.js
-require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
-const cookieParser = require("cookie-parser"); 
-const env = require("./src/config/env"); 
-const connectDB = require("./src/config/db");
-const userRoutes = require("./src/routes/userRoutes");
-const authRoutes = require("./src/routes/authRoutes");
-const passport = require("./src/config/passport");
-const productRoutes = require("./src/routes/productRoutes");
-const categoryRoutes = require("./src/routes/categoryRoutes");
-const orderRoutes = require("./src/routes/orderRoutes");
+import dotenv from "dotenv";
+dotenv.config();
+
+import express from "express";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import http from "http"; // Import chuẩn
+import { Server as socketIo } from "socket.io"; // Import chuẩn
+import env from "./src/config/env.js"; // Nhớ thêm ".js"
+import connectDB from "./src/config/db.js";
+import userRoutes from "./src/routes/userRoutes.js";
+import authRoutes from "./src/routes/authRoutes.js";
+import passport from "./src/config/passport.js";
+import productRoutes from "./src/routes/productRoutes.js";
+import categoryRoutes from "./src/routes/categoryRoutes.js";
+import orderRoutes from "./src/routes/orderRoutes.js";
 
 const app = express();
+const server = http.createServer(app); // Tạo server HTTP
+const io = new socketIo(server, { // Sử dụng `new` khi khởi tạo `socket.io`
+  cors: {
+    origin: "http://localhost:3000", // FE chạy trên cổng 3000
+    credentials: true,
+    methods: ["GET", "POST"],
+  },
+});
+
 app.use("/api/orders/stripe-webhook", express.raw({ type: "application/json" }));
 // Middleware
-app.use(express.json()); // Hỗ trợ đọc JSON
+app.use(express.json());
 app.use(cookieParser());
-app.use(cors({
-  origin: "http://localhost:3000", // FE chạy trên cổng 3000
-  credentials: true, // Cho phép gửi cookie/token trong request
-  methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS", // Các phương thức HTTP cho phép
-  allowedHeaders: "Content-Type,Authorization", // Các headers được phép gửi
-}));
-
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+    credentials: true,
+    methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS",
+    allowedHeaders: "Content-Type,Authorization",
+  })
+);
 
 // Kết nối Database
 connectDB();
@@ -31,22 +44,35 @@ connectDB();
 // Routes
 app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
-
 app.use("/api/products", productRoutes);
 app.use(passport.initialize());
-
-app.use("/user", authRoutes); 
-
+app.use("/user", authRoutes);
 app.use("/api/categories", categoryRoutes);
-
 app.use("/api/orders", orderRoutes);
 
+// ==========================
+// 🔹 Socket.IO - Quản lý Chat Live
+// ==========================
+io.on("connection", (socket) => {
+  console.log(`🔌 User connected: ${socket.id}`);
+
+  // Nhận tin nhắn từ client
+  socket.on("sendMessage", (data) => {
+    console.log("📩 Message received:", data);
+    io.emit("receiveMessage", data); // Gửi tin nhắn tới tất cả client
+  });
+
+  // Khi user ngắt kết nối
+  socket.on("disconnect", () => {
+    console.log(`❌ User disconnected: ${socket.id}`);
+  });
+});
 
 // Xuất app để test
-module.exports = app;
+export { app, server }; // Thay đổi từ `module.exports` sang `export`
 
 // Lắng nghe server
 const PORT = env.PORT || 4000;
 if (process.env.NODE_ENV !== "test") {
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 }

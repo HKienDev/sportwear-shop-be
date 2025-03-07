@@ -1,12 +1,12 @@
-const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
+import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 
 const userSchema = new mongoose.Schema({
   googleId: { type: String, unique: true, sparse: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: function () { return !this.googleId; } },
   fullname: { type: String, default: "" },
-  username: { type: String, required: function () { return !this.googleId; } }, // Sửa lại để tránh lỗi nếu Google không trả về email
+  username: { type: String, required: function () { return !this.googleId; } }, 
   phone: { type: String, default: "" },
   avatar: { type: String, default: "" }, 
   role: { type: String, default: "user" },
@@ -60,4 +60,5 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
-module.exports = mongoose.model("User", userSchema);
+const User = mongoose.model("User", userSchema);
+export default User;
