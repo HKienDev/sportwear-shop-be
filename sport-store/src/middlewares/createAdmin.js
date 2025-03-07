@@ -1,47 +1,47 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
-import User from "../models/user.js"; // ✅ Thêm .js vào đường dẫn import
+import User from "../models/user.js";
 
-// 🔗 Thông tin kết nối MongoDB
+// Thông tin kết nối MongoDB
 const DB_URI = "mongodb://localhost:27017/sport-store";
 
-// 🚀 Tạo tài khoản admin
+// Tạo tài khoản admin
 async function createAdmin() {
   try {
-    // 🔗 Kết nối tới MongoDB
+    // Kết nối tới MongoDB
     await mongoose.connect(DB_URI, { useNewUrlParser: true, useUnifiedTopology: true });
 
-    // 🔍 Kiểm tra xem đã có tài khoản admin chưa
+    // Kiểm tra xem đã có tài khoản admin chưa
     const existingAdmin = await User.findOne({ role: "admin" });
     if (existingAdmin) {
-      console.log("✅ Đã có tài khoản admin trong cơ sở dữ liệu.");
+      console.log("Đã có tài khoản admin trong cơ sở dữ liệu.");
       return;
     }
 
-    // 🔐 Mã hóa mật khẩu cho tài khoản admin
+    // Mã hóa mật khẩu cho tài khoản admin
     const hashedPassword = await bcrypt.hash("adminVjuSport", 10);
 
-    // 🆕 Tạo tài khoản admin mới
+    // Tạo tài khoản admin mới
     const newAdmin = new User({
       email: "adminVjuSport@gmail.com",
       password: hashedPassword,
       username: "adminVjuSport",
       role: "admin",
       isActive: true,
-      isVerified: true, // ✅ Tài khoản này sẽ được xác thực sẵn
-      permissions: ["full_access"], // ✅ Gán quyền full cho admin
+      isVerified: true, // Tài khoản này sẽ được xác thực sẵn
+      permissions: ["full_access"], // Gán quyền full cho admin
     });
 
-    // 💾 Lưu tài khoản admin vào cơ sở dữ liệu
+    // Lưu tài khoản admin vào cơ sở dữ liệu
     await newAdmin.save();
-    console.log("🎉 Tạo tài khoản admin thành công!");
+    console.log("Tạo tài khoản admin thành công!");
 
-    // 🔌 Đóng kết nối MongoDB
+    // Đóng kết nối MongoDB
     await mongoose.connection.close();
   } catch (error) {
-    console.error("❌ Lỗi khi tạo tài khoản admin:", error);
+    console.error("Lỗi khi tạo tài khoản admin:", error);
   }
 }
 
-// 🚀 Gọi hàm tạo admin
+// Gọi hàm tạo admin
 createAdmin();

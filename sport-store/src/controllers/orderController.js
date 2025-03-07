@@ -5,7 +5,7 @@ import getExchangeRate from "../utils/exchangeRate.js";
 
 const stripeInstance = stripe(process.env.STRIPE_SECRET_KEY);
 
-// 🛒 User đặt hàng
+// User đặt hàng
 export const createOrder = async (req, res) => {
   try {
     const { items, shippingAddress, paymentMethod } = req.body;
@@ -40,12 +40,12 @@ export const createOrder = async (req, res) => {
     res.status(201).json({ message: "Đặt hàng thành công", order: newOrder });
 
   } catch (error) {
-    console.error("🔥 Lỗi khi đặt hàng:", error);
+    console.error("Lỗi khi đặt hàng:", error);
     res.status(500).json({ message: "Lỗi khi đặt hàng", error: error.message });
   }
 };
 
-// 🔄 Admin cập nhật trạng thái đơn hàng
+// Admin cập nhật trạng thái đơn hàng
 export const updateOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
@@ -67,7 +67,7 @@ export const updateOrderStatus = async (req, res) => {
   }
 };
 
-// 📦 Lấy tất cả đơn hàng (ADMIN)
+// Lấy tất cả đơn hàng (ADMIN)
 export const getAllOrders = async (req, res) => {
   try {
     const orders = await Order.find().populate("items.product", "name price");
@@ -77,7 +77,7 @@ export const getAllOrders = async (req, res) => {
   }
 };
 
-// 🔄 Admin chỉnh sửa thông tin đơn hàng
+// Admin chỉnh sửa thông tin đơn hàng
 export const updateOrderDetails = async (req, res) => {
   try {
     const { shippingAddress, paymentMethod } = req.body;
@@ -85,7 +85,7 @@ export const updateOrderDetails = async (req, res) => {
 
     if (!order) return res.status(404).json({ message: "Đơn hàng không tồn tại" });
 
-    // ✅ Cập nhật shippingAddress nhưng không làm mất trường cũ
+    // Cập nhật shippingAddress nhưng không làm mất trường cũ
     if (shippingAddress) {
       order.shippingAddress = { ...order.shippingAddress.toObject(), ...shippingAddress };
     }
@@ -100,7 +100,7 @@ export const updateOrderDetails = async (req, res) => {
   }
 };
 
-// 📦 Lấy đơn hàng theo ID (User)
+// Lấy đơn hàng theo ID (User)
 export const getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id).populate("items.product", "name price");
@@ -112,7 +112,7 @@ export const getOrderById = async (req, res) => {
   }
 };
 
-// 📦 Lấy danh sách đơn hàng của User
+// Lấy danh sách đơn hàng của User
 export const getUserOrders = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -123,7 +123,7 @@ export const getUserOrders = async (req, res) => {
   }
 };
 
-// ❌ Hủy đơn hàng (User hoặc Admin)
+// Hủy đơn hàng (User hoặc Admin)
 export const deleteOrder = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
@@ -141,7 +141,7 @@ export const deleteOrder = async (req, res) => {
   }
 };
 
-// 🏦 Xử lý Webhook từ Stripe
+// Xử lý Webhook từ Stripe
 export const stripeWebhook = async (req, res) => {
   const sig = req.headers["stripe-signature"];
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -165,9 +165,9 @@ export const stripeWebhook = async (req, res) => {
 
       order.paymentStatus = "paid";
       await order.save();
-      console.log("✅ Đơn hàng đã cập nhật trạng thái thanh toán!");
+      console.log("Đơn hàng đã cập nhật trạng thái thanh toán!");
     } catch (error) {
-      console.error("🔥 Lỗi khi cập nhật đơn hàng:", error);
+      console.error("Lỗi khi cập nhật đơn hàng:", error);
     }
   }
 

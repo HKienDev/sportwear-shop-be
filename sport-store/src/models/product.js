@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Category from "./category.js"; // Thêm .js vào import
+import Category from "./category.js";
 
 const productSchema = new mongoose.Schema(
   {

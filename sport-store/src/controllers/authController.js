@@ -5,30 +5,22 @@ import User from "../models/user.js";
 import env from "../config/env.js";
 import { sendOtpEmail } from "../utils/sendEmail.js";
 
-/**
- * Helper: Tạo mã OTP ngẫu nhiên 6 chữ số
- */
+// Tạo mã OTP ngẫu nhiên 6 chữ số
 const generateOTP = (length = 6) => {
     return Array.from({ length }, () => Math.floor(Math.random() * 10)).join('');
 };
 
-/**
- * Helper: Băm mật khẩu
- */
+// Băm mật khẩu
 const hashPassword = (password) => bcrypt.hash(password, 10);
 
-/**
- * Helper: Đọc/ghi dữ liệu từ Redis
- */
+// Đọc/ghi dữ liệu từ Redis
 const cacheSet = (key, value, expiry) => redisClient.setEx(key, expiry, JSON.stringify(value));
 const cacheGet = async (key) => {
     const data = await redisClient.get(key);
     return data ? JSON.parse(data) : null;
 };
 
-/**
- * Helper: Gửi OTP qua email và lưu vào Redis
- */
+// Gửi OTP qua email và lưu vào Redis
 const sendAndCacheOTP = async (email, otpKey, data, expiry = 60) => {
     const otp = generateOTP();
     if (!(await sendOtpEmail(email, otp))) return false;
@@ -37,7 +29,7 @@ const sendAndCacheOTP = async (email, otpKey, data, expiry = 60) => {
     return true;
 };
 
-// 📌 Đăng ký tài khoản
+// Đăng ký tài khoản
 export const register = async (req, res) => {
     try {
         const { email, username, password } = req.body;
@@ -58,7 +50,7 @@ export const register = async (req, res) => {
     }
 };
 
-// 📌 Xác thực OTP để kích hoạt tài khoản
+// Xác thực OTP để kích hoạt tài khoản
 export const verifyOTP = async (req, res) => {
     try {
         const { email, otp } = req.body;
@@ -81,7 +73,7 @@ export const verifyOTP = async (req, res) => {
     }
 };
 
-// 📌 Đăng nhập
+// Đăng nhập
 export const login = async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -116,7 +108,7 @@ export const login = async (req, res) => {
     }
 };
 
-// 📌 Đăng xuất
+// Đăng xuất
 export const logout = async (req, res) => {
     try {
         const { refreshToken } = req.cookies;
@@ -141,7 +133,7 @@ export const logout = async (req, res) => {
     }
 };
 
-// 📌 Quên mật khẩu
+// Quên mật khẩu
 export const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
@@ -203,7 +195,7 @@ export const verifyForgotPasswordOTP = async (req, res) => {
     }
 };
 
-// 🚀 Xác thực token
+// Xác thực token
 export const verifyToken = (req, res) => {
     const { token } = req.body;
     if (!token) return res.status(400).json({ valid: false, message: "Token không được cung cấp" });
@@ -217,7 +209,7 @@ export const verifyToken = (req, res) => {
     }
 };
 
-// 📌 Hàm tạo Access Token mới từ Refresh Token
+// Hàm tạo Access Token mới từ Refresh Token
 export const refreshToken = async (req, res) => {
     try {
         const { refreshToken } = req.cookies;
@@ -239,9 +231,7 @@ export const refreshToken = async (req, res) => {
     }
 };
 
-/**
- * 📌 Gửi yêu cầu cập nhật thông tin (Gửi OTP về email)
- */
+// Gửi yêu cầu cập nhật thông tin (Gửi OTP về email)
 export const requestUpdate = async (req, res) => {
     try {
         const { authorization } = req.headers;
@@ -282,9 +272,7 @@ export const requestUpdate = async (req, res) => {
     }
 };
 
-/**
- * 📌 Xác thực OTP & cập nhật thông tin người dùng
- */
+// Xác thực OTP & cập nhật thông tin người dùng
 export const updateUser = async (req, res) => {
     try {
         const { email, otp } = req.body;

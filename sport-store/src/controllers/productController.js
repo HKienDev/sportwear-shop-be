@@ -1,7 +1,7 @@
 import Product from "../models/product.js";
 import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
 
-// 📌 Lấy danh sách sản phẩm (có phân trang, chỉ hiển thị sản phẩm đang bật)
+// Lấy danh sách sản phẩm (có phân trang, chỉ hiển thị sản phẩm đang bật)
 export const getProducts = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
@@ -14,7 +14,7 @@ export const getProducts = async (req, res) => {
   }
 };
 
-// 📌 Lấy chi tiết sản phẩm theo ID
+// Lấy chi tiết sản phẩm theo ID
 export const getProductById = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -25,7 +25,7 @@ export const getProductById = async (req, res) => {
   }
 };
 
-// 📌 Thêm sản phẩm mới (Admin)
+// Thêm sản phẩm mới (Admin)
 export const createProduct = async (req, res) => {
   try {
     console.log("Headers:", req.headers);
@@ -87,7 +87,7 @@ export const createProduct = async (req, res) => {
   }
 };
 
-// 📌 Cập nhật sản phẩm (Admin)
+// Cập nhật sản phẩm (Admin)
 export const updateProduct = async (req, res) => {
   try {
     const { sku } = req.body;
@@ -109,7 +109,7 @@ export const updateProduct = async (req, res) => {
   }
 };
 
-// 📌 Xóa sản phẩm (Admin)
+// Xóa sản phẩm (Admin)
 export const deleteProduct = async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);

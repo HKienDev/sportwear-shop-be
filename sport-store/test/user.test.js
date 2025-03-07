@@ -1,6 +1,6 @@
 const request = require("supertest");
 const mongoose = require("mongoose");
-const app = require("../server"); // Import app từ server.js
+const app = require("../server");
 const User = require("../models/user");
 const bcrypt = require("bcryptjs");
 const { MongoMemoryServer } = require("mongodb-memory-server");
@@ -41,9 +41,6 @@ afterAll(async () => {
     }
   });
   
-  
-  
-
 describe("User API Endpoints", () => {
 
   test("GET /users - Fetch all users", async () => {

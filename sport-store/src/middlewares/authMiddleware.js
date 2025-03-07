@@ -1,11 +1,11 @@
 import jwt from "jsonwebtoken";
-import User from "../models/user.js"; // ✅ Thêm .js vào đường dẫn import
+import User from "../models/user.js";
 
-// 📌 Hàm chung để lấy và xác thực Access Token
+// Hàm chung để lấy và xác thực Access Token
 const verifyAccessToken = async (req) => {
     try {
         const authHeader = req.header("Authorization");
-        if (!authHeader?.startsWith("Bearer ")) {  // ✅ Dùng optional chaining để tránh lỗi
+        if (!authHeader?.startsWith("Bearer ")) {  // Dùng optional chaining để tránh lỗi
             throw new Error("Thiếu Access Token");
         }
 
@@ -22,7 +22,7 @@ const verifyAccessToken = async (req) => {
     }
 };
 
-// ✅ Middleware xác thực user đăng nhập
+// Middleware xác thực user đăng nhập
 export const verifyUser = async (req, res, next) => {
     try {
         req.user = await verifyAccessToken(req);
@@ -32,7 +32,7 @@ export const verifyUser = async (req, res, next) => {
     }
 };
 
-// ✅ Middleware xác thực admin
+// Middleware xác thực admin
 export const verifyAdmin = async (req, res, next) => {
     try {
         const user = await verifyAccessToken(req);
@@ -44,10 +44,10 @@ export const verifyAdmin = async (req, res, next) => {
     }
 };
 
-// ✅ Middleware kiểm tra Refresh Token
+// Middleware kiểm tra Refresh Token
 export const verifyRefreshToken = async (req, res, next) => {
     try {
-        const refreshToken = req.cookies?.refreshToken; // ✅ Kiểm tra cookies an toàn hơn
+        const refreshToken = req.cookies?.refreshToken; // Kiểm tra cookies an toàn hơn
         if (!refreshToken) {
             return res.status(403).json({ message: "Không có Refresh Token, vui lòng đăng nhập lại" });
         }

@@ -4,9 +4,9 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import http from "http"; // Import chuẩn
-import { Server as socketIo } from "socket.io"; // Import chuẩn
-import env from "./src/config/env.js"; // Nhớ thêm ".js"
+import http from "http";
+import { Server as socketIo } from "socket.io";
+import env from "./src/config/env.js";
 import connectDB from "./src/config/db.js";
 import userRoutes from "./src/routes/userRoutes.js";
 import authRoutes from "./src/routes/authRoutes.js";
@@ -51,7 +51,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/orders", orderRoutes);
 
 // ==========================
-// 🔹 Socket.IO - Quản lý Chat Live
+// Socket.IO - Quản lý Chat Live
 // ==========================
 io.on("connection", (socket) => {
   console.log(`🔌 User connected: ${socket.id}`);

@@ -13,7 +13,7 @@ const orderSchema = new mongoose.Schema(
     totalPrice: { type: Number, required: true }, // Tổng tiền đơn hàng
     paymentMethod: { type: String, enum: ["COD", "Stripe"], required: true }, // Thanh toán COD hoặc Stripe
     paymentStatus: { type: String, enum: ["pending", "paid"], default: "pending" }, // Trạng thái thanh toán
-    paymentIntentId: { type: String }, // 🆕 Lưu ID thanh toán Stripe
+    paymentIntentId: { type: String }, // Lưu ID thanh toán Stripe
     status: {
       type: String,
       enum: ["pending", "processing", "shipped", "delivered", "cancelled"],

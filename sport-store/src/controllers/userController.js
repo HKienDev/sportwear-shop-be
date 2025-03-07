@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import User from "../models/user.js";
 
-// 📌 Lấy danh sách tất cả người dùng (ẩn password)
+// Lấy danh sách tất cả người dùng (ẩn password)
 export const getAllUsers = async (req, res) => {
   try {
     const users = await User.find().select("-__v -password");
@@ -12,7 +12,7 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-// 📌 Lấy thông tin user đang đăng nhập
+// Lấy thông tin user đang đăng nhập
 export const getUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select("-password -refreshToken");
@@ -25,7 +25,7 @@ export const getUserProfile = async (req, res) => {
   }
 };
 
-// 📌 Lấy thông tin user theo ID (admin)
+// Lấy thông tin user theo ID (admin)
 export const getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select("-__v -password").lean();
@@ -38,7 +38,7 @@ export const getUserById = async (req, res) => {
   }
 };
 
-// 📌 Tạo người dùng mới
+// Tạo người dùng mới
 export const createUser = async (req, res) => {
   let { email, password, username, isAdminCreate } = req.body;
 
@@ -88,7 +88,7 @@ export const createUser = async (req, res) => {
   }
 };
 
-// 📌 Cập nhật thông tin user theo ID (admin)
+// Cập nhật thông tin user theo ID (admin)
 export const updateUserByAdmin = async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -132,7 +132,7 @@ export const updateUserByAdmin = async (req, res) => {
   }
 };
 
-// 📌 Xóa user theo ID (admin)
+// Xóa user theo ID (admin)
 export const deleteUser = async (req, res) => {
   try {
     if (req.user.role !== "admin") {
@@ -150,7 +150,7 @@ export const deleteUser = async (req, res) => {
   }
 };
 
-// 📌 Admin tạo admin mới
+// Admin tạo admin mới
 export const createNewAdmin = async (req, res) => {
   try {
     const { email, password, username } = req.body;

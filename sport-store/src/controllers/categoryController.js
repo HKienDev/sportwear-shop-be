@@ -1,6 +1,6 @@
 import Category from "../models/category.js";
 
-// 📌 Lấy tất cả danh mục
+// Lấy tất cả danh mục
 export const getAllCategories = async (req, res) => {
   try {
     const categories = await Category.find();
@@ -10,7 +10,7 @@ export const getAllCategories = async (req, res) => {
   }
 };
 
-// 📌 Lấy chi tiết một danh mục
+// Lấy chi tiết một danh mục
 export const getCategoryById = async (req, res) => {
   try {
     const category = await Category.findById(req.params.id);
@@ -21,7 +21,7 @@ export const getCategoryById = async (req, res) => {
   }
 };
 
-// 📌 Tạo danh mục mới
+// Tạo danh mục mới
 export const createCategory = async (req, res) => {
   try {
     const { name, description, parentCategory, image } = req.body;
@@ -36,7 +36,7 @@ export const createCategory = async (req, res) => {
   }
 };
 
-// 📌 Cập nhật danh mục
+// Cập nhật danh mục
 export const updateCategory = async (req, res) => {
   try {
     const { name, description, parentCategory, image } = req.body;
@@ -52,7 +52,7 @@ export const updateCategory = async (req, res) => {
   }
 };
 
-// 📌 Xóa danh mục
+// Xóa danh mục
 export const deleteCategory = async (req, res) => {
   try {
     const category = await Category.findByIdAndDelete(req.params.id);

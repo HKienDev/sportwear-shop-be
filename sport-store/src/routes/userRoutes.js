@@ -9,7 +9,7 @@ import {
   deleteUser, 
   createNewAdmin 
 } from "../controllers/userController.js";
-import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js"; // Import cần thiết
+import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
@@ -21,7 +21,7 @@ const validateObjectId = (req, res, next) => {
   next();
 };
 
-// 🛠 Routes dành cho admin
+// Routes dành cho admin
 router.get("/", verifyAdmin, getAllUsers); // Admin lấy danh sách user
 router.get("/:id", verifyAdmin, validateObjectId, getUserById); // Admin lấy thông tin user theo ID
 router.put("/admin/:id", verifyAdmin, updateUserByAdmin); // Admin update user
@@ -29,7 +29,7 @@ router.delete("/admin/:id", verifyAdmin, validateObjectId, deleteUser); // Admin
 router.post("/admin", verifyAdmin, createUser); // Admin tạo user mới
 router.post("/admin/create-admin", verifyAdmin, createNewAdmin);
 
-// 🛠 Route lấy thông tin user đang đăng nhập
+// Route lấy thông tin user đang đăng nhập
 router.get("/profile", verifyUser, getUserProfile);
 
 export default router;
