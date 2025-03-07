@@ -54,17 +54,17 @@ app.use("/api/orders", orderRoutes);
 // Socket.IO - Quản lý Chat Live
 // ==========================
 io.on("connection", (socket) => {
-  console.log(`🔌 User connected: ${socket.id}`);
+  console.log(`User connected: ${socket.id}`);
 
   // Nhận tin nhắn từ client
   socket.on("sendMessage", (data) => {
-    console.log("📩 Message received:", data);
+    console.log("Message received:", data);
     io.emit("receiveMessage", data); // Gửi tin nhắn tới tất cả client
   });
 
   // Khi user ngắt kết nối
   socket.on("disconnect", () => {
-    console.log(`❌ User disconnected: ${socket.id}`);
+    console.log(`User disconnected: ${socket.id}`);
   });
 });
 
@@ -74,5 +74,5 @@ export { app, server }; // Thay đổi từ `module.exports` sang `export`
 // Lắng nghe server
 const PORT = env.PORT || 4000;
 if (process.env.NODE_ENV !== "test") {
-  server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
