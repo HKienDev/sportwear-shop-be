@@ -9,7 +9,6 @@ import {
   logout, 
   forgotPassword, 
   verifyForgotPasswordOTP, 
-  resetPassword, 
   requestUpdate, 
   updateUser, 
   refreshToken, 
@@ -41,9 +40,6 @@ router.post("/forgot-password", forgotPassword);
 
 // 📌 Xác thực OTP quên mật khẩu & nhận token để đổi mật khẩu
 router.post("/verify-forgot-password-otp", verifyForgotPasswordOTP);
-
-// 📌 Đặt lại mật khẩu bằng resetToken
-router.post("/reset-password", resetPassword);
 
 // 📌 Gửi OTP để xác thực trước khi thay đổi thông tin bảo mật
 router.post("/request-update", requestUpdate);

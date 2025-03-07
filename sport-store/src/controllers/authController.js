@@ -158,6 +158,51 @@ export const forgotPassword = async (req, res) => {
     }
 };
 
+// Xác minh OTP để đặt lại mật khẩu
+export const verifyForgotPasswordOTP = async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+
+        // Kiểm tra đầu vào
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ message: "Thiếu thông tin cần thiết" });
+        }
+
+        // Kiểm tra xem email có yêu cầu quên mật khẩu không
+        const cachedData = await redisClient.get(`forgot-password:${email}`);
+        if (!cachedData) return res.status(400).json({ message: "OTP không hợp lệ hoặc đã hết hạn" });
+
+        let storedOtp;
+        try {
+            storedOtp = JSON.parse(cachedData).otp;
+        } catch (error) {
+            return res.status(500).json({ message: "Lỗi khi xử lý OTP" });
+        }
+
+        // Kiểm tra OTP hợp lệ không
+        if (String(storedOtp) !== String(otp)) {
+            return res.status(400).json({ message: "OTP không chính xác" });
+        }
+
+        // Kiểm tra user tồn tại không
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ message: "Người dùng không tồn tại" });
+
+        // Băm mật khẩu mới
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        await user.save();
+
+        // Xóa OTP khỏi Redis
+        await redisClient.del(`forgot-password:${email}`);
+
+        res.status(200).json({ message: "Mật khẩu đã được đặt lại thành công!" });
+    } catch (error) {
+        console.error("[VERIFY FORGOT PASSWORD] Lỗi:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+};
+
 // 🚀 Xác thực token
 export const verifyToken = (req, res) => {
     const { token } = req.body;
@@ -271,71 +316,3 @@ export const updateUser = async (req, res) => {
     }
 };
 
-/**
- * 📌 Đổi mật khẩu sau khi xác thực Access Token
- */
-export const resetPassword = async (req, res) => {
-    try {
-        const { newPassword } = req.body;
-        const { authorization } = req.headers;
-
-        if (!authorization) return res.status(401).json({ message: "Không có access token" });
-
-        // Xác thực Access Token
-        const token = authorization.split(" ")[1];
-        let decoded;
-        try {
-            decoded = jwt.verify(token, env.ACCESS_TOKEN_SECRET);
-        } catch (error) {
-            return res.status(401).json({ message: "Access token không hợp lệ hoặc đã hết hạn" });
-        }
-
-        // Lấy user từ token
-        const user = await User.findById(decoded.userId);
-        if (!user) return res.status(404).json({ message: "Người dùng không tồn tại" });
-
-        // Băm mật khẩu mới
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-        // Cập nhật mật khẩu vào database
-        user.password = hashedPassword;
-        await user.save();
-
-        res.status(200).json({ message: "Đổi mật khẩu thành công!" });
-    } catch (error) {
-        console.error("[RESET PASSWORD] Lỗi:", error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
-    }
-};
-
-export const verifyForgotPasswordOTP = async (req, res) => {
-    try {
-        const { email, otp, newPassword } = req.body;
-
-        // Kiểm tra xem email có yêu cầu quên mật khẩu không
-        const cachedData = await redisClient.get(`forgot-password:${email}`);
-        if (!cachedData) return res.status(400).json({ message: "OTP không hợp lệ hoặc đã hết hạn" });
-
-        const { otp: storedOtp } = JSON.parse(cachedData);
-
-        // Kiểm tra OTP
-        if (storedOtp !== otp) return res.status(400).json({ message: "OTP không chính xác" });
-
-        // Kiểm tra user tồn tại không
-        const user = await User.findOne({ email });
-        if (!user) return res.status(404).json({ message: "Người dùng không tồn tại" });
-
-        // Băm mật khẩu mới
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        user.password = hashedPassword;
-        await user.save();
-
-        // Xóa OTP khỏi Redis
-        await redisClient.del(`forgot-password:${email}`);
-
-        res.status(200).json({ message: "Mật khẩu đã được đặt lại thành công!" });
-    } catch (error) {
-        console.error("[VERIFY FORGOT PASSWORD] Lỗi:", error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
-    }
-};
