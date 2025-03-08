@@ -1,5 +1,5 @@
 import Product from "../models/product.js";
-import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
+import Category from "../models/category.js"; // Import model danh mục
 
 // Lấy danh sách sản phẩm (có phân trang, chỉ hiển thị sản phẩm đang bật)
 export const getProducts = async (req, res) => {
@@ -28,9 +28,6 @@ export const getProductById = async (req, res) => {
 // Thêm sản phẩm mới (Admin)
 export const createProduct = async (req, res) => {
   try {
-    console.log("Headers:", req.headers);
-    console.log("Data nhận được từ request body:", req.body);
-
     const {
       name,
       description,
@@ -63,10 +60,10 @@ export const createProduct = async (req, res) => {
       description,
       brand,
       price,
-      discountPrice: discountPrice || price, // Nếu không có discountPrice, dùng giá gốc
+      discountPrice: discountPrice || price,
       stock,
       category,
-      isActive: isActive ?? true, // Mặc định sản phẩm sẽ được bật
+      isActive: isActive ?? true,
       images: {
         main: images.main,
         sub: images.sub || [],
@@ -75,14 +72,16 @@ export const createProduct = async (req, res) => {
       size: size || [],
       sku,
       tags: tags || [],
-      ratings: { average: 0, count: 0 }, // Mặc định đánh giá = 0
+      ratings: { average: 0, count: 0 },
     });
 
     await newProduct.save();
 
+    // Cập nhật productCount trong danh mục
+    await Category.findByIdAndUpdate(category, { $inc: { productCount: 1 } });
+
     res.status(201).json({ message: "Tạo sản phẩm thành công", product: newProduct });
   } catch (error) {
-    console.error("Lỗi khi tạo sản phẩm:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -114,6 +113,10 @@ export const deleteProduct = async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
+
+    // Giảm productCount trong danh mục
+    await Category.findByIdAndUpdate(product.category, { $inc: { productCount: -1 } });
+
     res.status(200).json({ message: "Sản phẩm đã được xóa thành công" });
   } catch (error) {
     res.status(500).json({ message: error.message });
