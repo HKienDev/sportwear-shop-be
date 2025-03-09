@@ -84,23 +84,46 @@ export const login = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(401).json({ message: "Mật khẩu không chính xác" });
 
-        const accessToken = jwt.sign({ userId: user._id, role: user.role }, env.ACCESS_TOKEN_SECRET, { expiresIn: "30m" });
+        // ✅ Tạo Access Token (30 phút)
+        const accessToken = jwt.sign(
+            { userId: user._id, role: user.role },
+            env.ACCESS_TOKEN_SECRET,
+            { expiresIn: "30m" }
+        );
 
-        const refreshToken = jwt.sign({ userId: user._id }, env.REFRESH_TOKEN_SECRET, { expiresIn: "7d" });
+        // ✅ Kiểm tra nếu user đã có refreshToken
+        let refreshToken = user.refreshToken;
+        if (!refreshToken) {
+            refreshToken = jwt.sign(
+                { userId: user._id },
+                env.REFRESH_TOKEN_SECRET,
+                { expiresIn: "7d" }
+            );
+            user.refreshToken = refreshToken;
+            await user.save();
+        }
 
-        user.refreshToken = refreshToken;
-        await user.save();
+        console.log("🔍 Refresh Token hiện tại:", refreshToken);
 
+        // ✅ Lưu Refresh Token vào Cookie
         res.cookie("refreshToken", refreshToken, {
             httpOnly: true,
-            secure: env.NODE_ENV === "production",
-            sameSite: "Strict",
+            secure: env.NODE_ENV === "production" ? true : false,
+            sameSite: env.NODE_ENV === "production" ? "Strict" : "Lax",
+            path: "/",
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
         });
 
+        // ✅ Trả về thông tin user + accessToken (KHÔNG gửi refreshToken)
         res.status(200).json({
             message: "Đăng nhập thành công",
             accessToken,
-            user: { _id: user._id, username: user.username, role: user.role, isActive: user.isActive },
+            user: {
+                _id: user._id,
+                username: user.username,
+                role: user.role,
+                isActive: user.isActive
+            }
         });
     } catch (error) {
         console.error("[LOGIN] Lỗi:", error);
@@ -212,19 +235,30 @@ export const verifyToken = (req, res) => {
 // Hàm tạo Access Token mới từ Refresh Token
 export const refreshToken = async (req, res) => {
     try {
-        const { refreshToken } = req.cookies;
+        console.log("🔍 Cookies:", req.cookies);
+        console.log("🔍 Body:", req.body);
+
+        const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+        console.log("🔍 Refresh Token nhận được:", refreshToken);
+
         if (!refreshToken) return res.status(401).json({ message: "Không có Refresh Token" });
 
         const user = await User.findOne({ refreshToken });
         if (!user) return res.status(403).json({ message: "Refresh Token không hợp lệ hoặc đã hết hạn" });
 
-        const newAccessToken = jwt.sign(
-            { userId: user._id, role: user.role },
-            env.ACCESS_TOKEN_SECRET,
-            { expiresIn: "30m" }
-        );
+        jwt.verify(refreshToken, env.REFRESH_TOKEN_SECRET, async (err, decoded) => {
+            if (err) return res.status(403).json({ message: "Refresh Token hết hạn hoặc không hợp lệ" });
 
-        res.status(200).json({ accessToken: newAccessToken });
+            const newAccessToken = jwt.sign(
+                { userId: user._id, role: user.role },
+                env.ACCESS_TOKEN_SECRET,
+                { expiresIn: "30m" }
+            );
+
+            console.log("✅ Tạo Access Token mới:", newAccessToken);
+
+            res.status(200).json({ accessToken: newAccessToken });
+        });
     } catch (error) {
         console.error("[REFRESH TOKEN] Lỗi:", error);
         res.status(500).json({ message: "Lỗi server", error: error.message });

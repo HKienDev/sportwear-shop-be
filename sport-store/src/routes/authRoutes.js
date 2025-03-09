@@ -1,7 +1,8 @@
 import express from "express";
 import passport from "passport";
 import jwt from "jsonwebtoken";
-import env from "../config/env.js"; 
+import env from "../config/env.js";
+import User from "../models/user.js";
 import { 
   register, 
   verifyOTP, 
@@ -42,10 +43,10 @@ router.post("/forgot-password", forgotPassword);
 router.post("/verify-forgot-password-otp", verifyForgotPasswordOTP);
 
 // Gửi OTP để xác thực trước khi thay đổi thông tin bảo mật
-router.post("/request-update", requestUpdate);
+router.post("/request-update", authenticateToken, requestUpdate); // ✅ Thêm `authenticateToken`
 
 // Xác thực OTP và cập nhật thông tin bảo mật (email, username, password)
-router.put("/update-user", updateUser);
+router.put("/update-user", authenticateToken, updateUser); // ✅ Thêm `authenticateToken`
 
 // Route bắt đầu đăng nhập Google
 router.get(
@@ -69,26 +70,33 @@ router.get(
             { expiresIn: "7d" }
         );
 
-        console.log("FRONTEND_URL:", env.FRONTEND_URL); // Debug
-        console.log("Redirecting to:", `${env.FRONTEND_URL}/user/auth/google-success?token=${token}`); // Debug
+        // 🔒 Gửi token qua HTTP-only cookie thay vì URL
+        res.cookie("authToken", token, {
+            httpOnly: true,
+            secure: env.NODE_ENV === "production",
+            sameSite: "Lax",
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
+        });
 
-        // 📌 Chuyển hướng về FE với token
-        res.redirect(`${env.FRONTEND_URL}/user/auth/google-success?token=${token}`);
+        // 📌 Chuyển hướng về FE mà không để lộ token
+        res.redirect(`${env.FRONTEND_URL}/user/auth/google-success`);
     }
 );
 
 // Lấy thông tin user từ token
 router.get("/profile", authenticateToken, async (req, res) => {
-    try {
-        const user = {
-            id: req.user.userId,
-            email: req.user.email,
-            name: req.user.name,
-        };
-        res.json({ message: "User Profile", user });
-    } catch (error) {
-        res.status(500).json({ message: "Internal Server Error" });
-    }
+  try {
+      // Tìm user trong database
+      const user = await User.findById(req.user.userId).select("-password -refreshToken");
+      
+      if (!user) {
+          return res.status(404).json({ message: "Không tìm thấy người dùng" });
+      }
+
+      res.json({ message: "User Profile", user });
+  } catch (error) {
+      res.status(500).json({ message: "Lỗi server", error: error.message });
+  }
 });
 
 // Xác thực token

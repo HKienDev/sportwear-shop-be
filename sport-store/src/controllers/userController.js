@@ -15,13 +15,19 @@ export const getAllUsers = async (req, res) => {
 // Lấy thông tin user đang đăng nhập
 export const getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select("-password -refreshToken");
-    if (!user) {
-      return res.status(404).json({ message: "Không tìm thấy người dùng" });
-    }
-    res.status(200).json(user);
+      console.log("🔹 [Controller] Nhận request GET /profile từ user:", req.user);
+
+      const user = await User.findById(req.user.userId).select("-password -refreshToken");
+      if (!user) {
+          console.error("❌ [Controller] Không tìm thấy người dùng");
+          return res.status(404).json({ message: "Không tìm thấy người dùng" });
+      }
+
+      console.log("✅ [Controller] Trả về thông tin user:", user);
+      res.status(200).json(user);
   } catch (error) {
-    res.status(500).json({ message: "Lỗi server", error: error.message });
+      console.error("❌ [Controller] Lỗi server:", error.message);
+      res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };
 

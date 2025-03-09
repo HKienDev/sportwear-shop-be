@@ -13,7 +13,7 @@ import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-// ADMIN - Xem tất cả đơn hàng
+// ADMIN - Xem tất cả đơn hàng (có hỗ trợ tìm theo shortId hoặc _id)
 router.get("/admin", verifyUser, verifyAdmin, getAllOrders);
 
 // ADMIN - Xem chi tiết đơn hàng

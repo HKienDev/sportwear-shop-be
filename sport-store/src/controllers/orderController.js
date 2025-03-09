@@ -2,10 +2,15 @@ import Order from "../models/order.js";
 import Product from "../models/product.js";
 import stripe from "stripe";
 import getExchangeRate from "../utils/exchangeRate.js";
+import { nanoid } from "nanoid";
 
 const stripeInstance = stripe(process.env.STRIPE_SECRET_KEY);
 
 // User đặt hàng
+const generateOrderId = () => {
+  return `VJUSPORT${nanoid(7).toUpperCase()}`;
+};
+
 export const createOrder = async (req, res) => {
   try {
     const { items, shippingAddress, paymentMethod } = req.body;
@@ -29,6 +34,7 @@ export const createOrder = async (req, res) => {
     }
 
     let newOrder = new Order({
+      shortId: generateOrderId(), // Gán mã đơn hàng có tiền tố VJUSPORT
       user: userId,
       items: orderItems,
       totalPrice,
@@ -67,13 +73,28 @@ export const updateOrderStatus = async (req, res) => {
   }
 };
 
-// Lấy tất cả đơn hàng (ADMIN)
+// ADMIN - Lấy tất cả đơn hàng hoặc tìm theo shortId / _id
 export const getAllOrders = async (req, res) => {
   try {
-    const orders = await Order.find().populate("items.product", "name price");
+    const { search } = req.query;
+
+    let filter = {};
+    if (search) {
+      if (/^VJUSPORT[A-Z0-9]{7}$/.test(search)) { 
+        // Kiểm tra đúng định dạng VJUSPORT + 7 ký tự chữ + số
+        filter = { shortId: search };
+      } else if (/^[0-9a-fA-F]{24}$/.test(search)) {
+        // Kiểm tra đúng định dạng ObjectId (MongoDB ID)
+        filter = { _id: search };
+      } else {
+        return res.status(400).json({ message: "Mã đơn hàng không hợp lệ" });
+      }
+    }
+
+    const orders = await Order.find(filter).populate("items.product", "name price").sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {
-    res.status(500).json({ message: "Lỗi khi lấy tất cả đơn hàng", error: error.message });
+    res.status(500).json({ message: "Lỗi khi lấy đơn hàng", error: error.message });
   }
 };
 
@@ -140,6 +161,7 @@ export const deleteOrder = async (req, res) => {
     res.status(500).json({ message: "Lỗi khi hủy đơn hàng", error: error.message });
   }
 };
+
 
 // Xử lý Webhook từ Stripe
 export const stripeWebhook = async (req, res) => {

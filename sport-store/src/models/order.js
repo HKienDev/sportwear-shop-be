@@ -1,8 +1,18 @@
 import mongoose from "mongoose";
+import { nanoid } from "nanoid"; // Import nanoid để tạo mã ngẫu nhiên
+
+const generateOrderId = () => {
+  return `VJUSPORT${nanoid(7).toUpperCase()}`; // "VJUSPORT" + 7 ký tự ngẫu nhiên
+};
 
 const orderSchema = new mongoose.Schema(
   {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }, // Người đặt hàng
+    shortId: {
+      type: String,
+      unique: true,
+      default: generateOrderId, // Dùng hàm tự sinh mã
+    },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     items: [
       {
         product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
@@ -10,10 +20,10 @@ const orderSchema = new mongoose.Schema(
         price: { type: Number, required: true },
       }
     ],
-    totalPrice: { type: Number, required: true }, // Tổng tiền đơn hàng
-    paymentMethod: { type: String, enum: ["COD", "Stripe"], required: true }, // Thanh toán COD hoặc Stripe
-    paymentStatus: { type: String, enum: ["pending", "paid"], default: "pending" }, // Trạng thái thanh toán
-    paymentIntentId: { type: String }, // Lưu ID thanh toán Stripe
+    totalPrice: { type: Number, required: true },
+    paymentMethod: { type: String, enum: ["COD", "Stripe"], required: true },
+    paymentStatus: { type: String, enum: ["pending", "paid"], default: "pending" },
+    paymentIntentId: { type: String },
     status: {
       type: String,
       enum: ["pending", "processing", "shipped", "delivered", "cancelled"],

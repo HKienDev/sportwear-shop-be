@@ -1,15 +1,25 @@
 import jwt from "jsonwebtoken";
 
 export const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1]; // Lấy token từ header
+    const authHeader = req.header("Authorization");
+    console.log("🔹 [Middleware] Authorization Header:", authHeader);
 
-  if (!token) return res.status(401).json({ message: "Access Denied" });
+    if (!authHeader?.startsWith("Bearer ")) {
+        console.error("❌ [Middleware] Thiếu hoặc sai định dạng Access Token");
+        return res.status(401).json({ message: "Thiếu hoặc sai định dạng Access Token" });
+    }
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ message: "Invalid Token" });
+    const token = authHeader.split(" ")[1];
+    console.log("🔹 [Middleware] Access Token:", token);
 
-    req.user = user; // Gán user vào request để sử dụng trong các route
-    next();
-  });
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => { // ✅ Sửa JWT_SECRET thành ACCESS_TOKEN_SECRET
+        if (err) {
+            console.error("❌ [Middleware] Token không hợp lệ:", err.message);
+            return res.status(403).json({ message: "Token không hợp lệ hoặc đã hết hạn" });
+        }
+
+        console.log("✅ [Middleware] Token decoded thành công:", decoded);
+        req.user = decoded;
+        next();
+    });
 };

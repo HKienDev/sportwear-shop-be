@@ -5,29 +5,41 @@ import User from "../models/user.js";
 const verifyAccessToken = async (req) => {
     try {
         const authHeader = req.header("Authorization");
-        if (!authHeader?.startsWith("Bearer ")) {  // Dùng optional chaining để tránh lỗi
-            throw new Error("Thiếu Access Token");
+        console.log("🔹 [Middleware] Authorization Header:", authHeader);
+
+        if (!authHeader?.startsWith("Bearer ")) {
+            throw new Error("Thiếu hoặc sai định dạng Access Token");
         }
 
         const token = authHeader.split(" ")[1];
-        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        console.log("🔹 [Middleware] Access Token nhận được:", token);
 
+        // Xác thực Token
+        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        console.log("✅ [Middleware] Token decoded thành công:", decoded);
+
+        // Tìm user
         const user = await User.findById(decoded.userId).select("-password");
         if (!user) throw new Error("Người dùng không tồn tại");
-        if (!user.isActive) throw new Error("Tài khoản của bạn đã bị khóa");
+        if (!user.isActive) throw new Error("Tài khoản bị khóa");
 
+        console.log("✅ [Middleware] User verified:", user);
         return user;
     } catch (error) {
-        throw new Error(error.message || "Token không hợp lệ hoặc đã hết hạn");
+        console.error("❌ [Middleware] Lỗi xác thực Token:", error.message);
+        throw new Error("Invalid Token");
     }
 };
 
 // Middleware xác thực user đăng nhập
 export const verifyUser = async (req, res, next) => {
     try {
+        console.log("🔹 Authorization Header:", req.header("Authorization"));
         req.user = await verifyAccessToken(req);
+        console.log("✅ User verified:", req.user);
         next();
     } catch (error) {
+        console.error("❌ Lỗi verifyUser:", error.message);
         res.status(401).json({ message: error.message });
     }
 };
@@ -35,11 +47,19 @@ export const verifyUser = async (req, res, next) => {
 // Middleware xác thực admin
 export const verifyAdmin = async (req, res, next) => {
     try {
+        console.log("🔹 [Admin Middleware] Authorization Header:", req.header("Authorization"));
+
         const user = await verifyAccessToken(req);
-        if (user.role !== "admin") throw new Error("Bạn không có quyền admin");
+        console.log("✅ [Admin Middleware] User verified:", user);
+
+        if (user.role !== "admin") {
+            throw new Error("Bạn không có quyền admin");
+        }
+
         req.user = user;
         next();
     } catch (error) {
+        console.error("❌ [Admin Middleware] Lỗi:", error.message);
         res.status(403).json({ message: error.message });
     }
 };

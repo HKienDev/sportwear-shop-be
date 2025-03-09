@@ -16,10 +16,10 @@ import categoryRoutes from "./src/routes/categoryRoutes.js";
 import orderRoutes from "./src/routes/orderRoutes.js";
 
 const app = express();
-const server = http.createServer(app); // Tạo server HTTP
-const io = new socketIo(server, { // Sử dụng `new` khi khởi tạo `socket.io`
+const server = http.createServer(app);
+const io = new socketIo(server, {
   cors: {
-    origin: "http://localhost:3000", // FE chạy trên cổng 3000
+    origin: "http://localhost:3000",
     credentials: true,
     methods: ["GET", "POST"],
   },
@@ -51,15 +51,29 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/orders", orderRoutes);
 
 // ==========================
-// Socket.IO - Quản lý Chat Live
+// ⚡ Socket.IO - Quản lý Chat Live
 // ==========================
 io.on("connection", (socket) => {
   console.log(`User connected: ${socket.id}`);
 
-  // Nhận tin nhắn từ client
-  socket.on("sendMessage", (data) => {
-    console.log("Message received:", data);
-    io.emit("receiveMessage", data); // Gửi tin nhắn tới tất cả client
+  // Xác định loại người dùng (Admin hoặc Guest)
+  socket.on("identifyUser", ({ userId }) => {
+    socket.userId = userId || `guest-${socket.id}`; // Nếu không có userId thì coi là guest
+    socket.userType = userId ? "admin" : "guest"; // Admin nếu có userId, guest nếu không có
+
+    console.log(`User identified - ID: ${socket.userId}, Type: ${socket.userType}`);
+  });
+
+  // ✅ SỬA LỖI: Nhận tin nhắn đúng định dạng từ client
+  socket.on("sendMessage", ({ text }) => {
+    const message = {
+      senderId: socket.userId,
+      senderType: socket.userType,
+      text, // Không lồng thêm object
+    };
+
+    console.log("Message received:", message);
+    io.emit("receiveMessage", message); // Gửi tin nhắn chuẩn về tất cả client
   });
 
   // Khi user ngắt kết nối
@@ -69,7 +83,7 @@ io.on("connection", (socket) => {
 });
 
 // Xuất app để test
-export { app, server }; // Thay đổi từ `module.exports` sang `export`
+export { app, server };
 
 // Lắng nghe server
 const PORT = env.PORT || 4000;
