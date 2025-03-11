@@ -1,3 +1,4 @@
+import User from "../models/user.js";
 import Order from "../models/order.js";
 import Product from "../models/product.js";
 import stripe from "stripe";
@@ -11,10 +12,20 @@ const generateOrderId = () => {
   return `VJUSPORT${nanoid(7).toUpperCase()}`;
 };
 
+// Admin đặt hàng
 export const createOrder = async (req, res) => {
   try {
-    const { items, shippingAddress, paymentMethod } = req.body;
-    const userId = req.user._id;
+    const { items, shippingAddress, paymentMethod, userId: bodyUserId } = req.body;
+    let userId = req.user._id; // Mặc định là User thường
+
+    // Nếu là Admin và có userId trong req.body thì sử dụng userId đó
+    if (req.user.role === "admin" && bodyUserId) {
+      const userExists = await User.findById(bodyUserId);
+      if (!userExists) {
+        return res.status(400).json({ message: "Người dùng không tồn tại" });
+      }
+      userId = bodyUserId; // Gán userId từ Admin chọn
+    }
 
     let totalPrice = 0;
     let orderItems = [];
@@ -73,7 +84,7 @@ export const updateOrderStatus = async (req, res) => {
   }
 };
 
-// ADMIN - Lấy tất cả đơn hàng hoặc tìm theo shortId / _id
+// Admin - Lấy tất cả đơn hàng hoặc tìm theo shortId / _id
 export const getAllOrders = async (req, res) => {
   try {
     const { search } = req.query;
@@ -126,6 +137,11 @@ export const getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id).populate("items.product", "name price");
     if (!order) return res.status(404).json({ message: "Đơn hàng không tồn tại" });
+
+    // Kiểm tra quyền - chỉ admin hoặc user sở hữu đơn hàng mới được xem
+    if (req.user.role !== "admin" && order.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Bạn không có quyền xem đơn hàng này" });
+    }
 
     res.json(order);
   } catch (error) {

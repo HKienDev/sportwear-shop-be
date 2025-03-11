@@ -200,3 +200,25 @@ export const createNewAdmin = async (req, res) => {
     res.status(500).json({ message: "Lỗi máy chủ nội bộ." });
   }
 };
+
+// Lấy thông tin user theo số điện thoại
+export const getUserByPhone = async (req, res) => {
+  try {
+    const { phone } = req.params;
+
+    if (!phone) {
+      return res.status(400).json({ message: "Số điện thoại không hợp lệ" });
+    }
+
+    const user = await User.findOne({ phone }).select("-__v -password").lean();
+
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error("❌ [Controller] Lỗi khi tìm user theo số điện thoại:", error);
+    res.status(500).json({ message: "Lỗi máy chủ nội bộ" });
+  }
+};

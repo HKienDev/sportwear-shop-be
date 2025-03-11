@@ -7,7 +7,8 @@ import {
   createUser, 
   updateUserByAdmin, 
   deleteUser, 
-  createNewAdmin 
+  createNewAdmin,
+  getUserByPhone 
 } from "../controllers/userController.js";
 import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
 
@@ -28,6 +29,8 @@ router.put("/admin/:id", verifyAdmin, updateUserByAdmin); // Admin update user
 router.delete("/admin/:id", verifyAdmin, validateObjectId, deleteUser); // Admin xóa user
 router.post("/admin", verifyAdmin, createUser); // Admin tạo user mới
 router.post("/admin/create-admin", verifyAdmin, createNewAdmin);
+// Route tìm user theo số điện thoại
+router.get("/phone/:phone", getUserByPhone);
 
 // Route lấy thông tin user đang đăng nhập
 router.get("/profile", verifyUser, getUserProfile);
