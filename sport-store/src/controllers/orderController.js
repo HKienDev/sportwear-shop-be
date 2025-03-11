@@ -15,16 +15,13 @@ const generateOrderId = () => {
 // Admin đặt hàng
 export const createOrder = async (req, res) => {
   try {
-    const { items, shippingAddress, paymentMethod, userId: bodyUserId } = req.body;
-    let userId = req.user._id; // Mặc định là User thường
+    const { items, shippingAddress, paymentMethod, phone } = req.body;
+    let userId = null; // Mặc định khách vãng lai
 
-    // Nếu là Admin và có userId trong req.body thì sử dụng userId đó
-    if (req.user.role === "admin" && bodyUserId) {
-      const userExists = await User.findById(bodyUserId);
-      if (!userExists) {
-        return res.status(400).json({ message: "Người dùng không tồn tại" });
-      }
-      userId = bodyUserId; // Gán userId từ Admin chọn
+    // Kiểm tra số điện thoại có tồn tại trong DB không
+    const existingUser = await User.findOne({ phone });
+    if (existingUser) {
+      userId = existingUser._id; // Nếu có user, gán userId
     }
 
     let totalPrice = 0;
@@ -46,7 +43,7 @@ export const createOrder = async (req, res) => {
 
     let newOrder = new Order({
       shortId: generateOrderId(), // Gán mã đơn hàng có tiền tố VJUSPORT
-      user: userId,
+      user: userId, // Có thể là null nếu khách vãng lai
       items: orderItems,
       totalPrice,
       paymentMethod,

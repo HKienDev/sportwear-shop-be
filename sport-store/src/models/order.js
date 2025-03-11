@@ -12,7 +12,7 @@ const orderSchema = new mongoose.Schema(
       unique: true,
       default: generateOrderId, // Dùng hàm tự sinh mã
     },
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: false },
     items: [
       {
         product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
