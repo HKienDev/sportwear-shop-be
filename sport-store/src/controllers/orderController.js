@@ -17,49 +17,80 @@ const generateOrderId = () => {
 export const createOrder = async (req, res) => {
   try {
     const { items, shippingAddress, paymentMethod, phone } = req.body;
+
+    // Validation đầu vào
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: "Danh sách sản phẩm không hợp lệ" });
+    }
+    if (!shippingAddress || typeof shippingAddress !== "object") {
+      return res.status(400).json({ message: "Thông tin địa chỉ giao hàng không hợp lệ" });
+    }
+    if (!paymentMethod || !["COD", "Stripe"].includes(paymentMethod)) {
+      return res.status(400).json({ message: "Phương thức thanh toán không hợp lệ" });
+    }
+    if (!phone) {
+      return res.status(400).json({ message: "Số điện thoại không được cung cấp" });
+    }
+
+    // Chuẩn hóa số điện thoại
+    const normalizedPhone = phone.replace(/\s+/g, "").trim(); // Loại bỏ khoảng trắng và chuẩn hóa
+    console.log("Số điện thoại đã chuẩn hóa:", normalizedPhone);
+
     let userId = null; // Mặc định khách vãng lai
 
     // Kiểm tra số điện thoại có tồn tại trong DB không
-    const existingUser = await User.findOne({ phone });
+    const existingUser = await User.findOne({ phone: normalizedPhone });
     if (existingUser) {
       userId = existingUser._id; // Nếu có user, gán userId
+      console.log("Tìm thấy user với ID:", userId);
+    } else {
+      console.log("Không tìm thấy user với số điện thoại:", normalizedPhone);
     }
 
-    let totalPrice = 0;
-    let orderItems = [];
+    // Lấy danh sách ID sản phẩm từ items
+    const productIds = items.map(item => new mongoose.Types.ObjectId(item.product));
 
+    // Tìm tất cả sản phẩm trong DB bằng $in
+    const products = await Product.find({ _id: { $in: productIds } });
+
+    // Kiểm tra xem tất cả sản phẩm có tồn tại không
+    const productMap = new Map(products.map(product => [product._id.toString(), product]));
     for (const item of items) {
-      // Chuyển đổi item.product thành ObjectId
-      const productId = new mongoose.Types.ObjectId(item.product); // SỬA LẠI ĐÂY
-
-      // Tìm sản phẩm trong cơ sở dữ liệu
-      const product = await Product.findById(productId);
-      if (!product) {
+      if (!productMap.has(item.product)) {
         return res.status(404).json({ message: `Sản phẩm với ID ${item.product} không tồn tại` });
       }
+    }
 
+    // Tính tổng giá trị đơn hàng và tạo danh sách items
+    let totalPrice = 0;
+    const orderItems = items.map(item => {
+      const product = productMap.get(item.product);
       const itemPrice = product.price * item.quantity;
       totalPrice += itemPrice;
 
-      orderItems.push({
-        product: productId,
+      return {
+        product: product._id,
         quantity: item.quantity,
         price: product.price,
-      });
-    }
+      };
+    });
 
-    let newOrder = new Order({
+    // Tạo đơn hàng mới
+    const newOrder = new Order({
       shortId: generateOrderId(), // Gán mã đơn hàng có tiền tố VJUSPORT
       user: userId, // Có thể là null nếu khách vãng lai
       items: orderItems,
       totalPrice,
       paymentMethod,
+      paymentStatus: "pending", // Trạng thái thanh toán mặc định
+      status: "pending", // Trạng thái đơn hàng mặc định
       shippingAddress,
     });
 
+    // Lưu đơn hàng vào DB
     await newOrder.save();
-    res.status(201).json({ message: "Đặt hàng thành công", order: newOrder });
 
+    res.status(201).json({ message: "Đặt hàng thành công", order: newOrder });
   } catch (error) {
     console.error("Lỗi khi đặt hàng:", error);
     res.status(500).json({ message: "Lỗi khi đặt hàng", error: error.message });

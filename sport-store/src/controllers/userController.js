@@ -210,13 +210,15 @@ export const getUserByPhone = async (req, res) => {
       return res.status(400).json({ message: "Số điện thoại không hợp lệ" });
     }
 
-    const user = await User.findOne({ phone }).select("-__v -password").lean();
+    // Tìm user theo số điện thoại
+    const user = await User.findOne({ phone }).select("_id"); // Chỉ lấy _id
 
     if (!user) {
-      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+      return res.status(200).json({ exists: false }); // Không tìm thấy user
     }
 
-    res.json(user);
+    // Trả về _id của user nếu tồn tại
+    res.json({ exists: true, userId: user._id });
   } catch (error) {
     console.error("❌ [Controller] Lỗi khi tìm user theo số điện thoại:", error);
     res.status(500).json({ message: "Lỗi máy chủ nội bộ" });
