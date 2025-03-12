@@ -13,7 +13,8 @@ import {
   requestUpdate, 
   updateUser, 
   refreshToken, 
-  verifyToken 
+  verifyToken,
+  checkAuth // Thêm hàm checkAuth từ authController
 } from "../controllers/authController.js";
 import { authenticateToken } from "../middlewares/authenticateToken.js";
 
@@ -104,5 +105,8 @@ router.post("/verify-token", verifyToken);
 
 // Refresh token
 router.post("/refresh", refreshToken);
+
+// Check auth status (Kiểm tra trạng thái đăng nhập)
+router.get("/check", authenticateToken, checkAuth);
 
 export default router;

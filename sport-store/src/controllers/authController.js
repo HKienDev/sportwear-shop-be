@@ -24,7 +24,6 @@ const cacheGet = async (key) => {
 const sendAndCacheOTP = async (email, otpKey, data, expiry = 60) => {
     const otp = generateOTP();
     if (!(await sendOtpEmail(email, otp))) return false;
-
     await cacheSet(otpKey, { ...data, otp }, expiry);
     return true;
 };
@@ -33,16 +32,13 @@ const sendAndCacheOTP = async (email, otpKey, data, expiry = 60) => {
 export const register = async (req, res) => {
     try {
         const { email, username, password } = req.body;
-
         if (await User.exists({ email })) {
             return res.status(400).json({ message: "Email đã tồn tại" });
         }
-
         const hashedPassword = await hashPassword(password);
         if (!(await sendAndCacheOTP(email, `otp:${email}`, { username, hashedPassword }))) {
             return res.status(500).json({ message: "Gửi OTP thất bại. Vui lòng thử lại!" });
         }
-
         res.status(201).json({ message: "Đăng ký thành công! Vui lòng kiểm tra email để xác nhận OTP." });
     } catch (error) {
         console.error("[REGISTER] Lỗi:", error);
@@ -56,16 +52,12 @@ export const verifyOTP = async (req, res) => {
         const { email, otp } = req.body;
         const otpData = await cacheGet(`otp:${email}`);
         if (!otpData) return res.status(400).json({ message: "OTP không hợp lệ hoặc đã hết hạn" });
-
         const { otp: storedOtp, username, hashedPassword } = otpData;
         if (storedOtp !== otp) return res.status(400).json({ message: "OTP không chính xác!" });
-
         if (await User.exists({ email })) return res.status(400).json({ message: "Email đã tồn tại!" });
-
         const user = new User({ email, username, password: hashedPassword, isVerified: true });
         await user.save();
         await redisClient.del(`otp:${email}`);
-
         res.status(200).json({ message: "Tài khoản đã được xác thực và tạo thành công!" });
     } catch (error) {
         console.error("[VERIFY OTP] Lỗi:", error);
@@ -78,9 +70,7 @@ export const login = async (req, res) => {
     try {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
-
         if (!user) return res.status(401).json({ message: "Tài khoản không tồn tại" });
-
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(401).json({ message: "Mật khẩu không chính xác" });
 
@@ -108,7 +98,7 @@ export const login = async (req, res) => {
         // ✅ Lưu Refresh Token vào Cookie
         res.cookie("refreshToken", refreshToken, {
             httpOnly: true,
-            secure: env.NODE_ENV === "production" ? true : false,
+            secure: env.NODE_ENV === "production",
             sameSite: env.NODE_ENV === "production" ? "Strict" : "Lax",
             path: "/",
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
@@ -131,15 +121,34 @@ export const login = async (req, res) => {
     }
 };
 
+
+export const checkAuth = async (req, res) => {
+    try {
+      const user = req.user; // Middleware đã xác thực và gắn user vào req
+      if (!user) return res.status(401).json({ message: "Không có quyền truy cập" });
+  
+      res.status(200).json({
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+        },
+      });
+    } catch (error) {
+      console.error("[CHECK AUTH] Lỗi:", error);
+      res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+  };
+
 // Đăng xuất
 export const logout = async (req, res) => {
     try {
         const { refreshToken } = req.cookies;
         if (!refreshToken) return res.status(401).json({ message: "Không tìm thấy Refresh Token" });
-
         const user = await User.findOne({ refreshToken });
         if (!user) return res.status(403).json({ message: "Refresh Token không hợp lệ hoặc đã hết hạn" });
-
         user.refreshToken = null;
         await user.save();
 
@@ -161,11 +170,9 @@ export const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
         if (!(await User.exists({ email }))) return res.status(404).json({ message: "Email không tồn tại" });
-
         if (!(await sendAndCacheOTP(email, `forgot-password:${email}`, {}, 60))) {
             return res.status(500).json({ message: "Gửi OTP thất bại" });
         }
-
         res.json({ success: true, message: "OTP đã được gửi đến email của bạn!" });
     } catch (error) {
         console.error("[FORGOT PASSWORD] Lỗi:", error);
@@ -236,9 +243,7 @@ export const verifyToken = (req, res) => {
 export const refreshToken = async (req, res) => {
     try {
         console.log("🔍 Cookies:", req.cookies);
-        console.log("🔍 Body:", req.body);
-
-        const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+        const refreshToken = req.cookies.refreshToken;
         console.log("🔍 Refresh Token nhận được:", refreshToken);
 
         if (!refreshToken) return res.status(401).json({ message: "Không có Refresh Token" });
@@ -256,7 +261,6 @@ export const refreshToken = async (req, res) => {
             );
 
             console.log("✅ Tạo Access Token mới:", newAccessToken);
-
             res.status(200).json({ accessToken: newAccessToken });
         });
     } catch (error) {
@@ -337,4 +341,3 @@ export const updateUser = async (req, res) => {
         res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 };
-
