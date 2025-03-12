@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../models/user.js";
 import Order from "../models/order.js";
 import Product from "../models/product.js";
@@ -28,14 +29,20 @@ export const createOrder = async (req, res) => {
     let orderItems = [];
 
     for (const item of items) {
-      const product = await Product.findById(item.product);
-      if (!product) return res.status(404).json({ message: "Sản phẩm không tồn tại" });
+      // Chuyển đổi item.product thành ObjectId
+      const productId = new mongoose.Types.ObjectId(item.product); // SỬA LẠI ĐÂY
+
+      // Tìm sản phẩm trong cơ sở dữ liệu
+      const product = await Product.findById(productId);
+      if (!product) {
+        return res.status(404).json({ message: `Sản phẩm với ID ${item.product} không tồn tại` });
+      }
 
       const itemPrice = product.price * item.quantity;
       totalPrice += itemPrice;
 
       orderItems.push({
-        product: item.product,
+        product: productId,
         quantity: item.quantity,
         price: product.price,
       });
