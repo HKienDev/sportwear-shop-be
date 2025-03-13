@@ -15,13 +15,26 @@ export const getProducts = async (req, res) => {
 };
 
 // Lấy chi tiết sản phẩm theo ID
+import mongoose from "mongoose";
+
 export const getProductById = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
-    if (!product) return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
+    const productId = req.params.id;
+
+    // Kiểm tra định dạng ObjectId
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(404).json({ message: "Sản phẩm không tồn tại!" });
+    }
+
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ message: "Sản phẩm không tồn tại!" });
+    }
+
     res.status(200).json(product);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    // Chỉ trả về 500 cho các lỗi thực sự nghiêm trọng
+    res.status(500).json({ message: "Lỗi server: " + error.message });
   }
 };
 
