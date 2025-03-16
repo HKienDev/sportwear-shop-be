@@ -16,48 +16,105 @@ const generateOrderId = () => {
 // Admin đặt hàng
 export const createOrder = async (req, res) => {
   try {
-    const { items, shippingAddress, paymentMethod, phone } = req.body;
+    const { 
+      items, 
+      shippingAddress, 
+      paymentMethod, 
+      phone,
+      shippingMethod,
+      totalPrice: clientTotalPrice
+    } = req.body;
 
     // Validation đầu vào
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: "Danh sách sản phẩm không hợp lệ" });
     }
+
     if (!shippingAddress || typeof shippingAddress !== "object") {
       return res.status(400).json({ message: "Thông tin địa chỉ giao hàng không hợp lệ" });
     }
+
+    // Validate các trường bắt buộc của shippingAddress
+    const requiredFields = [
+      'fullName', 
+      'address', 
+      'city', 
+      'district',
+      'ward',
+      'postalCode'
+    ];
+    
+    for (const field of requiredFields) {
+      if (!shippingAddress[field]) {
+        return res.status(400).json({ 
+          message: `Thông tin ${field} không được để trống trong địa chỉ giao hàng` 
+        });
+      }
+    }
+
     if (!paymentMethod || !["COD", "Stripe"].includes(paymentMethod)) {
       return res.status(400).json({ message: "Phương thức thanh toán không hợp lệ" });
     }
+
     if (!phone) {
       return res.status(400).json({ message: "Số điện thoại không được cung cấp" });
     }
 
+    if (!shippingMethod || typeof shippingMethod !== "object") {
+      return res.status(400).json({ message: "Thông tin phương thức vận chuyển không hợp lệ" });
+    }
+
+    // Validate các trường bắt buộc của shippingMethod
+    const requiredShippingFields = ['method', 'expectedDate', 'courier', 'trackingId'];
+    for (const field of requiredShippingFields) {
+      if (!shippingMethod[field]) {
+        return res.status(400).json({ 
+          message: `Thông tin ${field} không được để trống trong phương thức vận chuyển` 
+        });
+      }
+    }
+
     // Chuẩn hóa số điện thoại
-    const normalizedPhone = phone.replace(/\s+/g, "").trim(); // Loại bỏ khoảng trắng và chuẩn hóa
-    console.log("Số điện thoại đã chuẩn hóa:", normalizedPhone);
+    const normalizedPhone = phone.replace(/\s+/g, "").trim();
+    
+    // Validate format số điện thoại
+    if (!normalizedPhone.match(/^0[0-9]{9}$/)) {
+      return res.status(400).json({ message: "Số điện thoại không đúng định dạng" });
+    }
 
     let userId = null; // Mặc định khách vãng lai
 
     // Kiểm tra số điện thoại có tồn tại trong DB không
     const existingUser = await User.findOne({ phone: normalizedPhone });
     if (existingUser) {
-      userId = existingUser._id; // Nếu có user, gán userId
-      console.log("Tìm thấy user với ID:", userId);
-    } else {
-      console.log("Không tìm thấy user với số điện thoại:", normalizedPhone);
+      userId = existingUser._id;
     }
 
     // Lấy danh sách ID sản phẩm từ items
-    const productIds = items.map(item => new mongoose.Types.ObjectId(item.product));
+    const productIds = items.map(item => {
+      try {
+        return new mongoose.Types.ObjectId(item.product);
+      } catch (error) {
+        throw new Error(`ID sản phẩm không hợp lệ: ${item.product}`);
+      }
+    });
 
-    // Tìm tất cả sản phẩm trong DB bằng $in
+    // Tìm tất cả sản phẩm trong DB
     const products = await Product.find({ _id: { $in: productIds } });
 
-    // Kiểm tra xem tất cả sản phẩm có tồn tại không
+    // Kiểm tra sự tồn tại của sản phẩm
     const productMap = new Map(products.map(product => [product._id.toString(), product]));
     for (const item of items) {
       if (!productMap.has(item.product)) {
         return res.status(404).json({ message: `Sản phẩm với ID ${item.product} không tồn tại` });
+      }
+      
+      // Kiểm tra số lượng
+      const product = productMap.get(item.product);
+      if (item.quantity > product.quantity) {
+        return res.status(400).json({ 
+          message: `Sản phẩm ${product.name} chỉ còn ${product.quantity} trong kho` 
+        });
       }
     }
 
@@ -65,35 +122,69 @@ export const createOrder = async (req, res) => {
     let totalPrice = 0;
     const orderItems = items.map(item => {
       const product = productMap.get(item.product);
-      const itemPrice = product.price * item.quantity;
-      totalPrice += itemPrice;
+      const itemPrice = product.discountPrice || product.price;
+      const itemTotal = itemPrice * item.quantity;
+      totalPrice += itemTotal;
 
       return {
         product: product._id,
         quantity: item.quantity,
-        price: product.price,
+        price: itemPrice,
       };
     });
 
+    // Kiểm tra tổng tiền từ client có khớp không
+    if (Math.abs(totalPrice - clientTotalPrice) > 1) {
+      console.log("Tổng tiền từ client:", clientTotalPrice);
+      console.log("Tổng tiền tính được:", totalPrice);
+      return res.status(400).json({ 
+        message: "Tổng tiền không khớp với dữ liệu từ server" 
+      });
+    }
+
     // Tạo đơn hàng mới
     const newOrder = new Order({
-      shortId: generateOrderId(), // Gán mã đơn hàng có tiền tố VJUSPORT
-      user: userId, // Có thể là null nếu khách vãng lai
+      shortId: generateOrderId(),
+      user: userId,
       items: orderItems,
       totalPrice,
       paymentMethod,
-      paymentStatus: "pending", // Trạng thái thanh toán mặc định
-      status: "pending", // Trạng thái đơn hàng mặc định
-      shippingAddress,
+      paymentStatus: "pending",
+      status: "pending",
+      shippingMethod,
+      shippingAddress: {
+        fullName: shippingAddress.fullName,
+        phone: normalizedPhone,
+        address: shippingAddress.address,
+        city: shippingAddress.city,
+        district: shippingAddress.district,
+        ward: shippingAddress.ward,
+        postalCode: shippingAddress.postalCode
+      }
     });
 
     // Lưu đơn hàng vào DB
     await newOrder.save();
 
-    res.status(201).json({ message: "Đặt hàng thành công", order: newOrder });
+    // Trừ stock sản phẩm ngay khi tạo đơn
+    for (const item of items) {
+      await Product.updateOne(
+        { _id: item.product },
+        { $inc: { quantity: -item.quantity } }
+      );
+    }
+
+    res.status(201).json({ 
+      message: "Đặt hàng thành công", 
+      order: newOrder 
+    });
+
   } catch (error) {
     console.error("Lỗi khi đặt hàng:", error);
-    res.status(500).json({ message: "Lỗi khi đặt hàng", error: error.message });
+    res.status(500).json({ 
+      message: "Lỗi khi đặt hàng", 
+      error: error.message 
+    });
   }
 };
 
@@ -109,6 +200,28 @@ export const updateOrderStatus = async (req, res) => {
 
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: "Đơn hàng không tồn tại" });
+
+    // Nếu chuyển từ "pending" sang "processing" (xác nhận đơn)
+    if (order.status === "pending" && status === "processing") {
+      // Trừ stock sản phẩm
+      for (const item of order.items) {
+        await Product.updateOne(
+          { _id: item.product },
+          { $inc: { quantity: -item.quantity } }
+        );
+      }
+    }
+
+    // Nếu chuyển sang trạng thái "cancelled"
+    if (status === "cancelled") {
+      // Hoàn lại stock sản phẩm
+      for (const item of order.items) {
+        await Product.updateOne(
+          { _id: item.product },
+          { $inc: { quantity: item.quantity } }
+        );
+      }
+    }
 
     order.status = status;
     await order.save();
@@ -167,7 +280,7 @@ export const updateOrderDetails = async (req, res) => {
   }
 };
 
-// Lấy đơn hàng theo ID (User)
+// Lấy đơn hàng theo ID (Admin)
 export const getOrderById = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id).populate("items.product", "name price");
@@ -198,18 +311,73 @@ export const getUserOrders = async (req, res) => {
 // Hủy đơn hàng (User hoặc Admin)
 export const deleteOrder = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json({ message: "Đơn hàng không tồn tại" });
+    // 1. Tìm đơn hàng và populate thông tin sản phẩm
+    const order = await Order.findById(req.params.id).populate("items.product", "name price quantity");
+    if (!order) {
+      return res.status(404).json({ message: "Đơn hàng không tồn tại" });
+    }
 
-    // Chỉ user của đơn hàng hoặc admin mới có quyền hủy
-    if (order.user.toString() !== req.user._id.toString() && req.user.role !== "admin") {
+    // 2. Kiểm tra quyền - chỉ admin hoặc user sở hữu đơn hàng mới được hủy
+    if (req.user.role !== "admin" && order.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Bạn không có quyền hủy đơn hàng này" });
     }
 
-    await order.deleteOne();
-    res.json({ message: "Hủy đơn hàng thành công" });
+    // 3. Kiểm tra trạng thái đơn hàng
+    if (order.status === "pending") {
+      return res.status(400).json({ 
+        message: "Chỉ có thể hủy đơn từ trạng thái 'Đã xác nhận' trở đi" 
+      });
+    }
+
+    // 4. Kiểm tra trạng thái đơn hàng đã bị hủy chưa
+    if (order.status === "cancelled") {
+      return res.status(400).json({ 
+        message: "Đơn hàng này đã bị hủy" 
+      });
+    }
+
+    // 5. Kiểm tra trạng thái đơn hàng đã giao chưa
+    if (order.status === "delivered") {
+      return res.status(400).json({ 
+        message: "Không thể hủy đơn hàng đã giao" 
+      });
+    }
+
+    // 6. Hoàn lại stock sản phẩm
+    for (const item of order.items) {
+      const product = item.product;
+      if (!product) {
+        return res.status(400).json({ 
+          message: `Không tìm thấy sản phẩm với ID ${item.product}` 
+        });
+      }
+
+      // Cập nhật số lượng sản phẩm
+      await Product.updateOne(
+        { _id: item.product },
+        { $inc: { quantity: item.quantity } }
+      );
+    }
+
+    // 7. Cập nhật trạng thái đơn hàng thành "cancelled"
+    order.status = "cancelled";
+    order.cancelledAt = new Date();
+    order.cancelledBy = req.user._id;
+    order.cancellationReason = "Hủy đơn hàng bởi " + (req.user.role === "admin" ? "admin" : "khách hàng");
+    await order.save();
+
+    // 8. Trả về thông báo thành công
+    res.json({ 
+      message: "Hủy đơn hàng thành công", 
+      order 
+    });
+
   } catch (error) {
-    res.status(500).json({ message: "Lỗi khi hủy đơn hàng", error: error.message });
+    console.error("Lỗi khi hủy đơn hàng:", error);
+    res.status(500).json({ 
+      message: "Lỗi khi hủy đơn hàng", 
+      error: error.message 
+    });
   }
 };
 

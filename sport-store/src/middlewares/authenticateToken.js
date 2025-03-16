@@ -12,6 +12,7 @@ export const authenticateToken = (req, res, next) => {
     const token = authHeader.split(" ")[1];
     console.log("🔹 [Middleware] Access Token:", token);
 
+    // Sử dụng ACCESS_TOKEN_SECRET thay vì JWT_SECRET
     jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
         if (err) {
             if (err.name === "TokenExpiredError") {
