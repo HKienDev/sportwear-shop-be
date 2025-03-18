@@ -64,16 +64,25 @@ io.on("connection", (socket) => {
     console.log(`User identified - ID: ${socket.userId}, Type: ${socket.userType}`);
   });
 
-  // ✅ SỬA LỖI: Nhận tin nhắn đúng định dạng từ client
-  socket.on("sendMessage", ({ text }) => {
+  // Sửa logic sendMessage trong BE
+  socket.on("sendMessage", ({ text, recipientId }) => {
     const message = {
       senderId: socket.userId,
       senderType: socket.userType,
-      text, // Không lồng thêm object
+      recipientId, // Người nhận
+      text,
     };
 
     console.log("Message received:", message);
-    io.emit("receiveMessage", message); // Gửi tin nhắn chuẩn về tất cả client
+
+    // Tìm socket của người nhận và gửi tin nhắn trực tiếp
+    const recipientSocket = io.sockets.sockets.get(recipientId);
+    if (recipientSocket) {
+      recipientSocket.emit("receiveMessage", message);
+    }
+
+    // Gửi lại tin nhắn cho người gửi để cập nhật giao diện
+    socket.emit("receiveMessage", message);
   });
 
   // Khi user ngắt kết nối
