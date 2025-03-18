@@ -186,16 +186,31 @@ export const updateOrderStatus = async (req, res) => {
     console.log("Request body:", req.body);
     console.log("Request user:", req.user);
     
-    const { status } = req.body;
+    const { status, updatedBy } = req.body;
     const validStatuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
 
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: "Trạng thái không hợp lệ" });
+      return res.status(400).json({ 
+        success: false,
+        message: "Trạng thái không hợp lệ" 
+      });
+    }
+
+    if (!updatedBy) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Thiếu thông tin người cập nhật" 
+      });
     }
 
     // Tìm đơn hàng
     const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json({ message: "Đơn hàng không tồn tại" });
+    if (!order) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Đơn hàng không tồn tại" 
+      });
+    }
 
     console.log("Current order status:", order.status);
     console.log("New status:", status);
@@ -211,6 +226,7 @@ export const updateOrderStatus = async (req, res) => {
 
     if (!statusFlow[order.status].includes(status)) {
       return res.status(400).json({ 
+        success: false,
         message: `Không thể chuyển trạng thái từ "${order.status}" sang "${status}". Thứ tự hợp lệ: ${statusFlow[order.status].join(", ")}`
       });
     }
@@ -228,6 +244,7 @@ export const updateOrderStatus = async (req, res) => {
           
           if (!product) {
             return res.status(404).json({ 
+              success: false,
               message: `Sản phẩm với ID ${item.product} không tồn tại` 
             });
           }
@@ -235,6 +252,7 @@ export const updateOrderStatus = async (req, res) => {
           // Kiểm tra số lượng tồn kho
           if (product.stock < item.quantity) {
             return res.status(400).json({ 
+              success: false,
               message: `Sản phẩm ${product.name} chỉ còn ${product.stock} trong kho` 
             });
           }
@@ -249,102 +267,99 @@ export const updateOrderStatus = async (req, res) => {
             { $inc: { stock: -item.quantity } }
           );
 
-          console.log(`Update result for product ${item.product}:`, result);
-
           if (result.modifiedCount === 0) {
-            throw new Error(`Không thể cập nhật số lượng cho sản phẩm ${item.product}`);
+            return res.status(400).json({ 
+              success: false,
+              message: `Không thể cập nhật số lượng cho sản phẩm ${product.name}` 
+            });
           }
         }
-
-        // Cập nhật trạng thái đơn hàng
-        const historyEntry = {
-          status,
-          updatedAt: new Date()
-        };
-
-        if (req.user && req.user._id) {
-          historyEntry.updatedBy = req.user._id;
-        }
-
-        order.statusHistory.push(historyEntry);
-        order.status = status;
-        await order.save();
-
-        console.log("Order status updated successfully");
       } catch (error) {
-        console.error("Error updating stock:", error);
+        console.error("Error updating product stock:", error);
         return res.status(500).json({ 
-          message: "Lỗi khi cập nhật số lượng tồn kho", 
-          error: error.message 
+          success: false,
+          message: "Lỗi khi cập nhật số lượng sản phẩm" 
         });
       }
-    } else if (status === "cancelled" && order.status === "processing") {
-      console.log("Cancelling order from processing status...");
+    }
+
+    // Nếu chuyển sang trạng thái "cancelled" và có yêu cầu hoàn stock
+    if (status === "cancelled" && req.body.restoreStock) {
+      console.log("Restoring stock for cancelled order...");
       
       try {
-        // Hoàn lại số lượng cho từng sản phẩm
+        // Hoàn lại stock cho từng sản phẩm
         for (const item of order.items) {
-          console.log(`Restoring stock for product ${item.product}`);
+          console.log(`Restoring stock for product ${item.product}, quantity: ${item.quantity}`);
           
+          // Kiểm tra sản phẩm tồn tại
+          const product = await Product.findById(item.product);
+          if (!product) {
+            return res.status(404).json({ 
+              success: false,
+              message: `Sản phẩm với ID ${item.product} không tồn tại` 
+            });
+          }
+
+          // Cập nhật số lượng
           const result = await Product.updateOne(
             { _id: item.product },
             { $inc: { stock: item.quantity } }
           );
 
-          console.log(`Restore result for product ${item.product}:`, result);
-
           if (result.modifiedCount === 0) {
-            throw new Error(`Không thể hoàn lại số lượng cho sản phẩm ${item.product}`);
+            return res.status(400).json({ 
+              success: false,
+              message: `Không thể hoàn lại số lượng cho sản phẩm ${product.name}` 
+            });
           }
+          
+          console.log(`Successfully restored stock for product ${item.product}`);
         }
-
-        // Cập nhật trạng thái đơn hàng
-        const historyEntry = {
-          status,
-          updatedAt: new Date()
-        };
-
-        if (req.user && req.user._id) {
-          historyEntry.updatedBy = req.user._id;
-        }
-
-        order.statusHistory.push(historyEntry);
-        order.status = status;
-        await order.save();
-
-        console.log("Order cancelled successfully");
       } catch (error) {
-        console.error("Error cancelling order:", error);
+        console.error("Error restoring product stock:", error);
         return res.status(500).json({ 
-          message: "Lỗi khi hoàn lại số lượng tồn kho", 
-          error: error.message 
+          success: false,
+          message: "Lỗi khi hoàn lại số lượng sản phẩm" 
         });
       }
-    } else {
-      console.log("Updating to other status:", status);
-      
-      // Các trạng thái khác chỉ cần cập nhật trạng thái
-      const historyEntry = {
-        status,
-        updatedAt: new Date()
-      };
-
-      if (req.user && req.user._id) {
-        historyEntry.updatedBy = req.user._id;
-      }
-
-      order.statusHistory.push(historyEntry);
-      order.status = status;
-      await order.save();
     }
 
-    res.json({ message: "Cập nhật trạng thái đơn hàng thành công", order });
+    // Cập nhật trạng thái đơn hàng và thêm vào lịch sử
+    const updatedOrder = await Order.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: { status },
+        $push: {
+          statusHistory: {
+            status,
+            updatedBy,
+            updatedAt: new Date()
+          }
+        }
+      },
+      { new: true }
+    );
+
+    if (!updatedOrder) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Không tìm thấy đơn hàng để cập nhật" 
+      });
+    }
+
+    res.json({ 
+      success: true,
+      message: "Cập nhật trạng thái đơn hàng thành công",
+      order: updatedOrder 
+    });
+
   } catch (error) {
-    console.error("Error in updateOrderStatus:", error);
+    console.error("Error updating order status:", error);
     res.status(500).json({ 
-      message: "Lỗi khi cập nhật đơn hàng", 
-      error: error.message,
-      stack: error.stack 
+      success: false,
+      message: "Lỗi khi cập nhật trạng thái đơn hàng",
+      error: error.message 
     });
   }
 };

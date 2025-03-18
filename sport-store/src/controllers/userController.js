@@ -207,20 +207,43 @@ export const getUserByPhone = async (req, res) => {
     const { phone } = req.params;
 
     if (!phone) {
-      return res.status(400).json({ message: "Số điện thoại không hợp lệ" });
+      return res.status(400).json({ 
+        success: false,
+        message: "Số điện thoại không được để trống" 
+      });
     }
 
     // Tìm user theo số điện thoại
-    const user = await User.findOne({ phone }).select("_id"); // Chỉ lấy _id
+    const user = await User.findOne({ phone })
+      .select('_id username email phone')
+      .lean();
 
     if (!user) {
-      return res.status(200).json({ exists: false }); // Không tìm thấy user
+      return res.status(200).json({ 
+        success: false,
+        message: "Không tìm thấy người dùng với số điện thoại này",
+        exists: false 
+      });
     }
 
-    // Trả về _id của user nếu tồn tại
-    res.json({ exists: true, userId: user._id });
+    // Trả về thông tin user nếu tồn tại
+    res.json({
+      success: true, 
+      exists: true,
+      message: "Tìm thấy người dùng",
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        phone: user.phone
+      }
+    });
   } catch (error) {
     console.error("❌ [Controller] Lỗi khi tìm user theo số điện thoại:", error);
-    res.status(500).json({ message: "Lỗi máy chủ nội bộ" });
+    res.status(500).json({ 
+      success: false,
+      message: "Lỗi máy chủ khi tìm kiếm người dùng",
+      error: error.message 
+    });
   }
 };
