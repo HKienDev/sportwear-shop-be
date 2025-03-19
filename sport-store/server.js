@@ -65,24 +65,18 @@ io.on("connection", (socket) => {
   });
 
   // Sửa logic sendMessage trong BE
-  socket.on("sendMessage", ({ text, recipientId }) => {
+  socket.on("sendMessage", ({ text }) => {
     const message = {
       senderId: socket.userId,
       senderType: socket.userType,
-      recipientId, // Người nhận
       text,
     };
 
-    console.log("Message received:", message);
+    console.log("Message received from:", message.senderId, "| Content:", message.text);
 
-    // Tìm socket của người nhận và gửi tin nhắn trực tiếp
-    const recipientSocket = io.sockets.sockets.get(recipientId);
-    if (recipientSocket) {
-      recipientSocket.emit("receiveMessage", message);
-    }
+    // Gửi tin nhắn đến tất cả user khác (ngoại trừ sender)
+    socket.broadcast.emit("receiveMessage", message);
 
-    // Gửi lại tin nhắn cho người gửi để cập nhật giao diện
-    socket.emit("receiveMessage", message);
   });
 
   // Khi user ngắt kết nối
