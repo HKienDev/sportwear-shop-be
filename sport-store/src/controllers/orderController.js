@@ -122,6 +122,7 @@ export const createOrder = async (req, res) => {
     let totalPrice = 0;
     const orderItems = items.map(item => {
       const product = productMap.get(item.product);
+      // Sử dụng discountPrice nếu có, nếu không thì dùng price
       const itemPrice = product.discountPrice || product.price;
       const itemTotal = itemPrice * item.quantity;
       totalPrice += itemTotal;
@@ -132,6 +133,14 @@ export const createOrder = async (req, res) => {
         price: itemPrice,
       };
     });
+
+    // Thêm phí vận chuyển vào tổng tiền
+    const shippingFee = shippingMethod.method === "Express" 
+      ? 50000 
+      : shippingMethod.method === "SameDay" 
+      ? 100000 
+      : 30000;
+    totalPrice += shippingFee;
 
     // Kiểm tra tổng tiền từ client có khớp không
     if (Math.abs(totalPrice - clientTotalPrice) > 1) {
@@ -151,7 +160,10 @@ export const createOrder = async (req, res) => {
       paymentMethod,
       paymentStatus: "pending",
       status: "pending",
-      shippingMethod,
+      shippingMethod: {
+        ...shippingMethod,
+        fee: shippingFee
+      },
       shippingAddress: {
         fullName: shippingAddress.fullName,
         phone: normalizedPhone,
@@ -186,7 +198,7 @@ export const updateOrderStatus = async (req, res) => {
     console.log("Request body:", req.body);
     console.log("Request user:", req.user);
     
-    const { status, updatedBy } = req.body;
+    const { status, updatedBy, updateUserTotalSpent } = req.body;
     const validStatuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
 
     if (!validStatuses.includes(status)) {
@@ -248,110 +260,47 @@ export const updateOrderStatus = async (req, res) => {
               message: `Sản phẩm với ID ${item.product} không tồn tại` 
             });
           }
-          
-          // Kiểm tra số lượng tồn kho
-          if (product.stock < item.quantity) {
-            return res.status(400).json({ 
-              success: false,
-              message: `Sản phẩm ${product.name} chỉ còn ${product.stock} trong kho` 
-            });
-          }
 
-          // Cập nhật số lượng
-          console.log(`Updating stock for product ${item.product}`);
-          const result = await Product.updateOne(
-            { 
-              _id: item.product,
-              stock: { $gte: item.quantity }
-            },
-            { $inc: { stock: -item.quantity } }
-          );
+          // Cập nhật số lượng sản phẩm
+          product.quantity -= item.quantity;
+          await product.save();
+        }
 
-          if (result.modifiedCount === 0) {
-            return res.status(400).json({ 
-              success: false,
-              message: `Không thể cập nhật số lượng cho sản phẩm ${product.name}` 
-            });
+        // Cập nhật totalSpent của user nếu có
+        if (order.user && updateUserTotalSpent) {
+          const user = await User.findById(order.user);
+          if (user) {
+            user.totalSpent += order.totalPrice; // Sử dụng totalPrice đã bao gồm phí vận chuyển
+            await user.save();
           }
         }
       } catch (error) {
-        console.error("Error updating product stock:", error);
+        console.error("Error updating product quantities or user totalSpent:", error);
         return res.status(500).json({ 
           success: false,
-          message: "Lỗi khi cập nhật số lượng sản phẩm" 
+          message: "Lỗi khi cập nhật số lượng sản phẩm hoặc thông tin người dùng" 
         });
       }
     }
 
-    // Nếu chuyển sang trạng thái "cancelled" và có yêu cầu hoàn stock
-    if (status === "cancelled" && req.body.restoreStock) {
-      console.log("Restoring stock for cancelled order...");
-      
-      try {
-        // Hoàn lại stock cho từng sản phẩm
-        for (const item of order.items) {
-          console.log(`Restoring stock for product ${item.product}, quantity: ${item.quantity}`);
-          
-          // Kiểm tra sản phẩm tồn tại
-          const product = await Product.findById(item.product);
-          if (!product) {
-            return res.status(404).json({ 
-              success: false,
-              message: `Sản phẩm với ID ${item.product} không tồn tại` 
-            });
-          }
+    // Cập nhật trạng thái đơn hàng
+    order.status = status;
+    order.updatedBy = updatedBy;
+    order.updatedAt = new Date();
+    
+    // Thêm vào lịch sử cập nhật
+    order.statusHistory.push({
+      status,
+      updatedBy,
+      updatedAt: new Date()
+    });
 
-          // Cập nhật số lượng
-          const result = await Product.updateOne(
-            { _id: item.product },
-            { $inc: { stock: item.quantity } }
-          );
-
-          if (result.modifiedCount === 0) {
-            return res.status(400).json({ 
-              success: false,
-              message: `Không thể hoàn lại số lượng cho sản phẩm ${product.name}` 
-            });
-          }
-          
-          console.log(`Successfully restored stock for product ${item.product}`);
-        }
-      } catch (error) {
-        console.error("Error restoring product stock:", error);
-        return res.status(500).json({ 
-          success: false,
-          message: "Lỗi khi hoàn lại số lượng sản phẩm" 
-        });
-      }
-    }
-
-    // Cập nhật trạng thái đơn hàng và thêm vào lịch sử
-    const updatedOrder = await Order.findByIdAndUpdate(
-      req.params.id,
-      {
-        $set: { status },
-        $push: {
-          statusHistory: {
-            status,
-            updatedBy,
-            updatedAt: new Date()
-          }
-        }
-      },
-      { new: true }
-    );
-
-    if (!updatedOrder) {
-      return res.status(404).json({ 
-        success: false,
-        message: "Không tìm thấy đơn hàng để cập nhật" 
-      });
-    }
+    await order.save();
 
     res.json({ 
       success: true,
       message: "Cập nhật trạng thái đơn hàng thành công",
-      order: updatedOrder 
+      order 
     });
 
   } catch (error) {
@@ -491,14 +440,35 @@ export const deleteOrder = async (req, res) => {
       );
     }
 
-    // 7. Cập nhật trạng thái đơn hàng thành "cancelled"
+    // Nếu đơn hàng đã được xác nhận (status là processing hoặc shipped), cập nhật lại số lượng sản phẩm và totalSpent
+    if (order.status === "processing" || order.status === "shipped") {
+      // Cập nhật lại số lượng sản phẩm
+      for (const item of order.items) {
+        const product = await Product.findById(item.product);
+        if (product) {
+          product.quantity += item.quantity;
+          await product.save();
+        }
+      }
+
+      // Cập nhật lại totalSpent của user
+      if (order.user) {
+        const user = await User.findById(order.user);
+        if (user) {
+          user.totalSpent -= order.totalPrice; // Sử dụng totalPrice đã bao gồm phí vận chuyển
+          await user.save();
+        }
+      }
+    }
+
+    // 8. Cập nhật trạng thái đơn hàng thành "cancelled"
     order.status = "cancelled";
     order.cancelledAt = new Date();
     order.cancelledBy = req.user._id;
     order.cancellationReason = "Hủy đơn hàng bởi " + (req.user.role === "admin" ? "admin" : "khách hàng");
     await order.save();
 
-    // 8. Trả về thông báo thành công
+    // 9. Trả về thông báo thành công
     res.json({ 
       message: "Hủy đơn hàng thành công", 
       order 
