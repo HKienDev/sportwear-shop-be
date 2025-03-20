@@ -7,7 +7,8 @@ import {
     getUserOrders,
     getAllOrders,
     deleteOrder,
-    stripeWebhook
+    stripeWebhook,
+    getOrdersByPhone
 } from "../controllers/orderController.js";
 import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
 
@@ -27,7 +28,10 @@ router.get("/user/:id", verifyUser, getOrderById);
 router.delete("/user/:id", verifyUser, deleteOrder);
 
 // ADMIN ROUTES
-// Admin - Xem tất cả đơn hàng (có hỗ trợ tìm theo shortId hoặc _id)
+// Admin - Lấy danh sách đơn hàng theo số điện thoại
+router.get("/admin/by-phone", verifyUser, verifyAdmin, getOrdersByPhone);
+
+// Admin - Lấy danh sách đơn hàng
 router.get("/admin", verifyUser, verifyAdmin, getAllOrders);
 
 // Admin - Xem chi tiết đơn hàng

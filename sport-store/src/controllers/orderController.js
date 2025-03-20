@@ -483,7 +483,6 @@ export const deleteOrder = async (req, res) => {
   }
 };
 
-
 // Xử lý Webhook từ Stripe
 export const stripeWebhook = async (req, res) => {
   const sig = req.headers["stripe-signature"];
@@ -515,4 +514,50 @@ export const stripeWebhook = async (req, res) => {
   }
 
   res.json({ received: true });
+};
+
+// Lấy danh sách đơn hàng theo số điện thoại
+export const getOrdersByPhone = async (req, res) => {
+  try {
+    const { phone } = req.query;
+
+    if (!phone) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Số điện thoại không được cung cấp" 
+      });
+    }
+
+    // Chuẩn hóa số điện thoại
+    const normalizedPhone = phone.replace(/\s+/g, "").trim();
+    
+    // Validate format số điện thoại
+    if (!normalizedPhone.match(/^0[0-9]{9}$/)) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Số điện thoại không đúng định dạng" 
+      });
+    }
+
+    // Tìm tất cả đơn hàng có số điện thoại khớp
+    const orders = await Order.find({
+      "shippingAddress.phone": normalizedPhone
+    })
+    .sort({ createdAt: -1 }) // Sắp xếp theo thời gian mới nhất
+    .populate("user", "name email phone") // Populate thông tin user nếu có
+    .populate("items.product", "name images price discountPrice"); // Populate thông tin sản phẩm
+
+    res.status(200).json({
+      success: true,
+      orders
+    });
+
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách đơn hàng:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Lỗi khi lấy danh sách đơn hàng", 
+      error: error.message 
+    });
+  }
 };
