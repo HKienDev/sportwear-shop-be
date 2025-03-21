@@ -1,12 +1,23 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import User from "../models/user.js";
+import Order from "../models/order.js";
 
 // Lấy danh sách tất cả người dùng (ẩn password)
 export const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-__v -password");
-    res.json(users);
+    const users = await User.find()
+      .select("-__v -password")
+      .lean()
+      .exec();
+
+    // Đặt isActive thành false cho tất cả user
+    const modifiedUsers = users.map(user => ({
+      ...user,
+      isActive: false
+    }));
+
+    res.json(modifiedUsers);
   } catch (error) {
     res.status(500).json({ message: "Lỗi máy chủ nội bộ." });
   }
@@ -244,6 +255,36 @@ export const getUserByPhone = async (req, res) => {
       success: false,
       message: "Lỗi máy chủ khi tìm kiếm người dùng",
       error: error.message 
+    });
+  }
+};
+
+// Cập nhật orderCount cho tất cả user
+export const updateAllUsersOrderCount = async (req, res) => {
+  try {
+    const users = await User.find({});
+    
+    for (const user of users) {
+      // Đếm số đơn hàng không bị hủy của user
+      const orderCount = await Order.countDocuments({
+        user: user._id,
+        status: { $ne: "cancelled" }
+      });
+
+      // Cập nhật orderCount cho user
+      await User.findByIdAndUpdate(user._id, { orderCount });
+    }
+
+    res.json({
+      success: true,
+      message: "Đã cập nhật orderCount cho tất cả user"
+    });
+  } catch (error) {
+    console.error("Lỗi khi cập nhật orderCount:", error);
+    res.status(500).json({
+      success: false,
+      message: "Không thể cập nhật orderCount",
+      error: error.message
     });
   }
 };

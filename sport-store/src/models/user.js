@@ -48,7 +48,9 @@ const userSchema = new mongoose.Schema({
   totalSpent: { type: Number, default: 0 }, 
 
   // Lưu tạm dữ liệu cập nhật
-  pendingUpdate: { type: Object, default: {} }
+  pendingUpdate: { type: Object, default: {} },
+
+  orderCount: { type: Number, default: 0 }
 });
 
 // Mã hóa mật khẩu trước khi lưu

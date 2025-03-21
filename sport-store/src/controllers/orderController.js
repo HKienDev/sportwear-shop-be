@@ -178,6 +178,14 @@ export const createOrder = async (req, res) => {
     // Lưu đơn hàng vào DB
     await newOrder.save();
 
+    // Cập nhật orderCount của user
+    if (userId) {
+      await User.findByIdAndUpdate(
+        userId,
+        { $inc: { orderCount: 1 } }
+      );
+    }
+
     res.status(201).json({ 
       message: "Đặt hàng thành công", 
       order: newOrder 
@@ -283,12 +291,23 @@ export const updateOrderStatus = async (req, res) => {
       }
     }
 
+    // Cập nhật orderCount nếu trạng thái thay đổi từ/đến cancelled
+    if (order.user) {
+      if (status === "cancelled" && order.status !== "cancelled") {
+        await User.findByIdAndUpdate(
+          order.user,
+          { $inc: { orderCount: -1 } }
+        );
+      } else if (order.status === "cancelled" && status !== "cancelled") {
+        await User.findByIdAndUpdate(
+          order.user,
+          { $inc: { orderCount: 1 } }
+        );
+      }
+    }
+
     // Cập nhật trạng thái đơn hàng
     order.status = status;
-    order.updatedBy = updatedBy;
-    order.updatedAt = new Date();
-    
-    // Thêm vào lịch sử cập nhật
     order.statusHistory.push({
       status,
       updatedBy,
@@ -304,7 +323,7 @@ export const updateOrderStatus = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Error updating order status:", error);
+    console.error("Lỗi khi cập nhật trạng thái đơn hàng:", error);
     res.status(500).json({ 
       success: false,
       message: "Lỗi khi cập nhật trạng thái đơn hàng",
