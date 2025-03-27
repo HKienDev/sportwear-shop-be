@@ -9,7 +9,8 @@ import {
   deleteUser, 
   createNewAdmin,
   getUserByPhone,
-  updateUserTotalSpent 
+  updateUserTotalSpent,
+  resetUserPassword 
 } from "../controllers/userController.js";
 import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
 
@@ -54,5 +55,8 @@ router.get("/profile", verifyUser, getUserProfile);
 
 // Route cập nhật totalSpent
 router.put("/admin/update-total-spent", verifyAdmin, validateBodyObjectId, updateUserTotalSpent);
+
+// Route reset password cho user (admin)
+router.post("/admin/:id/reset-password", verifyAdmin, validateObjectId, resetUserPassword);
 
 export default router;

@@ -414,3 +414,58 @@ export const updateUserTotalSpent = async (req, res) => {
     });
   }
 };
+
+// Admin reset password cho user
+export const resetUserPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+
+    // Kiểm tra quyền admin
+    if (req.user.role !== "admin") {
+      return res.status(403).json({ 
+        success: false,
+        message: "Bạn không có quyền thực hiện thao tác này." 
+      });
+    }
+
+    // Kiểm tra mật khẩu mới
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Mật khẩu phải có ít nhất 6 ký tự"
+      });
+    }
+
+    // Mã hóa mật khẩu mới
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Cập nhật mật khẩu trong database
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { password: hashedPassword },
+      { new: true }
+    ).select("-password");
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy người dùng"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Đặt lại mật khẩu thành công",
+      user: updatedUser
+    });
+
+  } catch (error) {
+    console.error("❌ [Controller] Lỗi khi đặt lại mật khẩu:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server khi đặt lại mật khẩu"
+    });
+  }
+};
