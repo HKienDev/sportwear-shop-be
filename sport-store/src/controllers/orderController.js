@@ -265,12 +265,23 @@ export const updateOrderStatus = async (req, res) => {
 
     // Nếu đơn hàng được giao thành công (delivered), cập nhật stock sản phẩm và totalSpent của user
     if (status === "delivered") {
-      // Cập nhật stock cho từng sản phẩm trong đơn hàng
+      // Kiểm tra và cập nhật stock cho từng sản phẩm trong đơn hàng
       for (const item of order.items) {
-        await Product.findByIdAndUpdate(
-          item.product._id,
-          { $inc: { quantity: -item.quantity } }
-        );
+        const product = await Product.findById(item.product._id);
+        if (!product) {
+          throw new Error(`Không tìm thấy sản phẩm với ID: ${item.product._id}`);
+        }
+
+        // Kiểm tra stock còn đủ không
+        if (product.stock < item.quantity) {
+          throw new Error(`Sản phẩm ${product.name} không đủ số lượng trong kho (Còn: ${product.stock}, Cần: ${item.quantity})`);
+        }
+
+        // Cập nhật stock
+        product.stock -= item.quantity;
+        await product.save();
+
+        console.log(`✅ [Controller] Đã cập nhật stock cho sản phẩm ${product.name}: -${item.quantity}`);
       }
 
       // Cập nhật totalSpent của user
