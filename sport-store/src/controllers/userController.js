@@ -292,10 +292,10 @@ export const updateAllUsersOrderCount = async (req, res) => {
 // Cập nhật totalSpent của user
 export const updateUserTotalSpent = async (req, res) => {
   try {
-    const { userId, orderTotal, orderId } = req.body;
+    const { userId, totalSpent, orderId } = req.body;
 
     console.log("🔄 [Controller] Đang cập nhật totalSpent cho user:", userId);
-    console.log("💰 [Controller] Tổng tiền đơn hàng:", orderTotal);
+    console.log("💰 [Controller] Tổng tiền đơn hàng:", totalSpent);
     console.log("📦 [Controller] ID đơn hàng:", orderId);
 
     // Kiểm tra userId có hợp lệ không
@@ -316,9 +316,9 @@ export const updateUserTotalSpent = async (req, res) => {
       });
     }
 
-    // Kiểm tra orderTotal có hợp lệ không
-    if (!orderTotal || orderTotal <= 0) {
-      console.error("❌ [Controller] Tổng tiền đơn hàng không hợp lệ:", orderTotal);
+    // Kiểm tra totalSpent có hợp lệ không
+    if (!totalSpent || totalSpent <= 0) {
+      console.error("❌ [Controller] Tổng tiền đơn hàng không hợp lệ:", totalSpent);
       return res.status(400).json({ 
         success: false,
         message: "Tổng tiền đơn hàng không hợp lệ" 
@@ -373,19 +373,19 @@ export const updateUserTotalSpent = async (req, res) => {
     }
 
     // Cập nhật totalSpent của user
-    user.totalSpent = (user.totalSpent || 0) + orderTotal;
+    user.totalSpent = (user.totalSpent || 0) + totalSpent;
 
     // Cập nhật hạng thành viên dựa trên totalSpent
     if (user.totalSpent >= 10000000) {
       user.membershipLevel = "Hạng Kim Cương";
     } else if (user.totalSpent >= 5000000) {
-      user.membershipLevel = "Hạng Vàng";
+      user.membershipLevel = "Hạng Bạch Kim";
     } else if (user.totalSpent >= 2000000) {
-      user.membershipLevel = "Hạng Bạc";
+      user.membershipLevel = "Hạng Vàng";
     } else if (user.totalSpent >= 500000) {
-      user.membershipLevel = "Hạng Đồng";
+      user.membershipLevel = "Hạng Bạc";
     } else {
-      user.membershipLevel = "Hạng Thường";
+      user.membershipLevel = "Hạng Sắt";
     }
 
     // Lưu thay đổi

@@ -69,58 +69,76 @@ export const verifyOTP = async (req, res) => {
 export const login = async (req, res) => {
     try {
         const { username, password } = req.body;
-        const user = await User.findOne({ username });
-        if (!user) return res.status(401).json({ message: "Tài khoản không tồn tại" });
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(401).json({ message: "Mật khẩu không chính xác" });
 
-        // ✅ Tạo Access Token (30 phút)
-        const accessToken = jwt.sign(
-            { userId: user._id, role: user.role },
-            env.ACCESS_TOKEN_SECRET,
-            { expiresIn: "30m" }
-        );
-
-        // ✅ Kiểm tra nếu user đã có refreshToken
-        let refreshToken = user.refreshToken;
-        if (!refreshToken) {
-            refreshToken = jwt.sign(
-                { userId: user._id },
-                env.REFRESH_TOKEN_SECRET,
-                { expiresIn: "7d" }
-            );
-            user.refreshToken = refreshToken;
-            await user.save();
+        // Validate input
+        if (!username || !password) {
+            return res.status(400).json({ message: "Tên đăng nhập/email và mật khẩu không được để trống" });
         }
 
-        console.log("🔍 Refresh Token hiện tại:", refreshToken);
+        // Tìm user theo username hoặc email
+        const user = await User.findOne({
+            $or: [
+                { username: username },
+                { email: username }
+            ]
+        });
 
-        // ✅ Lưu Refresh Token vào Cookie
+        if (!user) {
+            return res.status(401).json({ message: "Tên đăng nhập/email hoặc mật khẩu không chính xác" });
+        }
+
+        // Kiểm tra mật khẩu
+        const isValidPassword = await bcrypt.compare(password, user.password);
+        if (!isValidPassword) {
+            return res.status(401).json({ message: "Tên đăng nhập/email hoặc mật khẩu không chính xác" });
+        }
+
+        // Tạo access token
+        const accessToken = jwt.sign(
+            { 
+                userId: user._id,
+                role: user.role 
+            },
+            env.ACCESS_TOKEN_SECRET,
+            { expiresIn: "15m" } // Access token hết hạn sau 15 phút
+        );
+
+        // Tạo refresh token
+        const refreshToken = jwt.sign(
+            { 
+                userId: user._id,
+                role: user.role 
+            },
+            env.REFRESH_TOKEN_SECRET,
+            { expiresIn: "7d" } // Refresh token hết hạn sau 7 ngày
+        );
+
+        // Lưu refresh token vào cookie
         res.cookie("refreshToken", refreshToken, {
             httpOnly: true,
             secure: env.NODE_ENV === "production",
-            sameSite: env.NODE_ENV === "production" ? "Strict" : "Lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
+            sameSite: "strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 ngày
         });
 
-        // ✅ Trả về thông tin user + accessToken (KHÔNG gửi refreshToken)
-        res.status(200).json({
+        // Trả về thông tin user và access token
+        res.json({
+            success: true,
             message: "Đăng nhập thành công",
-            accessToken,
             user: {
                 _id: user._id,
                 username: user.username,
+                email: user.email,
                 role: user.role,
-                isActive: user.isActive
-            }
+                name: user.name
+            },
+            accessToken
         });
     } catch (error) {
-        console.error("[LOGIN] Lỗi:", error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
+        console.error("Error in login:", error);
+        res.status(500).json({ message: "Đã xảy ra lỗi khi đăng nhập" });
     }
 };
-
 
 export const checkAuth = async (req, res) => {
     try {

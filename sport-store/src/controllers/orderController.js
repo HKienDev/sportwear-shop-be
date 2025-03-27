@@ -217,40 +217,38 @@ export const createOrder = async (req, res) => {
 // Admin cập nhật trạng thái đơn hàng
 export const updateOrderStatus = async (req, res) => {
   try {
-    console.log("Request body:", req.body);
-    console.log("Request user:", req.user);
-    
-    const { status, updatedBy, updateUserTotalSpent } = req.body;
-    const validStatuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
+    const { id } = req.params;
+    const { status, updatedBy, note } = req.body;
 
-    if (!validStatuses.includes(status)) {
+    // Kiểm tra id hợp lệ
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ 
         success: false,
-        message: "Trạng thái không hợp lệ" 
-      });
-    }
-
-    if (!updatedBy) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Thiếu thông tin người cập nhật" 
+        message: "ID đơn hàng không hợp lệ!" 
       });
     }
 
     // Tìm đơn hàng
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findById(id);
     if (!order) {
       return res.status(404).json({ 
         success: false,
-        message: "Đơn hàng không tồn tại" 
+        message: "Không tìm thấy đơn hàng!" 
       });
     }
 
-    console.log("Current order status:", order.status);
-    console.log("New status:", status);
+    // Kiểm tra trạng thái mới có hợp lệ không
+    const validStatuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Trạng thái đơn hàng không hợp lệ!" 
+      });
+    }
 
-    // Kiểm tra thứ tự trạng thái hợp lệ
-    const statusFlow = {
+    // Kiểm tra luồng trạng thái
+    const currentStatus = order.status;
+    const validTransitions = {
       pending: ["processing", "cancelled"],
       processing: ["shipped", "cancelled"],
       shipped: ["delivered", "cancelled"],
@@ -258,65 +256,52 @@ export const updateOrderStatus = async (req, res) => {
       cancelled: []
     };
 
-    if (!statusFlow[order.status].includes(status)) {
+    if (!validTransitions[currentStatus].includes(status)) {
       return res.status(400).json({ 
         success: false,
-        message: `Không thể chuyển trạng thái từ "${order.status}" sang "${status}". Thứ tự hợp lệ: ${statusFlow[order.status].join(", ")}`
+        message: "Không thể chuyển từ trạng thái này sang trạng thái khác!" 
       });
     }
 
-    // Nếu chuyển từ "pending" sang "processing" (xác nhận đơn)
-    if (order.status === "pending" && status === "processing") {
-      console.log("Updating from pending to processing...");
-      
-      try {
-        // Kiểm tra và cập nhật số lượng cho từng sản phẩm
-        for (const item of order.items) {
-          // Kiểm tra sản phẩm tồn tại
-          const product = await Product.findById(item.product._id);
-          console.log(`Checking product ${item.product._id}:`, product);
-          
-          if (!product) {
-            return res.status(404).json({ 
-              success: false,
-              message: `Sản phẩm với ID ${item.product._id} không tồn tại` 
-            });
-          }
-
-          // Cập nhật số lượng sản phẩm
-          product.quantity -= item.quantity;
-          await product.save();
-        }
-
-        // Cập nhật totalSpent của user nếu có
-        if (order.user && updateUserTotalSpent) {
-          const user = await User.findById(order.user);
-          if (user) {
-            user.totalSpent += order.totalPrice; // Sử dụng totalPrice đã bao gồm phí vận chuyển
-            await user.save();
-          }
-        }
-      } catch (error) {
-        console.error("Error updating product quantities or user totalSpent:", error);
-        return res.status(500).json({ 
-          success: false,
-          message: "Lỗi khi cập nhật số lượng sản phẩm hoặc thông tin người dùng" 
-        });
+    // Nếu đơn hàng được giao thành công (delivered), cập nhật stock sản phẩm và totalSpent của user
+    if (status === "delivered") {
+      // Cập nhật stock cho từng sản phẩm trong đơn hàng
+      for (const item of order.items) {
+        await Product.findByIdAndUpdate(
+          item.product._id,
+          { $inc: { quantity: -item.quantity } }
+        );
       }
-    }
 
-    // Cập nhật orderCount nếu trạng thái thay đổi từ/đến cancelled
-    if (order.user) {
-      if (status === "cancelled" && order.status !== "cancelled") {
-        await User.findByIdAndUpdate(
-          order.user,
-          { $inc: { orderCount: -1 } }
-        );
-      } else if (order.status === "cancelled" && status !== "cancelled") {
-        await User.findByIdAndUpdate(
-          order.user,
-          { $inc: { orderCount: 1 } }
-        );
+      // Cập nhật totalSpent của user
+      if (order.user && !order.isTotalSpentUpdated) {
+        const user = await User.findById(order.user);
+        if (user) {
+          // Cập nhật totalSpent của user
+          user.totalSpent = (user.totalSpent || 0) + order.totalPrice;
+
+          // Cập nhật hạng thành viên dựa trên totalSpent
+          if (user.totalSpent >= 10000000) {
+            user.membershipLevel = "Hạng Kim Cương";
+          } else if (user.totalSpent >= 5000000) {
+            user.membershipLevel = "Hạng Bạch Kim";
+          } else if (user.totalSpent >= 2000000) {
+            user.membershipLevel = "Hạng Vàng";
+          } else if (user.totalSpent >= 500000) {
+            user.membershipLevel = "Hạng Bạc";
+          } else {
+            user.membershipLevel = "Hạng Sắt";
+          }
+
+          // Lưu thay đổi
+          await user.save();
+
+          // Đánh dấu đơn hàng đã được tính vào totalSpent
+          order.isTotalSpentUpdated = true;
+          await order.save();
+
+          console.log("✅ [Controller] Cập nhật totalSpent thành công cho user:", user._id);
+        }
       }
     }
 
@@ -325,38 +310,9 @@ export const updateOrderStatus = async (req, res) => {
     order.statusHistory.push({
       status,
       updatedBy,
-      updatedAt: new Date()
+      note
     });
 
-    // Nếu đơn hàng được giao thành công, cập nhật totalSpent của user
-    if (status === "delivered" && order.user && !order.isTotalSpentUpdated) {
-      try {
-        // Gọi API cập nhật totalSpent
-        const response = await fetch(`${process.env.API_URL}/api/users/admin/update-total-spent`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": req.headers.authorization
-          },
-          body: JSON.stringify({
-            userId: order.user,
-            orderTotal: order.totalPrice,
-            orderId: order._id
-          })
-        });
-
-        if (!response.ok) {
-          console.error("Lỗi khi cập nhật totalSpent:", await response.text());
-        } else {
-          // Đánh dấu đã cập nhật totalSpent
-          order.isTotalSpentUpdated = true;
-        }
-      } catch (error) {
-        console.error("Lỗi khi cập nhật totalSpent:", error);
-      }
-    }
-
-    // Lưu đơn hàng
     await order.save();
 
     res.json({
@@ -364,13 +320,11 @@ export const updateOrderStatus = async (req, res) => {
       message: "Cập nhật trạng thái đơn hàng thành công",
       order
     });
-
   } catch (error) {
-    console.error("Lỗi khi cập nhật trạng thái đơn hàng:", error);
+    console.error("Error updating order status:", error);
     res.status(500).json({ 
       success: false,
-      message: "Lỗi khi cập nhật trạng thái đơn hàng",
-      error: error.message 
+      message: "Có lỗi xảy ra khi cập nhật trạng thái đơn hàng" 
     });
   }
 };
@@ -426,17 +380,45 @@ export const updateOrderDetails = async (req, res) => {
 // Lấy đơn hàng theo ID (Admin)
 export const getOrderById = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id).populate("items.product", "name price");
-    if (!order) return res.status(404).json({ message: "Đơn hàng không tồn tại" });
+    const { id } = req.params;
+    console.log("🔍 Đang tìm đơn hàng với ID:", id);
 
-    // Kiểm tra quyền - chỉ admin hoặc user sở hữu đơn hàng mới được xem
-    if (req.user.role !== "admin" && order.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Bạn không có quyền xem đơn hàng này" });
+    // Kiểm tra ID có hợp lệ không
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      console.error("❌ ID đơn hàng không hợp lệ:", id);
+      return res.status(400).json({ 
+        success: false,
+        message: "ID đơn hàng không hợp lệ!" 
+      });
     }
 
-    res.json(order);
+    // Tìm đơn hàng và populate thông tin sản phẩm
+    const order = await Order.findById(id)
+      .populate({
+        path: "items.product",
+        select: "name price images shortId"
+      })
+      .lean();
+
+    if (!order) {
+      console.error("❌ Không tìm thấy đơn hàng với ID:", id);
+      return res.status(404).json({ 
+        success: false,
+        message: "Không tìm thấy đơn hàng!" 
+      });
+    }
+
+    console.log("✅ Tìm thấy đơn hàng:", order);
+    return res.json({ 
+      success: true,
+      order 
+    });
   } catch (error) {
-    res.status(500).json({ message: "Lỗi khi lấy đơn hàng", error: error.message });
+    console.error("❌ Lỗi khi lấy thông tin đơn hàng:", error);
+    return res.status(500).json({ 
+      success: false,
+      message: "Lỗi server khi lấy thông tin đơn hàng" 
+    });
   }
 };
 

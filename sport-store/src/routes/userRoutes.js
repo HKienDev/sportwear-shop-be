@@ -17,12 +17,24 @@ const router = express.Router();
 
 // Middleware kiểm tra ObjectId hợp lệ
 const validateObjectId = (req, res, next) => {
-  const id = req.params.id || req.body.userId;
+  const id = req.params.id;
   if (!id) {
     return res.status(400).json({ message: "ID không tồn tại." });
   }
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return res.status(400).json({ message: "ID không hợp lệ!" });
+  }
+  next();
+};
+
+// Middleware kiểm tra ObjectId trong body
+const validateBodyObjectId = (req, res, next) => {
+  const { userId, orderId } = req.body;
+  if (!userId || !orderId) {
+    return res.status(400).json({ message: "ID người dùng hoặc ID đơn hàng không tồn tại." });
+  }
+  if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(orderId)) {
+    return res.status(400).json({ message: "ID người dùng hoặc ID đơn hàng không hợp lệ!" });
   }
   next();
 };
@@ -41,6 +53,6 @@ router.get("/phone/:phone", getUserByPhone);
 router.get("/profile", verifyUser, getUserProfile);
 
 // Route cập nhật totalSpent
-router.put("/admin/update-total-spent", verifyAdmin, validateObjectId, updateUserTotalSpent);
+router.put("/admin/update-total-spent", verifyAdmin, validateBodyObjectId, updateUserTotalSpent);
 
 export default router;
