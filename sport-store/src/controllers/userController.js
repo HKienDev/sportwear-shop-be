@@ -288,3 +288,129 @@ export const updateAllUsersOrderCount = async (req, res) => {
     });
   }
 };
+
+// Cập nhật totalSpent của user
+export const updateUserTotalSpent = async (req, res) => {
+  try {
+    const { userId, orderTotal, orderId } = req.body;
+
+    console.log("🔄 [Controller] Đang cập nhật totalSpent cho user:", userId);
+    console.log("💰 [Controller] Tổng tiền đơn hàng:", orderTotal);
+    console.log("📦 [Controller] ID đơn hàng:", orderId);
+
+    // Kiểm tra userId có hợp lệ không
+    if (!userId) {
+      console.error("❌ [Controller] ID người dùng không tồn tại");
+      return res.status(400).json({ 
+        success: false,
+        message: "ID người dùng không tồn tại" 
+      });
+    }
+
+    // Kiểm tra userId có phải là MongoDB ObjectId hợp lệ không
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error("❌ [Controller] ID người dùng không hợp lệ:", userId);
+      return res.status(400).json({ 
+        success: false,
+        message: "ID người dùng không hợp lệ" 
+      });
+    }
+
+    // Kiểm tra orderTotal có hợp lệ không
+    if (!orderTotal || orderTotal <= 0) {
+      console.error("❌ [Controller] Tổng tiền đơn hàng không hợp lệ:", orderTotal);
+      return res.status(400).json({ 
+        success: false,
+        message: "Tổng tiền đơn hàng không hợp lệ" 
+      });
+    }
+
+    // Kiểm tra orderId có hợp lệ không
+    if (!orderId) {
+      console.error("❌ [Controller] ID đơn hàng không tồn tại");
+      return res.status(400).json({ 
+        success: false,
+        message: "ID đơn hàng không tồn tại" 
+      });
+    }
+
+    // Kiểm tra orderId có phải là MongoDB ObjectId hợp lệ không
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      console.error("❌ [Controller] ID đơn hàng không hợp lệ:", orderId);
+      return res.status(400).json({ 
+        success: false,
+        message: "ID đơn hàng không hợp lệ" 
+      });
+    }
+
+    // Tìm user
+    const user = await User.findById(userId);
+    if (!user) {
+      console.error("❌ [Controller] Không tìm thấy người dùng với ID:", userId);
+      return res.status(404).json({ 
+        success: false,
+        message: "Không tìm thấy người dùng" 
+      });
+    }
+
+    // Tìm đơn hàng
+    const order = await Order.findById(orderId);
+    if (!order) {
+      console.error("❌ [Controller] Không tìm thấy đơn hàng với ID:", orderId);
+      return res.status(404).json({ 
+        success: false,
+        message: "Không tìm thấy đơn hàng" 
+      });
+    }
+
+    // Kiểm tra xem đơn hàng đã được tính vào totalSpent chưa
+    if (order.isTotalSpentUpdated) {
+      console.log("ℹ️ [Controller] Đơn hàng đã được tính vào totalSpent");
+      return res.status(200).json({ 
+        success: true,
+        message: "Đơn hàng đã được tính vào totalSpent" 
+      });
+    }
+
+    // Cập nhật totalSpent của user
+    user.totalSpent = (user.totalSpent || 0) + orderTotal;
+
+    // Cập nhật hạng thành viên dựa trên totalSpent
+    if (user.totalSpent >= 10000000) {
+      user.membershipLevel = "Hạng Kim Cương";
+    } else if (user.totalSpent >= 5000000) {
+      user.membershipLevel = "Hạng Vàng";
+    } else if (user.totalSpent >= 2000000) {
+      user.membershipLevel = "Hạng Bạc";
+    } else if (user.totalSpent >= 500000) {
+      user.membershipLevel = "Hạng Đồng";
+    } else {
+      user.membershipLevel = "Hạng Thường";
+    }
+
+    // Lưu thay đổi
+    await user.save();
+
+    // Đánh dấu đơn hàng đã được tính vào totalSpent
+    order.isTotalSpentUpdated = true;
+    await order.save();
+
+    console.log("✅ [Controller] Cập nhật totalSpent thành công");
+    res.status(200).json({ 
+      success: true,
+      message: "Cập nhật totalSpent thành công",
+      user: {
+        _id: user._id,
+        totalSpent: user.totalSpent,
+        membershipLevel: user.membershipLevel
+      }
+    });
+  } catch (error) {
+    console.error("❌ [Controller] Lỗi khi cập nhật totalSpent:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Lỗi khi cập nhật totalSpent",
+      error: error.message 
+    });
+  }
+};

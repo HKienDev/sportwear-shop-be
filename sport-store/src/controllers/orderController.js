@@ -118,21 +118,35 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    // Tính tổng giá trị đơn hàng và tạo danh sách items
-    let totalPrice = 0;
-    const orderItems = items.map(item => {
-      const product = productMap.get(item.product);
-      // Sử dụng discountPrice nếu có, nếu không thì dùng price
-      const itemPrice = product.discountPrice || product.price;
-      const itemTotal = itemPrice * item.quantity;
-      totalPrice += itemTotal;
+    // Lấy thông tin sản phẩm và tính toán giá
+    const orderItems = await Promise.all(
+      items.map(async (item) => {
+        const product = await Product.findById(item.product);
+        if (!product) {
+          throw new Error(`Sản phẩm ${item.product} không tồn tại`);
+        }
 
-      return {
-        product: product._id,
-        quantity: item.quantity,
-        price: itemPrice,
-      };
-    });
+        // Tính giá sale nếu có
+        const salePrice = product.discountPrice || product.price;
+
+        return {
+          product: {
+            _id: product._id,
+            name: product.name,
+            price: product.price, // Lưu giá gốc
+            images: product.images,
+            shortId: product.shortId
+          },
+          quantity: item.quantity,
+          price: salePrice, // Lưu giá sale
+          size: item.size,
+          color: item.color
+        };
+      })
+    );
+
+    // Tính tổng tiền dựa trên giá sale
+    const subtotal = orderItems.reduce((total, item) => total + (item.price * item.quantity), 0);
 
     // Thêm phí vận chuyển vào tổng tiền
     const shippingFee = shippingMethod.method === "Express" 
@@ -140,7 +154,7 @@ export const createOrder = async (req, res) => {
       : shippingMethod.method === "SameDay" 
       ? 100000 
       : 30000;
-    totalPrice += shippingFee;
+    const totalPrice = subtotal + shippingFee;
 
     // Kiểm tra tổng tiền từ client có khớp không
     if (Math.abs(totalPrice - clientTotalPrice) > 1) {
@@ -259,13 +273,13 @@ export const updateOrderStatus = async (req, res) => {
         // Kiểm tra và cập nhật số lượng cho từng sản phẩm
         for (const item of order.items) {
           // Kiểm tra sản phẩm tồn tại
-          const product = await Product.findById(item.product);
-          console.log(`Checking product ${item.product}:`, product);
+          const product = await Product.findById(item.product._id);
+          console.log(`Checking product ${item.product._id}:`, product);
           
           if (!product) {
             return res.status(404).json({ 
               success: false,
-              message: `Sản phẩm với ID ${item.product} không tồn tại` 
+              message: `Sản phẩm với ID ${item.product._id} không tồn tại` 
             });
           }
 
@@ -314,12 +328,41 @@ export const updateOrderStatus = async (req, res) => {
       updatedAt: new Date()
     });
 
+    // Nếu đơn hàng được giao thành công, cập nhật totalSpent của user
+    if (status === "delivered" && order.user && !order.isTotalSpentUpdated) {
+      try {
+        // Gọi API cập nhật totalSpent
+        const response = await fetch(`${process.env.API_URL}/api/users/admin/update-total-spent`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": req.headers.authorization
+          },
+          body: JSON.stringify({
+            userId: order.user,
+            orderTotal: order.totalPrice,
+            orderId: order._id
+          })
+        });
+
+        if (!response.ok) {
+          console.error("Lỗi khi cập nhật totalSpent:", await response.text());
+        } else {
+          // Đánh dấu đã cập nhật totalSpent
+          order.isTotalSpentUpdated = true;
+        }
+      } catch (error) {
+        console.error("Lỗi khi cập nhật totalSpent:", error);
+      }
+    }
+
+    // Lưu đơn hàng
     await order.save();
 
-    res.json({ 
+    res.json({
       success: true,
       message: "Cập nhật trạng thái đơn hàng thành công",
-      order 
+      order
     });
 
   } catch (error) {

@@ -42,8 +42,8 @@ const userSchema = new mongoose.Schema({
   // Hạng thành viên & tiến độ mua hàng
   membershipLevel: { 
       type: String, 
-      enum: ["sắt", "bạc", "vàng", "bạch kim", "kim cương"], 
-      default: "sắt" 
+      enum: ["Hạng Sắt", "Hạng Bạc", "Hạng Vàng", "Hạng Bạch Kim", "Hạng Kim Cương"], 
+      default: "Hạng Sắt" 
   }, 
   totalSpent: { type: Number, default: 0 }, 
 

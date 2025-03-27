@@ -137,6 +137,11 @@ const orderSchema = new mongoose.Schema(
         maxLength: 500,
       },
     }],
+    isTotalSpentUpdated: {
+      type: Boolean,
+      default: false,
+      required: true
+    }
   },
   { timestamps: true }
 );
