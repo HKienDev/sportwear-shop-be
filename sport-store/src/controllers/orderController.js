@@ -292,13 +292,13 @@ export const updateOrderStatus = async (req, res) => {
           user.totalSpent = (user.totalSpent || 0) + order.totalPrice;
 
           // Cập nhật hạng thành viên dựa trên totalSpent
-          if (user.totalSpent >= 10000000) {
+          if (user.totalSpent >= 50000000) {
             user.membershipLevel = "Hạng Kim Cương";
-          } else if (user.totalSpent >= 5000000) {
+          } else if (user.totalSpent >= 30000000) {
             user.membershipLevel = "Hạng Bạch Kim";
-          } else if (user.totalSpent >= 2000000) {
+          } else if (user.totalSpent >= 20000000) {
             user.membershipLevel = "Hạng Vàng";
-          } else if (user.totalSpent >= 500000) {
+          } else if (user.totalSpent >= 5000000) {
             user.membershipLevel = "Hạng Bạc";
           } else {
             user.membershipLevel = "Hạng Sắt";
