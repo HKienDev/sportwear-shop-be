@@ -41,6 +41,10 @@ export const getProductById = async (req, res) => {
 // Thêm sản phẩm mới (Admin)
 export const createProduct = async (req, res) => {
   try {
+    console.log('🔍 Headers:', req.headers);
+    console.log('🔍 Content-Type:', req.headers['content-type']);
+    console.log('🔍 Raw body:', req.rawBody);
+
     const {
       name,
       description,
@@ -57,17 +61,60 @@ export const createProduct = async (req, res) => {
       tags,
     } = req.body;
 
+    // Log chi tiết request body
+    console.log('🔍 Request body:', JSON.stringify(req.body, null, 2));
+    console.log('🔍 Chi tiết các trường:');
+    console.log('- name:', name, typeof name);
+    console.log('- description:', description, typeof description);
+    console.log('- brand:', brand, typeof brand);
+    console.log('- price:', price, typeof price);
+    console.log('- stock:', stock, typeof stock);
+    console.log('- category:', category, typeof category);
+    console.log('- images:', images);
+    console.log('- sku:', sku, typeof sku);
+
     // Kiểm tra thông tin bắt buộc
     if (!name || !description || !brand || !price || !stock || !category || !images?.main || !sku) {
-      return res.status(400).json({ message: "Vui lòng nhập đầy đủ thông tin sản phẩm" });
+      const missingFields = {
+        name: !name,
+        description: !description,
+        brand: !brand,
+        price: !price,
+        stock: !stock,
+        category: !category,
+        'images.main': !images?.main,
+        sku: !sku
+      };
+
+      console.log('❌ Thiếu các trường:', Object.keys(missingFields).filter(key => missingFields[key]));
+      
+      return res.status(400).json({ 
+        error: 'Bad Request',
+        message: "Vui lòng nhập đầy đủ thông tin sản phẩm",
+        details: {
+          name: !name ? 'Tên sản phẩm là bắt buộc' : null,
+          description: !description ? 'Mô tả sản phẩm là bắt buộc' : null,
+          brand: !brand ? 'Thương hiệu là bắt buộc' : null,
+          price: !price ? 'Giá là bắt buộc' : null,
+          stock: !stock ? 'Số lượng tồn kho là bắt buộc' : null,
+          category: !category ? 'Danh mục là bắt buộc' : null,
+          images: !images?.main ? 'Ảnh chính là bắt buộc' : null,
+          sku: !sku ? 'SKU là bắt buộc' : null
+        }
+      });
     }
 
     // Kiểm tra SKU có bị trùng không
     const existingProduct = await Product.findOne({ sku });
     if (existingProduct) {
-      return res.status(400).json({ message: "SKU đã tồn tại, vui lòng chọn SKU khác" });
+      console.log('❌ Duplicate SKU:', sku);
+      return res.status(400).json({ 
+        error: 'Bad Request',
+        message: "SKU đã tồn tại, vui lòng chọn SKU khác"
+      });
     }
 
+    // Tạo sản phẩm mới
     const newProduct = new Product({
       name,
       description,
@@ -88,14 +135,26 @@ export const createProduct = async (req, res) => {
       ratings: { average: 0, count: 0 },
     });
 
+    console.log('🔹 Creating new product:', newProduct);
+
     await newProduct.save();
 
     // Cập nhật productCount trong danh mục
     await Category.findByIdAndUpdate(category, { $inc: { productCount: 1 } });
 
-    res.status(201).json({ message: "Tạo sản phẩm thành công", product: newProduct });
+    console.log('✅ Product created successfully');
+    res.status(201).json({ 
+      success: true,
+      message: "Tạo sản phẩm thành công", 
+      product: newProduct 
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('❌ Error creating product:', error);
+    res.status(500).json({ 
+      error: 'Internal Server Error',
+      message: "Lỗi khi tạo sản phẩm",
+      details: error.message 
+    });
   }
 };
 

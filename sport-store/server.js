@@ -14,6 +14,7 @@ import passport from "./src/config/passport.js";
 import productRoutes from "./src/routes/productRoutes.js";
 import categoryRoutes from "./src/routes/categoryRoutes.js";
 import orderRoutes from "./src/routes/orderRoutes.js";
+import uploadRoutes from './src/routes/uploadRoutes.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -29,14 +30,29 @@ app.use("/api/orders/stripe-webhook", express.raw({ type: "application/json" }))
 // Middleware
 app.use(express.json());
 app.use(cookieParser());
-app.use(
-  cors({
-    origin: "http://localhost:3000",
-    credentials: true,
-    methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS",
-    allowedHeaders: "Content-Type,Authorization",
-  })
-);
+
+// CORS configuration
+const corsOptions = {
+  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  exposedHeaders: ['set-cookie']
+};
+
+app.use(cors(corsOptions));
+
+// Middleware để xử lý lỗi multer
+app.use((err, req, res, next) => {
+  if (err.name === 'MulterError') {
+    console.error('Multer error:', err);
+    return res.status(400).json({
+      error: 'Lỗi khi upload file',
+      details: err.message
+    });
+  }
+  next(err);
+});
 
 // Kết nối Database
 connectDB();
@@ -49,6 +65,7 @@ app.use(passport.initialize());
 app.use("/user", authRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/orders", orderRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // ==========================
 // ⚡ Socket.IO - Quản lý Chat Live

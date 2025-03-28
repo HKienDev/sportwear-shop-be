@@ -146,17 +146,5 @@ const orderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Thêm middleware để tự động cập nhật statusHistory khi status thay đổi
-orderSchema.pre('save', function(next) {
-  if (this.isModified('status')) {
-    this.statusHistory.push({
-      status: this.status,
-      updatedBy: this.cancelledBy || this.user,
-      note: this.status === 'cancelled' ? this.cancellationReason : undefined
-    });
-  }
-  next();
-});
-
 const Order = mongoose.model("Order", orderSchema);
 export default Order;

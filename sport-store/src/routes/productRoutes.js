@@ -6,7 +6,7 @@ import {
   updateProduct, 
   deleteProduct 
 } from "../controllers/productController.js";
-import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
+import verifyUser from "../middleware/verifyUser.js";
 
 const router = express.Router();
 
@@ -14,9 +14,19 @@ const router = express.Router();
 router.get("/", getProducts);
 router.get("/:id", getProductById);
 
-// Private/Admin Routes (Chỉ admin mới có quyền thực hiện)
-router.post("/", verifyUser, verifyAdmin, createProduct);
-router.put("/:id", verifyUser, verifyAdmin, updateProduct);
-router.delete("/:id", verifyUser, verifyAdmin, deleteProduct);
+// Protected routes (Admin only)
+router.post("/", verifyUser, createProduct);
+router.put("/:id", verifyUser, updateProduct);
+router.delete("/:id", verifyUser, deleteProduct);
+
+// Error handling middleware
+router.use((err, req, res, next) => {
+  console.error('❌ Route error:', err);
+  res.status(500).json({
+    error: 'Internal Server Error',
+    message: 'Có lỗi xảy ra khi xử lý yêu cầu',
+    details: err.message
+  });
+});
 
 export default router;

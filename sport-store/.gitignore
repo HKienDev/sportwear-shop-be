@@ -1,6 +1,22 @@
-# Bỏ qua file cấu hình môi trường
+# Dependencies
+node_modules/
+
+# Environment variables
 .env
 
-# Bỏ qua node_modules
-node_modules/
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Upload directory
+uploads/*
+!uploads/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+
+# OS
 .DS_Store
+Thumbs.db

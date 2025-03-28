@@ -264,22 +264,46 @@ export const refreshToken = async (req, res) => {
         const refreshToken = req.cookies.refreshToken;
         console.log("🔍 Refresh Token nhận được:", refreshToken);
 
-        if (!refreshToken) return res.status(401).json({ message: "Không có Refresh Token" });
+        if (!refreshToken) {
+            return res.status(401).json({ message: "Không có Refresh Token" });
+        }
 
-        const user = await User.findOne({ refreshToken });
-        if (!user) return res.status(403).json({ message: "Refresh Token không hợp lệ hoặc đã hết hạn" });
-
+        // Verify refresh token
         jwt.verify(refreshToken, env.REFRESH_TOKEN_SECRET, async (err, decoded) => {
-            if (err) return res.status(403).json({ message: "Refresh Token hết hạn hoặc không hợp lệ" });
+            if (err) {
+                console.error("❌ Lỗi verify refresh token:", err.message);
+                return res.status(403).json({ message: "Refresh Token hết hạn hoặc không hợp lệ" });
+            }
 
-            const newAccessToken = jwt.sign(
-                { userId: user._id, role: user.role },
-                env.ACCESS_TOKEN_SECRET,
-                { expiresIn: "30m" }
-            );
+            try {
+                // Tìm user bằng userId từ decoded token
+                const user = await User.findById(decoded.userId);
+                if (!user) {
+                    return res.status(403).json({ message: "User không tồn tại" });
+                }
 
-            console.log("✅ Tạo Access Token mới:", newAccessToken);
-            res.status(200).json({ accessToken: newAccessToken });
+                // Tạo access token mới với thời hạn 15 phút (giống login)
+                const newAccessToken = jwt.sign(
+                    { userId: user._id, role: user.role },
+                    env.ACCESS_TOKEN_SECRET,
+                    { expiresIn: "15m" }
+                );
+
+                console.log("✅ Tạo Access Token mới thành công");
+                res.status(200).json({ 
+                    accessToken: newAccessToken,
+                    user: {
+                        _id: user._id,
+                        username: user.username,
+                        email: user.email,
+                        role: user.role,
+                        name: user.name
+                    }
+                });
+            } catch (error) {
+                console.error("❌ Lỗi khi tìm user:", error);
+                res.status(500).json({ message: "Lỗi server", error: error.message });
+            }
         });
     } catch (error) {
         console.error("[REFRESH TOKEN] Lỗi:", error);
