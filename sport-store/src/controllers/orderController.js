@@ -358,40 +358,21 @@ export const updateOrderStatus = async (req, res) => {
 // Admin - Lấy tất cả đơn hàng hoặc tìm theo shortId / _id
 export const getAllOrders = async (req, res) => {
   try {
-    const { search } = req.query;
-
-    let filter = {};
-    if (search) {
-      if (/^VJUSPORT[A-Z0-9]{7}$/.test(search)) { 
-        // Kiểm tra đúng định dạng VJUSPORT + 7 ký tự chữ + số
-        filter = { shortId: search };
-      } else if (/^[0-9a-fA-F]{24}$/.test(search)) {
-        // Kiểm tra đúng định dạng ObjectId (MongoDB ID)
-        filter = { _id: search };
-      } else {
-        return res.status(400).json({ 
-          success: false,
-          message: "Mã đơn hàng không hợp lệ" 
-        });
-      }
-    }
-
-    const orders = await Order.find(filter)
-      .populate("items.product", "name price images")
-      .populate("userId", "fullname phone email")
+    const orders = await Order.find()
+      .populate('user', 'name email phone')
+      .populate('items.product', 'name price images shortId')
       .sort({ createdAt: -1 });
-    
+
     res.json({
       success: true,
-      message: "Lấy danh sách đơn hàng thành công",
       data: orders
     });
   } catch (error) {
     console.error("Lỗi khi lấy danh sách đơn hàng:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: "Lỗi khi lấy đơn hàng", 
-      error: error.message 
+      message: "Lỗi khi lấy danh sách đơn hàng",
+      error: error.message
     });
   }
 };

@@ -39,9 +39,7 @@ export const verifyAccessToken = async (req, res, next) => {
 // Middleware xác thực user đăng nhập
 export const verifyUser = async (req, res, next) => {
   try {
-    const user = await verifyAccessToken(req);
-    req.user = user;
-    next();
+    await verifyAccessToken(req, res, next);
   } catch (error) {
     console.error("❌ Lỗi verifyUser:", error.message);
     return res.status(401).json({ 
@@ -54,17 +52,23 @@ export const verifyUser = async (req, res, next) => {
 // Middleware xác thực admin
 export const verifyAdmin = async (req, res, next) => {
   try {
-    const user = await verifyAccessToken(req);
-    
-    if (user.role !== "admin") {
-      return res.status(403).json({ 
-        success: false,
-        message: "Bạn không có quyền truy cập trang này" 
-      });
-    }
+    await verifyAccessToken(req, res, (err) => {
+      if (err) {
+        return res.status(401).json({ 
+          success: false,
+          message: err.message 
+        });
+      }
 
-    req.user = user;
-    next();
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ 
+          success: false,
+          message: "Bạn không có quyền truy cập trang này" 
+        });
+      }
+
+      next();
+    });
   } catch (error) {
     console.error("❌ Lỗi verifyAdmin:", error.message);
     return res.status(401).json({ 
