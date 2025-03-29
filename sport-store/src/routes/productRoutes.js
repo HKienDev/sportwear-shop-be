@@ -4,7 +4,8 @@ import {
   getProductById, 
   createProduct, 
   updateProduct, 
-  deleteProduct 
+  deleteProduct,
+  toggleProductStatus 
 } from "../controllers/productController.js";
 import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
 
@@ -17,6 +18,7 @@ router.get("/:id", getProductById);
 // Protected routes (Admin only)
 router.post("/", verifyAdmin, createProduct);
 router.put("/:id", verifyAdmin, updateProduct);
+router.patch("/:id/toggle-status", verifyAdmin, toggleProductStatus);
 router.delete("/:id", verifyAdmin, deleteProduct);
 
 // Error handling middleware

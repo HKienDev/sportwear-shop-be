@@ -253,3 +253,42 @@ export const deleteProduct = async (req, res) => {
     });
   }
 };
+
+// Cập nhật trạng thái sản phẩm (Admin)
+export const toggleProductStatus = async (req, res) => {
+  try {
+    const productId = req.params.id;
+
+    // Kiểm tra định dạng ObjectId
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Sản phẩm không tồn tại!" 
+      });
+    }
+
+    const product = await Product.findById(productId);
+
+    if (!product) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Sản phẩm không tồn tại!" 
+      });
+    }
+
+    // Đảo ngược trạng thái isActive
+    product.isActive = !product.isActive;
+    await product.save();
+
+    res.status(200).json({
+      success: true,
+      message: product.isActive ? "Sản phẩm đã được kích hoạt" : "Sản phẩm đã được ngừng bán",
+      product
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false,
+      message: "Lỗi server: " + error.message 
+    });
+  }
+};
