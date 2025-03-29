@@ -6,7 +6,7 @@ import {
   updateProduct, 
   deleteProduct 
 } from "../controllers/productController.js";
-import verifyUser from "../middleware/verifyUser.js";
+import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
@@ -15,9 +15,9 @@ router.get("/", getProducts);
 router.get("/:id", getProductById);
 
 // Protected routes (Admin only)
-router.post("/", verifyUser, createProduct);
-router.put("/:id", verifyUser, updateProduct);
-router.delete("/:id", verifyUser, deleteProduct);
+router.post("/", verifyAdmin, createProduct);
+router.put("/:id", verifyAdmin, updateProduct);
+router.delete("/:id", verifyAdmin, deleteProduct);
 
 // Error handling middleware
 router.use((err, req, res, next) => {

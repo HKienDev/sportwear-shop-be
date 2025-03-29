@@ -1,8 +1,9 @@
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
+import env from "../config/env.js";
 
 // Hàm chung để lấy và xác thực Access Token
-const verifyAccessToken = async (req) => {
+export const verifyAccessToken = async (req, res, next) => {
   try {
     const authHeader = req.header("Authorization");
     console.log("🔹 [Middleware] Authorization Header:", authHeader);
@@ -15,7 +16,7 @@ const verifyAccessToken = async (req) => {
     console.log("🔹 [Middleware] Access Token nhận được:", token);
 
     // Xác thực Token
-    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    const decoded = jwt.verify(token, env.ACCESS_TOKEN_SECRET);
     console.log("✅ [Middleware] Token decoded thành công:", decoded);
 
     // Tìm user
@@ -24,54 +25,52 @@ const verifyAccessToken = async (req) => {
     if (!user.isActive) throw new Error("Tài khoản bị khóa");
 
     console.log("✅ [Middleware] User verified:", user);
-    return user;
+    req.user = user;
+    next();
   } catch (error) {
     console.error("❌ [Middleware] Lỗi xác thực Token:", error.message);
-    throw new Error(error.name === "TokenExpiredError" ? "AccessToken hết hạn" : "Invalid Token");
+    res.status(401).json({ 
+      success: false,
+      message: error.name === "TokenExpiredError" ? "AccessToken hết hạn" : "Invalid Token" 
+    });
   }
 };
 
 // Middleware xác thực user đăng nhập
 export const verifyUser = async (req, res, next) => {
-    try {
-      console.log("🔹 Authorization Header:", req.header("Authorization"));
-      const user = await verifyAccessToken(req);
-  
-      if (!user) {
-        return res.status(401).json({ message: "Không có quyền truy cập" });
-      }
-  
-      req.user = user;
-      next();
-    } catch (error) {
-      console.error("❌ Lỗi verifyUser:", error.message);
-  
-      // Nếu lỗi là TokenExpiredError, trả về mã 401 để FE làm mới token
-      if (error.name === "TokenExpiredError") {
-        return res.status(401).json({ message: "AccessToken hết hạn" });
-      }
-  
-      res.status(403).json({ message: error.message });
-    }
-  };
+  try {
+    const user = await verifyAccessToken(req);
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error("❌ Lỗi verifyUser:", error.message);
+    return res.status(401).json({ 
+      success: false,
+      message: error.message 
+    });
+  }
+};
 
 // Middleware xác thực admin
 export const verifyAdmin = async (req, res, next) => {
   try {
-    console.log("🔹 [Admin Middleware] Authorization Header:", req.header("Authorization"));
-
     const user = await verifyAccessToken(req);
-    console.log("✅ [Admin Middleware] User verified:", user);
-
+    
     if (user.role !== "admin") {
-      throw new Error("Bạn không có quyền admin");
+      return res.status(403).json({ 
+        success: false,
+        message: "Bạn không có quyền truy cập trang này" 
+      });
     }
 
     req.user = user;
     next();
   } catch (error) {
-    console.error("❌ [Admin Middleware] Lỗi:", error.message);
-    res.status(403).json({ message: error.message });
+    console.error("❌ Lỗi verifyAdmin:", error.message);
+    return res.status(401).json({ 
+      success: false,
+      message: error.message 
+    });
   }
 };
 

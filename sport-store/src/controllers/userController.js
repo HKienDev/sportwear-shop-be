@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import User from "../models/user.js";
 import Order from "../models/order.js";
+import jwt from "jsonwebtoken";
 
 // Lấy danh sách tất cả người dùng (ẩn password)
 export const getAllUsers = async (req, res) => {
@@ -56,7 +57,7 @@ export const getUserById = async (req, res) => {
 };
 
 // Tạo người dùng mới
-export const createUser = async (req, res) => {
+export const register = async (req, res) => {
   let { email, password, username, isAdminCreate } = req.body;
 
   if (isAdminCreate && req.user.role !== "admin") {
@@ -466,6 +467,325 @@ export const resetUserPassword = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Lỗi server khi đặt lại mật khẩu"
+    });
+  }
+};
+
+// Đổi mật khẩu
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.userId;
+
+    // Kiểm tra dữ liệu đầu vào
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng nhập đầy đủ mật khẩu hiện tại và mật khẩu mới"
+      });
+    }
+
+    // Tìm user trong database
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy người dùng"
+      });
+    }
+
+    // Kiểm tra mật khẩu hiện tại
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Mật khẩu hiện tại không chính xác"
+      });
+    }
+
+    // Hash mật khẩu mới
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Cập nhật mật khẩu mới
+    user.password = hashedPassword;
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Đổi mật khẩu thành công"
+    });
+  } catch (error) {
+    console.error("❌ [Controller] Lỗi đổi mật khẩu:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server",
+      error: error.message
+    });
+  }
+};
+
+// Đăng nhập
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Kiểm tra dữ liệu đầu vào
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng nhập đầy đủ email và mật khẩu"
+      });
+    }
+
+    // Tìm user trong database
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Email hoặc mật khẩu không chính xác"
+      });
+    }
+
+    // Kiểm tra mật khẩu
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Email hoặc mật khẩu không chính xác"
+      });
+    }
+
+    // Kiểm tra trạng thái tài khoản
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: "Tài khoản của bạn đã bị khóa"
+      });
+    }
+
+    // Tạo access token
+    const accessToken = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    // Tạo refresh token
+    const refreshToken = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // Lưu refresh token vào database
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    // Set refresh token vào cookie
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    // Trả về thông tin user và access token
+    return res.status(200).json({
+      success: true,
+      message: "Đăng nhập thành công",
+      data: {
+        user: {
+          _id: user._id,
+          email: user.email,
+          username: user.username,
+          role: user.role,
+          isActive: user.isActive,
+          isVerified: user.isVerified,
+          createdAt: user.createdAt,
+          address: user.address,
+          dob: user.dob,
+          gender: user.gender
+        },
+        accessToken
+      }
+    });
+  } catch (error) {
+    console.error("❌ [Controller] Lỗi đăng nhập:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server",
+      error: error.message
+    });
+  }
+};
+
+// Đăng xuất
+export const logout = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Xóa refresh token trong database
+    await User.findByIdAndUpdate(userId, { refreshToken: null });
+
+    // Xóa refresh token trong cookie
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 0
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Đăng xuất thành công"
+    });
+  } catch (error) {
+    console.error("❌ [Controller] Lỗi đăng xuất:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server",
+      error: error.message
+    });
+  }
+};
+
+// Refresh token
+export const refreshToken = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+
+    if (!refreshToken) {
+      return res.status(401).json({
+        success: false,
+        message: "Không tìm thấy refresh token"
+      });
+    }
+
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+
+    // Tìm user trong database
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy người dùng"
+      });
+    }
+
+    // Kiểm tra refresh token có khớp với token trong database không
+    if (user.refreshToken !== refreshToken) {
+      return res.status(401).json({
+        success: false,
+        message: "Refresh token không hợp lệ"
+      });
+    }
+
+    // Tạo access token mới
+    const accessToken = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    // Tạo refresh token mới
+    const newRefreshToken = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // Lưu refresh token mới vào database
+    user.refreshToken = newRefreshToken;
+    await user.save();
+
+    // Set refresh token mới vào cookie
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    // Trả về access token mới
+    return res.status(200).json({
+      success: true,
+      message: "Refresh token thành công",
+      data: {
+        accessToken
+      }
+    });
+  } catch (error) {
+    console.error("❌ [Controller] Lỗi refresh token:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server",
+      error: error.message
+    });
+  }
+};
+
+// Cập nhật thông tin user đang đăng nhập
+export const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { fullname, username, phone, avatar, address, dob, gender } = req.body;
+
+    // Tìm user trong database
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy người dùng"
+      });
+    }
+
+    // Cập nhật thông tin
+    if (fullname) user.fullname = fullname;
+    if (username) user.username = username;
+    if (phone) user.phone = phone;
+    if (avatar) user.avatar = avatar;
+    if (dob) user.dob = dob;
+    if (gender) user.gender = gender;
+
+    if (address) {
+      user.address = {
+        province: address.province || "",
+        district: address.district || "",
+        ward: address.ward || "",
+        street: address.street || ""
+      };
+    }
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Cập nhật thông tin thành công",
+      data: {
+        user: {
+          _id: user._id,
+          email: user.email,
+          username: user.username,
+          fullname: user.fullname,
+          phone: user.phone,
+          avatar: user.avatar,
+          role: user.role,
+          isActive: user.isActive,
+          isVerified: user.isVerified,
+          createdAt: user.createdAt,
+          address: user.address,
+          dob: user.dob,
+          gender: user.gender
+        }
+      }
+    });
+  } catch (error) {
+    console.error("❌ [Controller] Lỗi cập nhật thông tin:", error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server",
+      error: error.message
     });
   }
 };

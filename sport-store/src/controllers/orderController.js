@@ -369,14 +369,30 @@ export const getAllOrders = async (req, res) => {
         // Kiểm tra đúng định dạng ObjectId (MongoDB ID)
         filter = { _id: search };
       } else {
-        return res.status(400).json({ message: "Mã đơn hàng không hợp lệ" });
+        return res.status(400).json({ 
+          success: false,
+          message: "Mã đơn hàng không hợp lệ" 
+        });
       }
     }
 
-    const orders = await Order.find(filter).populate("items.product", "name price").sort({ createdAt: -1 });
-    res.json(orders);
+    const orders = await Order.find(filter)
+      .populate("items.product", "name price images")
+      .populate("userId", "fullname phone email")
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      message: "Lấy danh sách đơn hàng thành công",
+      data: orders
+    });
   } catch (error) {
-    res.status(500).json({ message: "Lỗi khi lấy đơn hàng", error: error.message });
+    console.error("Lỗi khi lấy danh sách đơn hàng:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Lỗi khi lấy đơn hàng", 
+      error: error.message 
+    });
   }
 };
 
@@ -448,14 +464,76 @@ export const getOrderById = async (req, res) => {
   }
 };
 
-// Lấy danh sách đơn hàng của User
+// Lấy danh sách đơn hàng của user
 export const getUserOrders = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const orders = await Order.find({ user: userId }).populate("items.product", "name price");
-    res.json(orders);
+    // Nếu là admin và có userId trong params, lấy đơn hàng của user đó
+    // Nếu không, lấy đơn hàng của user đang đăng nhập
+    const userId = req.user.role === "admin" && req.params.id 
+      ? req.params.id 
+      : req.user._id;
+
+    console.log("🔍 [getUserOrders] Đang tìm đơn hàng của user:", userId);
+
+    // Tìm tất cả đơn hàng của user
+    const orders = await Order.find({ user: userId })
+      .sort({ createdAt: -1 })
+      .populate("items.product", "name price images")
+      .lean();
+
+    console.log("✅ [getUserOrders] Tìm thấy đơn hàng:", orders);
+
+    // Tính toán thông tin chi tiết cho mỗi đơn hàng
+    const ordersWithDetails = await Promise.all(
+      orders.map(async (order) => {
+        // Tính tổng số tiền đơn hàng
+        const totalAmount = order.items.reduce((sum, item) => {
+          return sum + (item.product?.price || 0) * item.quantity;
+        }, 0);
+
+        // Tính tổng số sản phẩm
+        const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+        // Lấy thông tin chi tiết sản phẩm
+        const itemsWithDetails = await Promise.all(
+          order.items.map(async (item) => {
+            const product = await Product.findById(item.product._id)
+              .select("name price images")
+              .lean();
+
+            return {
+              ...item,
+              product: {
+                ...item.product,
+                name: product?.name || "Sản phẩm không tồn tại",
+                price: product?.price || 0,
+                images: product?.images || [],
+              },
+            };
+          })
+        );
+
+        return {
+          ...order,
+          totalAmount,
+          totalItems,
+          items: itemsWithDetails,
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      message: "Lấy danh sách đơn hàng thành công",
+      data: ordersWithDetails,
+    });
   } catch (error) {
-    res.status(500).json({ message: "Lỗi khi lấy danh sách đơn hàng", error: error.message });
+    console.error("❌ [getUserOrders] Lỗi khi lấy danh sách đơn hàng:", error);
+    res.status(500).json({
+      success: false,
+      message: "Lỗi khi lấy danh sách đơn hàng",
+      error: error.message,
+    });
   }
 };
 

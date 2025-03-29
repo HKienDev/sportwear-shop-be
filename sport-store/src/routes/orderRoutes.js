@@ -31,6 +31,9 @@ router.delete("/user/:id", verifyUser, deleteOrder);
 // Admin - Lấy danh sách đơn hàng theo số điện thoại
 router.get("/admin/by-phone", verifyUser, verifyAdmin, getOrdersByPhone);
 
+// Admin - Lấy lịch sử đơn hàng của một user cụ thể
+router.get("/admin/user/:id", verifyUser, verifyAdmin, getUserOrders);
+
 // Admin - Lấy danh sách đơn hàng
 router.get("/admin", verifyUser, verifyAdmin, getAllOrders);
 

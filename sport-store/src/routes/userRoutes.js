@@ -4,13 +4,16 @@ import {
   getAllUsers, 
   getUserProfile, 
   getUserById, 
-  createUser, 
+  register, 
   updateUserByAdmin, 
   deleteUser, 
   createNewAdmin,
   getUserByPhone,
   updateUserTotalSpent,
-  resetUserPassword 
+  resetUserPassword,
+  updateProfile,
+  changePassword,
+  updateAllUsersOrderCount
 } from "../controllers/userController.js";
 import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
 
@@ -40,23 +43,25 @@ const validateBodyObjectId = (req, res, next) => {
   next();
 };
 
-// Routes dành cho admin
-router.get("/", verifyAdmin, getAllUsers); // Admin lấy danh sách user
-router.get("/:id", verifyAdmin, validateObjectId, getUserById); // Admin lấy thông tin user theo ID
-router.put("/admin/:id", verifyAdmin, validateObjectId, updateUserByAdmin); // Admin update user
-router.delete("/admin/:id", verifyAdmin, validateObjectId, deleteUser); // Admin xóa user
-router.post("/admin", verifyAdmin, createUser); // Admin tạo user mới
-router.post("/admin/create-admin", verifyAdmin, createNewAdmin);
-// Route tìm user theo số điện thoại
-router.get("/phone/:phone", getUserByPhone);
+// Public routes
+router.post("/register", register);
 
-// Route lấy thông tin user đang đăng nhập
+// Protected routes
 router.get("/profile", verifyUser, getUserProfile);
+router.put("/profile", verifyUser, updateProfile);
+router.put("/change-password", verifyUser, changePassword);
 
-// Route cập nhật totalSpent
+// Admin routes
+router.get("/", verifyAdmin, getAllUsers);
+router.get("/:id", verifyAdmin, validateObjectId, getUserById);
+router.put("/:id", verifyAdmin, validateObjectId, updateUserByAdmin);
+router.delete("/:id", verifyAdmin, validateObjectId, deleteUser);
+router.post("/admin", verifyAdmin, createNewAdmin);
+router.get("/phone/:phone", verifyAdmin, getUserByPhone);
+router.put("/admin/reset-password/:id", verifyAdmin, validateObjectId, resetUserPassword);
+
+// Utility routes (admin only)
+router.put("/admin/update-order-count", verifyAdmin, updateAllUsersOrderCount);
 router.put("/admin/update-total-spent", verifyAdmin, validateBodyObjectId, updateUserTotalSpent);
-
-// Route reset password cho user (admin)
-router.post("/admin/:id/reset-password", verifyAdmin, validateObjectId, resetUserPassword);
 
 export default router;

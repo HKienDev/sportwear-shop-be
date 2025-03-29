@@ -3,20 +3,9 @@ import passport from "passport";
 import jwt from "jsonwebtoken";
 import env from "../config/env.js";
 import User from "../models/user.js";
-import { 
-  register, 
-  verifyOTP, 
-  login, 
-  logout, 
-  forgotPassword, 
-  verifyForgotPasswordOTP, 
-  requestUpdate, 
-  updateUser, 
-  refreshToken, 
-  verifyToken,
-  checkAuth // Thêm hàm checkAuth từ authController
-} from "../controllers/authController.js";
+import * as authController from "../controllers/authController.js";
 import { authenticateToken } from "../middlewares/authenticateToken.js";
+import { verifyAccessToken } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
@@ -26,28 +15,28 @@ router.get("/", (req, res) => {
 });
 
 // Đăng ký tài khoản mới (Gửi OTP qua email)
-router.post("/register", register);
+router.post("/register", authController.register);
 
 // Xác thực OTP để kích hoạt tài khoản
-router.post("/verify-account", verifyOTP);
+router.post("/verify-account", authController.verifyOTP);
 
 // Đăng nhập tài khoản
-router.post("/login", login);
+router.post("/login", authController.login);
 
 // Đăng xuất tài khoản
-router.post("/logout", logout);
+router.post("/logout", authController.logout);
 
 // Quên mật khẩu (Gửi OTP qua email)
-router.post("/forgot-password", forgotPassword);
+router.post("/forgot-password", authController.forgotPassword);
 
 // Xác thực OTP quên mật khẩu & nhận token để đổi mật khẩu
-router.post("/verify-forgot-password-otp", verifyForgotPasswordOTP);
+router.post("/verify-forgot-password-otp", authController.verifyForgotPasswordOTP);
 
 // Gửi OTP để xác thực trước khi thay đổi thông tin bảo mật
-router.post("/request-update", authenticateToken, requestUpdate); // ✅ Thêm `authenticateToken`
+router.post("/request-update", authenticateToken, authController.requestUpdate); // ✅ Thêm `authenticateToken`
 
 // Xác thực OTP và cập nhật thông tin bảo mật (email, username, password)
-router.put("/update-user", authenticateToken, updateUser); // ✅ Thêm `authenticateToken`
+router.put("/update-user", authenticateToken, authController.updateUser); // ✅ Thêm `authenticateToken`
 
 // Route bắt đầu đăng nhập Google
 router.get(
@@ -101,12 +90,12 @@ router.get("/profile", authenticateToken, async (req, res) => {
 });
 
 // Xác thực token
-router.post("/verify-token", verifyToken);
+router.post("/verify-token", authController.verifyToken);
 
 // Refresh token
-router.post("/refresh", refreshToken);
+router.post("/refresh-token", authController.refreshToken);
 
 // Check auth status (Kiểm tra trạng thái đăng nhập)
-router.get("/check", authenticateToken, checkAuth);
+router.get("/check", verifyAccessToken, authController.checkAuth);
 
 export default router;
