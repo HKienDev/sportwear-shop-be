@@ -450,13 +450,32 @@ export const getOrderById = async (req, res) => {
 // Lấy danh sách đơn hàng của user
 export const getUserOrders = async (req, res) => {
   try {
+    // Kiểm tra xem có user đang đăng nhập không
+    if (!req.user) {
+      console.log("❌ [getUserOrders] Không tìm thấy thông tin người dùng đăng nhập");
+      return res.status(401).json({
+        success: false,
+        message: "Không tìm thấy thông tin người dùng đăng nhập"
+      });
+    }
+
     // Nếu là admin và có userId trong params, lấy đơn hàng của user đó
     // Nếu không, lấy đơn hàng của user đang đăng nhập
     const userId = req.user.role === "admin" && req.params.id 
       ? req.params.id 
       : req.user._id;
 
-    console.log("🔍 [getUserOrders] Đang tìm đơn hàng của user:", userId);
+    console.log("🔍 [getUserOrders] User ID:", userId);
+    console.log("🔍 [getUserOrders] User role:", req.user.role);
+
+    // Kiểm tra userId hợp lệ
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.log("❌ [getUserOrders] ID người dùng không hợp lệ:", userId);
+      return res.status(400).json({
+        success: false,
+        message: "ID người dùng không hợp lệ"
+      });
+    }
 
     // Tìm tất cả đơn hàng của user
     const orders = await Order.find({ user: userId })
@@ -464,14 +483,18 @@ export const getUserOrders = async (req, res) => {
       .populate("items.product", "name price images")
       .lean();
 
-    console.log("✅ [getUserOrders] Tìm thấy đơn hàng:", orders);
+    console.log("✅ [getUserOrders] Số lượng đơn hàng tìm thấy:", orders.length);
 
     // Tính toán thông tin chi tiết cho mỗi đơn hàng
     const ordersWithDetails = await Promise.all(
       orders.map(async (order) => {
         // Tính tổng số tiền đơn hàng
         const totalAmount = order.items.reduce((sum, item) => {
-          return sum + (item.product?.price || 0) * item.quantity;
+          if (!item.product) {
+            console.log("⚠️ [getUserOrders] Sản phẩm không tồn tại trong item:", item);
+            return sum;
+          }
+          return sum + (item.product.price || 0) * item.quantity;
         }, 0);
 
         // Tính tổng số sản phẩm
@@ -480,17 +503,41 @@ export const getUserOrders = async (req, res) => {
         // Lấy thông tin chi tiết sản phẩm
         const itemsWithDetails = await Promise.all(
           order.items.map(async (item) => {
+            if (!item.product || !item.product._id) {
+              console.log("⚠️ [getUserOrders] Item không có thông tin sản phẩm:", item);
+              return {
+                ...item,
+                product: {
+                  name: "Sản phẩm không tồn tại",
+                  price: 0,
+                  images: [],
+                },
+              };
+            }
+
             const product = await Product.findById(item.product._id)
               .select("name price images")
               .lean();
+
+            if (!product) {
+              console.log("⚠️ [getUserOrders] Không tìm thấy sản phẩm với ID:", item.product._id);
+              return {
+                ...item,
+                product: {
+                  name: "Sản phẩm không tồn tại",
+                  price: 0,
+                  images: [],
+                },
+              };
+            }
 
             return {
               ...item,
               product: {
                 ...item.product,
-                name: product?.name || "Sản phẩm không tồn tại",
-                price: product?.price || 0,
-                images: product?.images || [],
+                name: product.name,
+                price: product.price,
+                images: product.images,
               },
             };
           })

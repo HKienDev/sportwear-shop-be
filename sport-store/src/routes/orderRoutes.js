@@ -30,6 +30,7 @@ router.get("/admin/recent", verifyUser, verifyAdmin, getRecentOrders);
 router.get("/admin/stats", verifyUser, verifyAdmin, getStats);
 router.get("/admin", verifyUser, verifyAdmin, getAllOrders);
 router.get("/admin/:id", verifyUser, verifyAdmin, getOrderById);
+router.get("/admin/user/:id", verifyUser, verifyAdmin, getUserOrders);
 router.put("/admin/:id", verifyUser, verifyAdmin, updateOrderDetails);
 router.put("/admin/:id/status", verifyUser, verifyAdmin, updateOrderStatus);
 router.delete("/admin/:id", verifyUser, verifyAdmin, deleteOrder);
