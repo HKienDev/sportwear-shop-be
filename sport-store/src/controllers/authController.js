@@ -85,8 +85,16 @@ export const checkAuth = async (req, res) => {
       user: {
         id: user._id,
         email: user.email,
+        username: user.username,
+        fullname: user.fullname,
+        avatar: user.avatar,
         role: user.role,
-        isActive: user.isActive
+        isActive: user.isActive,
+        isVerified: user.isVerified,
+        membershipLevel: user.membershipLevel,
+        totalSpent: user.totalSpent,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
       }
     });
   } catch (error) {
