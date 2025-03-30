@@ -188,11 +188,11 @@ export const login = async (req, res) => {
           email: user.email,
           role: user.role,
           isActive: user.isActive,
-          fullname: user.fullname,
-          username: user.username,
-          avatar: user.avatar,
-          membershipLevel: user.membershipLevel,
-          totalSpent: user.totalSpent,
+          fullname: user.fullname || "",
+          username: user.username || "",
+          avatar: user.avatar || "",
+          membershipLevel: user.membershipLevel || "Hạng Sắt",
+          totalSpent: user.totalSpent || 0,
           isVerified: user.isVerified,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt
@@ -200,10 +200,11 @@ export const login = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("❌ [Controller] Lỗi login:", error.message);
+    console.error("❌ [Controller] Lỗi login:", error);
     return res.status(500).json({
       success: false,
-      message: "Lỗi server"
+      message: "Lỗi server",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined
     });
   }
 };
