@@ -179,7 +179,15 @@ export const login = async (req, res) => {
           id: user._id,
           email: user.email,
           role: user.role,
-          isActive: user.isActive
+          isActive: user.isActive,
+          fullname: user.fullname,
+          username: user.username,
+          avatar: user.avatar,
+          membershipLevel: user.membershipLevel,
+          totalSpent: user.totalSpent,
+          isVerified: user.isVerified,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt
         }
       }
     });

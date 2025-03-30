@@ -377,3 +377,41 @@ export const getBestSellingProducts = async (req, res) => {
     });
   }
 };
+
+// Tìm kiếm sản phẩm
+export const searchProducts = async (req, res) => {
+  try {
+    const { keyword } = req.query;
+    
+    if (!keyword) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng nhập từ khóa tìm kiếm"
+      });
+    }
+
+    const products = await Product.find({
+      isActive: true,
+      $or: [
+        { name: { $regex: keyword, $options: 'i' } },
+        { description: { $regex: keyword, $options: 'i' } },
+        { brand: { $regex: keyword, $options: 'i' } },
+        { tags: { $regex: keyword, $options: 'i' } }
+      ]
+    })
+    .populate('category', 'name')
+    .limit(10);
+
+    res.status(200).json({
+      success: true,
+      products
+    });
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Lỗi khi tìm kiếm sản phẩm",
+      error: error.message
+    });
+  }
+};

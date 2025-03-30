@@ -69,7 +69,7 @@ router.get(
         });
 
         // 📌 Chuyển hướng về FE mà không để lộ token
-        res.redirect(`${env.FRONTEND_URL}/user/auth/google-success`);
+        res.redirect(`${env.FRONTEND_URL}/auth/google-success`);
     }
 );
 
