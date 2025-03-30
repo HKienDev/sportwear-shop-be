@@ -15,6 +15,7 @@ import productRoutes from "./src/routes/productRoutes.js";
 import categoryRoutes from "./src/routes/categoryRoutes.js";
 import orderRoutes from "./src/routes/orderRoutes.js";
 import uploadRoutes from './src/routes/uploadRoutes.js';
+import statsRoutes from './src/routes/statsRoutes.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -54,6 +55,16 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
+// Middleware xử lý lỗi chung
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({
+    success: false,
+    message: 'Lỗi server',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
+
 // Kết nối Database
 connectDB();
 
@@ -65,6 +76,7 @@ app.use(passport.initialize());
 app.use("/api/categories", categoryRoutes);
 app.use("/api/orders", orderRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api', statsRoutes);
 
 // ==========================
 // ⚡ Socket.IO - Quản lý Chat Live

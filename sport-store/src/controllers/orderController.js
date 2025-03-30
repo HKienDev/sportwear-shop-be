@@ -146,14 +146,16 @@ export const createOrder = async (req, res) => {
     );
 
     // Tính tổng tiền dựa trên giá sale
-    const subtotal = orderItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+    const subtotal = orderItems.reduce((total, item) => {
+        const price = Number(item.price) || 0;
+        const quantity = Number(item.quantity) || 0;
+        return total + (price * quantity);
+    }, 0);
 
-    // Thêm phí vận chuyển vào tổng tiền
-    const shippingFee = shippingMethod.method === "Express" 
-      ? 50000 
-      : shippingMethod.method === "SameDay" 
-      ? 100000 
-      : 30000;
+    // Tính phí vận chuyển
+    const shippingFee = Number(shippingMethod.fee) || 0;
+
+    // Tính tổng tiền cuối cùng
     const totalPrice = subtotal + shippingFee;
 
     // Kiểm tra tổng tiền từ client có khớp không
@@ -355,15 +357,15 @@ export const updateOrderStatus = async (req, res) => {
   }
 };
 
-// Admin - Lấy tất cả đơn hàng hoặc tìm theo shortId / _id
+// Admin - Lấy danh sách đơn hàng
 export const getAllOrders = async (req, res) => {
   try {
+    // Lấy tất cả đơn hàng và populate thông tin sản phẩm
     const orders = await Order.find()
-      .populate('user', 'name email phone')
-      .populate('items.product', 'name price images shortId')
+      .populate('items.product')
       .sort({ createdAt: -1 });
 
-    res.json({
+    res.status(200).json({
       success: true,
       data: orders
     });
@@ -687,6 +689,30 @@ export const getOrdersByPhone = async (req, res) => {
       success: false,
       message: "Lỗi khi lấy danh sách đơn hàng", 
       error: error.message 
+    });
+  }
+};
+
+// Admin - Lấy danh sách đơn hàng gần đây
+export const getRecentOrders = async (req, res) => {
+  try {
+    // Lấy 5 đơn hàng gần đây nhất và populate thông tin user
+    const recentOrders = await Order.find()
+      .populate('user', 'name email phone')
+      .populate('items.product', 'name price images shortId')
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    res.status(200).json({
+      success: true,
+      data: recentOrders
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách đơn hàng gần đây:", error);
+    res.status(500).json({
+      success: false,
+      message: "Lỗi khi lấy danh sách đơn hàng gần đây",
+      error: error.message
     });
   }
 };

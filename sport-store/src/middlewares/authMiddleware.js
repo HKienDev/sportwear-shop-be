@@ -52,23 +52,43 @@ export const verifyUser = async (req, res, next) => {
 // Middleware xác thực admin
 export const verifyAdmin = async (req, res, next) => {
   try {
-    await verifyAccessToken(req, res, (err) => {
-      if (err) {
-        return res.status(401).json({ 
-          success: false,
-          message: err.message 
-        });
-      }
+    // Xác thực access token trước
+    const authHeader = req.header("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return res.status(401).json({ 
+        success: false,
+        message: "Thiếu hoặc sai định dạng Access Token" 
+      });
+    }
 
-      if (req.user.role !== "admin") {
-        return res.status(403).json({ 
-          success: false,
-          message: "Bạn không có quyền truy cập trang này" 
-        });
-      }
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, env.ACCESS_TOKEN_SECRET);
 
-      next();
-    });
+    // Tìm user
+    const user = await User.findById(decoded.userId).select("-password");
+    if (!user) {
+      return res.status(401).json({ 
+        success: false,
+        message: "Người dùng không tồn tại" 
+      });
+    }
+    if (!user.isActive) {
+      return res.status(401).json({ 
+        success: false,
+        message: "Tài khoản bị khóa" 
+      });
+    }
+
+    // Kiểm tra role admin
+    if (user.role !== "admin") {
+      return res.status(403).json({ 
+        success: false,
+        message: "Bạn không có quyền truy cập trang này" 
+      });
+    }
+
+    req.user = user;
+    next();
   } catch (error) {
     console.error("❌ Lỗi verifyAdmin:", error.message);
     return res.status(401).json({ 

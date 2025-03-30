@@ -13,8 +13,11 @@ import {
   resetUserPassword,
   updateProfile,
   changePassword,
-  updateAllUsersOrderCount
+  updateAllUsersOrderCount,
+  login,
+  logout
 } from "../controllers/userController.js";
+import { getStats, getRevenue } from '../controllers/statsController.js';
 import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
@@ -43,15 +46,21 @@ const validateBodyObjectId = (req, res, next) => {
   next();
 };
 
-// Public routes
+// Auth routes
 router.post("/register", register);
+router.post("/login", login);
+router.post("/logout", logout);
 
-// Protected routes
+// User routes
 router.get("/profile", verifyUser, getUserProfile);
 router.put("/profile", verifyUser, updateProfile);
 router.put("/change-password", verifyUser, changePassword);
 
 // Admin routes
+router.get("/admin/stats", verifyUser, verifyAdmin, getStats);
+router.get("/admin/revenue", verifyUser, verifyAdmin, getRevenue);
+
+// Protected routes
 router.get("/", verifyAdmin, getAllUsers);
 router.get("/:id", verifyAdmin, validateObjectId, getUserById);
 router.put("/:id", verifyAdmin, validateObjectId, updateUserByAdmin);

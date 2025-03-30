@@ -1,14 +1,15 @@
 import express from "express";
-import { 
-    createOrder,
-    updateOrderStatus,
-    updateOrderDetails,
-    getOrderById,
-    getUserOrders,
-    getAllOrders,
-    deleteOrder,
-    stripeWebhook,
-    getOrdersByPhone
+import {
+  createOrder,
+  updateOrderStatus,
+  updateOrderDetails,
+  getOrderById,
+  getUserOrders,
+  getAllOrders,
+  deleteOrder,
+  stripeWebhook,
+  getOrdersByPhone,
+  getRecentOrders
 } from "../controllers/orderController.js";
 import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
 
@@ -36,6 +37,9 @@ router.get("/admin/user/:id", verifyUser, verifyAdmin, getUserOrders);
 
 // Admin - Lấy danh sách đơn hàng
 router.get("/admin", verifyUser, verifyAdmin, getAllOrders);
+
+// Admin - Lấy danh sách đơn hàng gần đây
+router.get("/admin/recent", verifyUser, verifyAdmin, getRecentOrders);
 
 // Admin - Xem chi tiết đơn hàng
 router.get("/admin/:id", verifyUser, verifyAdmin, getOrderById);
