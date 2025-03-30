@@ -696,16 +696,33 @@ export const getOrdersByPhone = async (req, res) => {
 // Admin - Lấy danh sách đơn hàng gần đây
 export const getRecentOrders = async (req, res) => {
   try {
-    // Lấy 5 đơn hàng gần đây nhất và populate thông tin user
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Lấy tổng số đơn hàng
+    const total = await Order.countDocuments();
+
+    // Lấy danh sách đơn hàng với phân trang
     const recentOrders = await Order.find()
       .populate('user', 'name email phone')
       .populate('items.product', 'name price images shortId')
       .sort({ createdAt: -1 })
-      .limit(5);
+      .skip(skip)
+      .limit(limit);
+
+    // Tính tổng số trang
+    const totalPages = Math.ceil(total / limit);
 
     res.status(200).json({
       success: true,
-      data: recentOrders
+      data: recentOrders,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages
+      }
     });
   } catch (error) {
     console.error("Lỗi khi lấy danh sách đơn hàng gần đây:", error);
@@ -713,6 +730,58 @@ export const getRecentOrders = async (req, res) => {
       success: false,
       message: "Lỗi khi lấy danh sách đơn hàng gần đây",
       error: error.message
+    });
+  }
+};
+
+// Admin - Lấy thống kê đơn hàng
+export const getStats = async (req, res) => {
+  try {
+    // 1. Thống kê tổng quan
+    const totalOrders = await Order.countDocuments();
+    const totalRevenue = await Order.aggregate([
+      { $match: { status: 'delivered' } },
+      { $group: { _id: null, total: { $sum: '$totalPrice' } } }
+    ]);
+    const totalUsers = await User.countDocuments({ role: 'user' });
+    const totalProducts = await Product.countDocuments();
+
+    // 2. Thống kê trạng thái đơn hàng
+    const pendingOrders = await Order.countDocuments({ status: 'pending' });
+    const processingOrders = await Order.countDocuments({ status: 'processing' });
+    const shippedOrders = await Order.countDocuments({ status: 'shipped' });
+    const deliveredOrders = await Order.countDocuments({ status: 'delivered' });
+    const cancelledOrders = await Order.countDocuments({ status: 'cancelled' });
+
+    // 3. Thống kê sản phẩm
+    const lowStockProducts = await Product.countDocuments({
+      stock: { $gt: 0, $lt: 51 }
+    });
+    const outOfStockProducts = await Product.countDocuments({
+      stock: 0
+    });
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        totalOrders,
+        totalRevenue: totalRevenue[0]?.total || 0,
+        totalUsers,
+        totalProducts,
+        pendingOrders,
+        processingOrders,
+        shippedOrders,
+        deliveredOrders,
+        cancelledOrders,
+        lowStockProducts,
+        outOfStockProducts
+      }
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy thống kê:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi lấy thống kê'
     });
   }
 };

@@ -5,7 +5,8 @@ import {
   createProduct, 
   updateProduct, 
   deleteProduct,
-  toggleProductStatus 
+  toggleProductStatus,
+  getBestSellingProducts 
 } from "../controllers/productController.js";
 import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
 
@@ -13,6 +14,11 @@ const router = express.Router();
 
 // Public Routes (Bất kỳ ai cũng có thể truy cập)
 router.get("/", getProducts);
+
+// Admin Routes (Chỉ admin mới có thể truy cập)
+router.get("/admin/best-selling", verifyAdmin, getBestSellingProducts);
+
+// Dynamic Routes (Phải đặt sau các route cụ thể)
 router.get("/:id", getProductById);
 
 // Protected routes (Admin only)

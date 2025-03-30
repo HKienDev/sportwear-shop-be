@@ -1,5 +1,6 @@
 import Product from "../models/product.js";
 import Category from "../models/category.js"; // Import model danh mục
+import Order from "../models/order.js"; // Import model đơn hàng
 
 // Lấy danh sách sản phẩm (có phân trang, chỉ hiển thị sản phẩm đang bật)
 export const getProducts = async (req, res) => {
@@ -289,6 +290,90 @@ export const toggleProductStatus = async (req, res) => {
     res.status(500).json({ 
       success: false,
       message: "Lỗi server: " + error.message 
+    });
+  }
+};
+
+// Lấy danh sách sản phẩm bán chạy
+export const getBestSellingProducts = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 5;
+
+    // Lấy tất cả đơn hàng đã giao thành công
+    const orders = await Order.find({
+      status: 'delivered'
+    }).populate({
+      path: 'items.product',
+      select: 'name images price',
+      options: { lean: true } // Sử dụng lean để tăng hiệu suất
+    });
+
+    console.log('🔍 Orders found:', orders.length);
+
+    // Tạo map để theo dõi số lượng bán và doanh thu của mỗi sản phẩm
+    const productStats = new Map();
+
+    // Tính toán số lượng bán và doanh thu cho mỗi sản phẩm
+    orders.forEach(order => {
+      order.items.forEach(item => {
+        const productId = item.product?._id?.toString() || `deleted_${item._id}`;
+        const productName = item.product?.name || 'Sản phẩm đã bị xóa';
+        const productImage = item.product?.images?.main || '';
+        const isDeleted = !item.product;
+
+        if (!productStats.has(productId)) {
+          productStats.set(productId, {
+            _id: productId,
+            name: productName,
+            image: productImage,
+            price: item.price,
+            soldQuantity: 0,
+            totalRevenue: 0,
+            isDeleted: isDeleted
+          });
+        }
+        const stats = productStats.get(productId);
+        stats.soldQuantity += item.quantity;
+        stats.totalRevenue += item.quantity * item.price;
+      });
+    });
+
+    // Chuyển map thành mảng và sắp xếp theo doanh thu giảm dần
+    const allProducts = Array.from(productStats.values())
+      .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    // Tính toán phân trang
+    const totalProducts = allProducts.length;
+    const totalPages = Math.ceil(totalProducts / limit);
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedProducts = allProducts.slice(startIndex, endIndex);
+
+    console.log('✅ Best selling products:', {
+      total: totalProducts,
+      page,
+      limit,
+      totalPages,
+      currentPageProducts: paginatedProducts.length
+    });
+
+    res.json({
+      success: true,
+      data: paginatedProducts,
+      pagination: {
+        total: totalProducts,
+        page,
+        limit,
+        totalPages
+      }
+    });
+  } catch (error) {
+    console.error('❌ Lỗi khi lấy danh sách sản phẩm bán chạy:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi lấy danh sách sản phẩm bán chạy',
+      error: error.message
     });
   }
 };
