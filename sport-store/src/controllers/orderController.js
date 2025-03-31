@@ -418,15 +418,8 @@ export const getOrderById = async (req, res) => {
     }
 
     // Tìm đơn hàng và populate thông tin sản phẩm
-    const order = await Order.findById(id)
-      .populate({
-        path: "items.product",
-        select: "name price images shortId"
-      })
-      .lean();
-
+    const order = await Order.findById(id).populate('items.product');
     if (!order) {
-      console.error("❌ Không tìm thấy đơn hàng với ID:", id);
       return res.status(404).json({ 
         success: false,
         message: "Không tìm thấy đơn hàng!" 
@@ -434,9 +427,11 @@ export const getOrderById = async (req, res) => {
     }
 
     console.log("✅ Tìm thấy đơn hàng:", order);
-    return res.json({ 
+    // Trả về đơn hàng với cấu trúc ApiResponse
+    res.status(200).json({
       success: true,
-      order 
+      message: "Lấy thông tin đơn hàng thành công",
+      data: order
     });
   } catch (error) {
     console.error("❌ Lỗi khi lấy thông tin đơn hàng:", error);
