@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import User from "../models/user.js";
 import dotenv from "dotenv";
-import rateLimit from 'express-rate-limit';
 
 // Load biến môi trường
 dotenv.config();
@@ -65,23 +64,3 @@ async function createAdmin() {
 
 // Gọi hàm tạo admin
 createAdmin();
-
-const refreshTokenLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // limit each IP to 5 requests per windowMs
-    message: 'Quá nhiều yêu cầu refresh token. Vui lòng thử lại sau.'
-});
-
-// Áp dụng cho route refresh token
-router.post('/refresh-token', refreshTokenLimiter, refreshToken);
-
-localStorage.setItem('user', JSON.stringify(response.data.data.user));
-
-document.cookie = `user=${JSON.stringify(userData)}; path=/;`;
-
-console.log('Auth check response:', response);
-
-if (response.success && response.data?.user?.role === "admin") {
-  console.log("✅ Admin được phép truy cập");
-  setIsLoading(false);
-}
