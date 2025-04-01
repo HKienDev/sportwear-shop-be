@@ -1,38 +1,32 @@
 import express from "express";
+import * as orderController from "../controllers/orderController.js";
 import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
-import {
-  createOrder,
-  updateOrderStatus,
-  updateOrderDetails,
-  getOrderById,
-  getUserOrders,
-  getAllOrders,
-  deleteOrder,
-  stripeWebhook,
-  getOrdersByPhone,
-  getRecentOrders,
-  getStats
-} from "../controllers/orderController.js";
+import { validateRequest } from '../middlewares/validateRequest.js';
+import { 
+    createOrderSchema, 
+    updateOrderStatusSchema, 
+    searchOrderSchema 
+} from '../validations/orderSchema.js';
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../utils/constants.js';
 
 const router = express.Router();
 
 // Public routes
-router.post("/webhook", stripeWebhook);
+router.get("/test", (req, res) => {
+    res.json({ message: SUCCESS_MESSAGES.ROUTE_WORKING });
+});
 
-// User routes
-router.get("/user", verifyUser, getUserOrders);
-router.get("/user/:id", verifyUser, getUserOrders);
-router.get("/phone", getOrdersByPhone);
+// Order routes (User only)
+router.post("/", verifyUser, validateRequest(createOrderSchema), orderController.createOrder);
+router.get("/my-orders", verifyUser, orderController.getMyOrders);
+router.get("/my-orders/:id", verifyUser, orderController.getMyOrderById);
+router.put("/my-orders/:id/cancel", verifyUser, orderController.cancelOrder);
 
-// Admin routes
-router.post("/admin", verifyUser, verifyAdmin, createOrder);
-router.get("/admin/recent", verifyUser, verifyAdmin, getRecentOrders);
-router.get("/admin/stats", verifyUser, verifyAdmin, getStats);
-router.get("/admin", verifyUser, verifyAdmin, getAllOrders);
-router.get("/admin/:id", verifyUser, verifyAdmin, getOrderById);
-router.get("/admin/user/:id", verifyUser, verifyAdmin, getUserOrders);
-router.put("/admin/:id", verifyUser, verifyAdmin, updateOrderDetails);
-router.put("/admin/:id/status", verifyUser, verifyAdmin, updateOrderStatus);
-router.delete("/admin/:id", verifyUser, verifyAdmin, deleteOrder);
+// Protected routes (Admin only)
+router.get("/", verifyAdmin, orderController.getAllOrders);
+router.get("/:id", verifyAdmin, orderController.getOrderById);
+router.put("/:id/status", verifyAdmin, validateRequest(updateOrderStatusSchema), orderController.updateOrderStatus);
+router.put("/:id/payment", verifyAdmin, validateRequest(updateOrderStatusSchema), orderController.updateOrderPayment);
+router.delete("/:id", verifyAdmin, orderController.deleteOrder);
 
 export default router;

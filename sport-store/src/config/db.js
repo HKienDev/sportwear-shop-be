@@ -1,19 +1,32 @@
 import mongoose from "mongoose";
-import dotenv from "dotenv";
-
-dotenv.config();
-
-// Log để kiểm tra biến môi trường
-console.log("MONGO_URI:", process.env.MONGO_URI);
+import { logInfo, logError } from "../utils/logger.js";
+import env from "./env.js";
 
 const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGO_URI);
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.error(`Error: ${error.message}`);
-    process.exit(1);
-  }
+    try {
+        const conn = await mongoose.connect(env.MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+        });
+
+        logInfo(`MongoDB Connected: ${conn.connection.host}`);
+    } catch (error) {
+        logError("MongoDB connection error:", error);
+        process.exit(1);
+    }
 };
+
+// Handle MongoDB connection events
+mongoose.connection.on("error", (error) => {
+    logError("MongoDB connection error:", error);
+});
+
+mongoose.connection.on("disconnected", () => {
+    logError("MongoDB disconnected");
+});
+
+mongoose.connection.on("reconnected", () => {
+    logInfo("MongoDB reconnected");
+});
 
 export default connectDB;

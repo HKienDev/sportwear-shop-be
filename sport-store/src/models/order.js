@@ -1,150 +1,284 @@
 import mongoose from "mongoose";
 import { nanoid } from "nanoid";
 
-// Hàm sinh mã đơn hàng ngắn
-const generateOrderId = () => {
-  return `VJUSPORT${nanoid(7).toUpperCase()}`;
+// Constants
+const ORDER_STATUS = {
+    PENDING: "pending",
+    PROCESSING: "processing",
+    SHIPPED: "shipped",
+    DELIVERED: "delivered",
+    CANCELLED: "cancelled"
 };
 
-const orderSchema = new mongoose.Schema(
-  {
+const PAYMENT_METHODS = {
+    COD: "COD",
+    STRIPE: "Stripe"
+};
+
+const PAYMENT_STATUS = {
+    PENDING: "pending",
+    PAID: "paid",
+    FAILED: "failed"
+};
+
+const SHIPPING_METHODS = {
+    STANDARD: "standard",
+    EXPRESS: "express"
+};
+
+// Helper functions
+const generateOrderId = () => {
+    return `VJUSPORT${nanoid(7).toUpperCase()}`;
+};
+
+// Schema
+const orderSchema = new mongoose.Schema({
     shortId: {
-      type: String,
-      unique: true,
-      default: generateOrderId,
-      required: true,
+        type: String,
+        unique: true,
+        default: generateOrderId,
+        required: true,
+        trim: true
     },
     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: false, // Nếu cho phép đặt hàng không cần đăng nhập
-    },
-    items: [
-      {
-        product: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "Product",
-          required: true,
-        },
-        quantity: {
-          type: Number,
-          required: true,
-          min: 1,
-        },
-        price: {
-          type: Number,
-          required: true,
-        },
-      },
-    ],
-    totalPrice: {
-      type: Number,
-      required: true,
-    },
-    paymentMethod: {
-      type: String,
-      enum: ["COD", "Stripe"],
-      required: true,
-    },
-    paymentStatus: {
-      type: String,
-      enum: ["pending", "paid"],
-      default: "pending",
-    },
-    paymentIntentId: {
-      type: String,
-      required: false, // Chỉ cần khi dùng Stripe
-    },
-    status: {
-      type: String,
-      enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
-      default: "pending",
-    },
-    // Thêm trường shippingMethod
-    shippingMethod: {
-      type: {
-        method: { type: String, required: true }, // Ví dụ: "Giao hàng tiêu chuẩn"
-        expectedDate: { type: String, required: true }, // Ví dụ: "15/03/2025 - 17/03/2025"
-        courier: { type: String, required: true }, // Ví dụ: "Giao hàng nhanh"
-        trackingId: { type: String, required: true }, // Mã vận đơn
-      },
-      required: true, // Trường này bắt buộc
-    },
-    shippingAddress: {
-      fullName: {
-        type: String,
-        required: true,
-      },
-      phone: {
-        type: String,
-        required: true,
-      },
-      address: {
-        type: String,
-        required: true,
-      },
-      city: {
-        type: String,
-        required: true,
-      },
-      district: {  // Thêm trường Quận/Huyện
-        type: String,
-        required: true,
-      },
-      ward: {      // Thêm trường Phường/Xã
-        type: String,
-        required: true,
-      },
-      postalCode: {
-        type: String,
-        required: true,
-      },
-    },
-    // Thêm các trường mới cho việc hủy đơn
-    cancelledAt: {
-      type: Date,
-      required: false,
-    },
-    cancelledBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: false,
-    },
-    cancellationReason: {
-      type: String,
-      required: false,
-      maxLength: 500,
-    },
-    // Thêm trường để lưu lịch sử trạng thái đơn hàng
-    statusHistory: [{
-      status: {
-        type: String,
-        enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
-        required: true,
-      },
-      updatedAt: {
-        type: Date,
-        default: Date.now,
-      },
-      updatedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
+        required: false
+    },
+    items: [{
+        product: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Product",
+            required: true
+        },
+        quantity: {
+            type: Number,
+            required: true,
+            min: [1, "Số lượng sản phẩm phải lớn hơn 0"]
+        },
+        price: {
+            type: Number,
+            required: true,
+            min: [0, "Giá sản phẩm không thể âm"]
+        },
+        name: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        sku: {
+            type: String,
+            required: true,
+            trim: true
+        }
+    }],
+    totalPrice: {
+        type: Number,
         required: true,
-      },
-      note: {
+        min: [0, "Tổng giá trị đơn hàng không thể âm"]
+    },
+    paymentMethod: {
         type: String,
-        required: false,
-        maxLength: 500,
-      },
+        enum: Object.values(PAYMENT_METHODS),
+        required: true
+    },
+    paymentStatus: {
+        type: String,
+        enum: Object.values(PAYMENT_STATUS),
+        default: PAYMENT_STATUS.PENDING
+    },
+    paymentIntentId: {
+        type: String,
+        required: function() {
+            return this.paymentMethod === PAYMENT_METHODS.STRIPE;
+        },
+        trim: true
+    },
+    shippingAddress: {
+        fullName: {
+            type: String,
+            required: true,
+            trim: true,
+            maxlength: [100, "Tên không được vượt quá 100 ký tự"]
+        },
+        address: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        city: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        district: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        ward: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        postalCode: {
+            type: String,
+            required: true,
+            trim: true,
+            match: [/^[0-9]{6}$/, "Mã bưu điện không hợp lệ"]
+        },
+        phone: {
+            type: String,
+            required: true,
+            trim: true,
+            match: [/^[0-9]{10}$/, "Số điện thoại không hợp lệ"]
+        }
+    },
+    shippingMethod: {
+        type: String,
+        enum: Object.values(SHIPPING_METHODS),
+        required: true
+    },
+    shippingFee: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: [0, "Phí vận chuyển không thể âm"]
+    },
+    status: {
+        type: String,
+        enum: Object.values(ORDER_STATUS),
+        default: ORDER_STATUS.PENDING
+    },
+    notes: {
+        type: String,
+        default: "",
+        trim: true,
+        maxlength: [500, "Ghi chú không được vượt quá 500 ký tự"]
+    },
+    cancellationReason: {
+        type: String,
+        default: "",
+        trim: true,
+        maxlength: [500, "Lý do hủy đơn không được vượt quá 500 ký tự"]
+    },
+    cancelledAt: {
+        type: Date,
+        required: false
+    },
+    cancelledBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: false
+    },
+    statusHistory: [{
+        status: {
+            type: String,
+            enum: Object.values(ORDER_STATUS),
+            required: true
+        },
+        updatedAt: {
+            type: Date,
+            default: Date.now
+        },
+        updatedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true
+        },
+        note: {
+            type: String,
+            required: false,
+            trim: true,
+            maxlength: [500, "Ghi chú không được vượt quá 500 ký tự"]
+        }
     }],
     isTotalSpentUpdated: {
-      type: Boolean,
-      default: false,
-      required: true
+        type: Boolean,
+        default: false,
+        required: true
     }
-  },
-  { timestamps: true }
-);
+}, {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
+
+// Virtual fields
+orderSchema.virtual('totalItems').get(function() {
+    return this.items.reduce((sum, item) => sum + item.quantity, 0);
+});
+
+orderSchema.virtual('isPaid').get(function() {
+    return this.paymentStatus === PAYMENT_STATUS.PAID;
+});
+
+orderSchema.virtual('isCancelled').get(function() {
+    return this.status === ORDER_STATUS.CANCELLED;
+});
+
+orderSchema.virtual('isDelivered').get(function() {
+    return this.status === ORDER_STATUS.DELIVERED;
+});
+
+// Methods
+orderSchema.methods.addStatusHistory = async function(status, updatedBy, note = '') {
+    this.statusHistory.push({
+        status,
+        updatedBy,
+        note
+    });
+    this.status = status;
+    if (status === ORDER_STATUS.CANCELLED) {
+        this.cancelledAt = new Date();
+        this.cancelledBy = updatedBy;
+    }
+    return this.save();
+};
+
+orderSchema.methods.updatePaymentStatus = async function(status, paymentIntentId = null) {
+    this.paymentStatus = status;
+    if (paymentIntentId) {
+        this.paymentIntentId = paymentIntentId;
+    }
+    return this.save();
+};
+
+// Static methods
+orderSchema.statics.findByShortId = function(shortId) {
+    return this.findOne({ shortId: shortId.toUpperCase() });
+};
+
+orderSchema.statics.findByUser = function(userId) {
+    return this.find({ user: userId }).sort({ createdAt: -1 });
+};
+
+orderSchema.statics.findPendingOrders = function() {
+    return this.find({ status: ORDER_STATUS.PENDING });
+};
+
+orderSchema.statics.findProcessingOrders = function() {
+    return this.find({ status: ORDER_STATUS.PROCESSING });
+};
+
+orderSchema.statics.findShippedOrders = function() {
+    return this.find({ status: ORDER_STATUS.SHIPPED });
+};
+
+// Pre-save middleware
+orderSchema.pre('save', async function(next) {
+    if (this.isNew) {
+        // Tính toán lại totalPrice nếu items thay đổi
+        this.totalPrice = this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0) + this.shippingFee;
+    }
+    next();
+});
+
+// Indexes
+orderSchema.index({ createdAt: -1 });
+orderSchema.index({ status: 1 });
+orderSchema.index({ paymentStatus: 1 });
+orderSchema.index({ 'shippingAddress.phone': 1 });
 
 const Order = mongoose.model("Order", orderSchema);
 export default Order;

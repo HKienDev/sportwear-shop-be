@@ -2,9 +2,12 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { uploadImage } from '../controllers/uploadController.js';
-import { verifyUser } from '../middlewares/authMiddleware.js';
+import * as uploadController from '../controllers/uploadController.js';
+import { verifyUser, verifyAdmin } from '../middlewares/authMiddleware.js';
 import fs from 'fs';
+import { validateRequest } from '../middlewares/validateRequest.js';
+import { uploadFileSchema } from '../validations/uploadSchema.js';
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../utils/constants.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -61,12 +64,26 @@ const handleMulterError = (err, req, res, next) => {
   next();
 };
 
-// Route upload ảnh với middleware xác thực và xử lý lỗi
-router.post('/', 
-  verifyUser, 
-  upload.single('image'),
+// Public routes
+router.get("/test", (req, res) => {
+    res.json({ message: SUCCESS_MESSAGES.ROUTE_WORKING });
+});
+
+// Upload routes với multer
+router.post('/avatar', 
+  verifyUser,
+  upload.single('file'),
   handleMulterError,
-  uploadImage
+  validateRequest(uploadFileSchema),
+  uploadController.uploadAvatar
+);
+
+router.post('/product', 
+  verifyAdmin,
+  upload.single('file'),
+  handleMulterError,
+  validateRequest(uploadFileSchema),
+  uploadController.uploadProductImage
 );
 
 export default router; 

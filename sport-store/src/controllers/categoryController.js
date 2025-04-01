@@ -1,82 +1,176 @@
+import mongoose from "mongoose";
 import Category from "../models/category.js";
-import Product from "../models/product.js"; // Import model sản phẩm
+import Product from "../models/product.js";
+import { logInfo, logError } from "../utils/logger.js";
+import env from "../config/env.js";
+import { ERROR_MESSAGES, SUCCESS_MESSAGES, CATEGORY_REQUIRED_FIELDS } from "../utils/constants.js";
+import { handleError } from "../utils/helpers.js";
 
-// Lấy tất cả danh mục (cập nhật productCount thực tế)
+// Constants
+const REQUIRED_FIELDS = {
+    name: "Tên danh mục là bắt buộc"
+};
+
+// Helper functions
+const validateCategoryFields = (categoryData) => {
+    const missingFields = {};
+    for (const [field, message] of Object.entries(CATEGORY_REQUIRED_FIELDS)) {
+        if (!categoryData[field]) {
+            missingFields[field] = message;
+        }
+    }
+    return missingFields;
+};
+
+// Controllers
 export const getAllCategories = async (req, res) => {
-  try {
-    const categories = await Category.find();
-
-    // Tạo danh sách category mới có productCount chính xác
-    const updatedCategories = await Promise.all(
-      categories.map(async (category) => {
-        const productCount = await Product.countDocuments({ category: category._id });
-        return { ...category.toObject(), productCount };
-      })
-    );
-
-    res.status(200).json(updatedCategories);
-  } catch (error) {
-    res.status(500).json({ error: "Lỗi khi lấy danh mục" });
-  }
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const categories = await Category.find().sort({ name: 1 });
+        
+        logInfo(`[${requestId}] Successfully retrieved all categories`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.CATEGORIES_RETRIEVED,
+            data: categories
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
 };
 
-// Lấy chi tiết một danh mục (cập nhật số lượng sản phẩm thực tế)
 export const getCategoryById = async (req, res) => {
-  try {
-    const category = await Category.findById(req.params.id);
-    if (!category) return res.status(404).json({ error: "Danh mục không tồn tại" });
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const category = await Category.findById(req.params.id);
+        
+        if (!category) {
+            logError(`[${requestId}] Category not found: ${req.params.id}`);
+            return res.status(404).json({
+                success: false,
+                message: ERROR_MESSAGES.CATEGORY_NOT_FOUND
+            });
+        }
 
-    // Đếm số lượng sản phẩm thực tế thuộc danh mục
-    const productCount = await Product.countDocuments({ category: category._id });
-
-    res.status(200).json({ ...category.toObject(), productCount }); // Cập nhật productCount
-  } catch (error) {
-    res.status(500).json({ error: "Lỗi khi lấy danh mục" });
-  }
+        logInfo(`[${requestId}] Successfully retrieved category: ${category.name}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.CATEGORY_RETRIEVED,
+            data: category
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
 };
 
-// Tạo danh mục mới
 export const createCategory = async (req, res) => {
-  try {
-    const { name, description, parentCategory, image } = req.body;
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { name, description } = req.body;
 
-    if (!name) return res.status(400).json({ error: "Tên danh mục là bắt buộc" });
+        const existingCategory = await Category.findOne({ name });
+        if (existingCategory) {
+            logError(`[${requestId}] Category already exists: ${name}`);
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.CATEGORY_EXISTS
+            });
+        }
 
-    const newCategory = new Category({ name, description, parentCategory, image, productCount: 0 });
-    await newCategory.save();
-    res.status(201).json(newCategory);
-  } catch (error) {
-    res.status(500).json({ error: "Lỗi khi tạo danh mục" });
-  }
+        const category = new Category({
+            name,
+            description,
+            slug: name.toLowerCase().replace(/\s+/g, '-')
+        });
+
+        const savedCategory = await category.save();
+
+        logInfo(`[${requestId}] Successfully created category: ${name}`);
+        res.status(201).json({
+            success: true,
+            message: SUCCESS_MESSAGES.CATEGORY_CREATED,
+            data: savedCategory
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
 };
 
-// Cập nhật danh mục
 export const updateCategory = async (req, res) => {
-  try {
-    const { name, description, parentCategory, image } = req.body;
-    const category = await Category.findByIdAndUpdate(
-      req.params.id,
-      { name, description, parentCategory, image },
-      { new: true }
-    );
-    if (!category) return res.status(404).json({ error: "Danh mục không tồn tại" });
-    res.status(200).json(category);
-  } catch (error) {
-    res.status(500).json({ error: "Lỗi khi cập nhật danh mục" });
-  }
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { name, description } = req.body;
+        const categoryId = req.params.id;
+
+        const category = await Category.findById(categoryId);
+        if (!category) {
+            logError(`[${requestId}] Category not found: ${categoryId}`);
+            return res.status(404).json({
+                success: false,
+                message: ERROR_MESSAGES.CATEGORY_NOT_FOUND
+            });
+        }
+
+        if (name && name !== category.name) {
+            const existingCategory = await Category.findOne({ name });
+            if (existingCategory) {
+                logError(`[${requestId}] Category already exists: ${name}`);
+                return res.status(400).json({
+                    success: false,
+                    message: ERROR_MESSAGES.CATEGORY_EXISTS
+                });
+            }
+        }
+
+        category.name = name || category.name;
+        category.description = description || category.description;
+        category.slug = category.name.toLowerCase().replace(/\s+/g, '-');
+
+        const updatedCategory = await category.save();
+
+        logInfo(`[${requestId}] Successfully updated category: ${category.name}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.CATEGORY_UPDATED,
+            data: updatedCategory
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
 };
 
-// Xóa danh mục
 export const deleteCategory = async (req, res) => {
-  try {
-    const category = await Category.findByIdAndDelete(req.params.id);
-    if (!category) return res.status(404).json({ error: "Danh mục không tồn tại" });
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const categoryId = req.params.id;
 
-    // Xóa tất cả sản phẩm thuộc danh mục này (nếu cần)
-    await Product.deleteMany({ category: category._id });
+        const category = await Category.findById(categoryId);
+        if (!category) {
+            logError(`[${requestId}] Category not found: ${categoryId}`);
+            return res.status(404).json({
+                success: false,
+                message: ERROR_MESSAGES.CATEGORY_NOT_FOUND
+            });
+        }
 
-    res.status(200).json({ message: "Xóa danh mục thành công" });
-  } catch (error) {
-    res.status(500).json({ error: "Lỗi khi xóa danh mục" });
-  }
+        await category.deleteOne();
+
+        logInfo(`[${requestId}] Successfully deleted category: ${category.name}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.CATEGORY_DELETED
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
 };

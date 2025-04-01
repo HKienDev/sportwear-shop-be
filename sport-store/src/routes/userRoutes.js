@@ -1,24 +1,17 @@
 import express from "express";
 import mongoose from "mongoose";
-import { 
-  getAllUsers, 
-  getUserProfile, 
-  getUserById, 
-  register, 
-  updateUserByAdmin, 
-  deleteUser, 
-  createNewAdmin,
-  getUserByPhone,
-  updateUserTotalSpent,
-  resetUserPassword,
-  updateProfile,
-  changePassword,
-  updateAllUsersOrderCount,
-  login,
-  logout
-} from "../controllers/userController.js";
+import * as userController from "../controllers/userController.js";
 import { getStats, getRevenue } from '../controllers/statsController.js';
 import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
+import { validateRequest } from '../middlewares/validateRequest.js';
+import { 
+    createUserSchema, 
+    updateUserSchema, 
+    updateProfileSchema, 
+    changePasswordSchema, 
+    resetUserPasswordSchema 
+} from '../validations/userSchema.js';
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../utils/constants.js';
 
 const router = express.Router();
 
@@ -46,31 +39,34 @@ const validateBodyObjectId = (req, res, next) => {
   next();
 };
 
-// Auth routes
-router.post("/register", register);
-router.post("/login", login);
-router.post("/logout", logout);
+// Public routes
+router.get("/test", (req, res) => {
+    res.json({ message: SUCCESS_MESSAGES.ROUTE_WORKING });
+});
 
-// User routes
-router.get("/profile", verifyUser, getUserProfile);
-router.put("/profile", verifyUser, updateProfile);
-router.put("/change-password", verifyUser, changePassword);
+// Protected routes (require authentication)
+router.get("/profile", verifyUser, userController.getUserProfile);
+router.put("/profile", verifyUser, validateRequest(updateProfileSchema), userController.updateProfile);
+router.put("/change-password", verifyUser, validateRequest(changePasswordSchema), userController.changePassword);
+
+// Admin routes
+router.get("/", verifyAdmin, userController.getUsers);
+router.get("/:id", verifyAdmin, validateObjectId, userController.getUserById);
+router.post("/", verifyAdmin, validateRequest(createUserSchema), userController.register);
+router.put("/:id", verifyAdmin, validateObjectId, validateRequest(updateUserSchema), userController.updateUserByAdmin);
+router.delete("/:id", verifyAdmin, validateObjectId, userController.deleteUser);
+router.post("/admin/create", verifyAdmin, validateRequest(createUserSchema), userController.createNewAdmin);
+router.get("/phone/:phone", verifyAdmin, userController.getUserByPhone);
+router.put("/admin/batch-update", verifyAdmin, userController.updateAllUsersOrderCount);
+router.put("/admin/:userId/update-spent", verifyAdmin, validateObjectId, userController.updateUserTotalSpent);
+router.put("/admin/:userId/reset-password", verifyAdmin, validateObjectId, validateRequest(resetUserPasswordSchema), userController.resetUserPassword);
+
+// Auth routes
+router.post("/login", userController.login);
+router.post("/logout", userController.logout);
 
 // Admin routes
 router.get("/admin/stats", verifyUser, verifyAdmin, getStats);
 router.get("/admin/revenue", verifyUser, verifyAdmin, getRevenue);
-
-// Protected routes
-router.get("/", verifyAdmin, getAllUsers);
-router.get("/:id", verifyAdmin, validateObjectId, getUserById);
-router.put("/:id", verifyAdmin, validateObjectId, updateUserByAdmin);
-router.delete("/:id", verifyAdmin, validateObjectId, deleteUser);
-router.post("/admin", verifyAdmin, createNewAdmin);
-router.get("/phone/:phone", verifyAdmin, getUserByPhone);
-router.put("/admin/reset-password/:id", verifyAdmin, validateObjectId, resetUserPassword);
-
-// Utility routes (admin only)
-router.put("/admin/update-order-count", verifyAdmin, updateAllUsersOrderCount);
-router.put("/admin/update-total-spent", verifyAdmin, validateBodyObjectId, updateUserTotalSpent);
 
 export default router;

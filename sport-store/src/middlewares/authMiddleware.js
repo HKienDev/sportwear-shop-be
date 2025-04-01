@@ -1,121 +1,148 @@
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
 import env from "../config/env.js";
+import { logInfo, logError } from "../utils/logger.js";
+import { ERROR_MESSAGES } from "../utils/constants.js";
+import { verifyAccessToken, verifyRefreshToken } from '../utils/jwt.js';
 
-// Hàm chung để lấy và xác thực Access Token
-export const verifyAccessToken = async (req, res, next) => {
-  try {
+// Helper functions
+const extractToken = (req) => {
+    // Kiểm tra token từ cookie trước
+    const accessToken = req.cookies?.accessToken;
+    if (accessToken) return accessToken;
+
+    // Nếu không có token trong cookie, kiểm tra header
     const authHeader = req.header("Authorization");
-    console.log("🔹 [Middleware] Authorization Header:", authHeader);
-
-    if (!authHeader?.startsWith("Bearer ")) {
-      throw new Error("Thiếu hoặc sai định dạng Access Token");
+    if (authHeader?.startsWith("Bearer ")) {
+        return authHeader.split(" ")[1];
     }
 
-    const token = authHeader.split(" ")[1];
-    console.log("🔹 [Middleware] Access Token nhận được:", token);
+    return null;
+};
 
-    // Xác thực Token
-    const decoded = jwt.verify(token, env.ACCESS_TOKEN_SECRET);
-    console.log("✅ [Middleware] Token decoded thành công:", decoded);
+const findAndVerifyUser = async (userId) => {
+    const user = await User.findById(userId).select("-password");
+    if (!user) {
+        throw new Error(ERROR_MESSAGES.USER_NOT_FOUND);
+    }
+    if (!user.isActive) {
+        throw new Error(ERROR_MESSAGES.ACCOUNT_LOCKED);
+    }
+    return user;
+};
 
-    // Tìm user
-    const user = await User.findById(decoded.userId).select("-password");
-    if (!user) throw new Error("Người dùng không tồn tại");
-    if (!user.isActive) throw new Error("Tài khoản bị khóa");
+// Hàm chung để lấy và xác thực Access Token
+export const verifyAccessTokenMiddleware = async (req, res, next) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        logInfo(`[${requestId}] Processing access token verification`);
 
-    console.log("✅ [Middleware] User verified:", user);
-    req.user = user;
-    next();
-  } catch (error) {
-    console.error("❌ [Middleware] Lỗi xác thực Token:", error.message);
-    res.status(401).json({ 
-      success: false,
-      message: error.name === "TokenExpiredError" ? "AccessToken hết hạn" : "Invalid Token" 
-    });
-  }
+        const token = extractToken(req);
+        if (!token) {
+            logError(`[${requestId}] ${ERROR_MESSAGES.NO_TOKEN}`);
+            return res.status(401).json({ 
+                success: false,
+                message: ERROR_MESSAGES.NO_TOKEN 
+            });
+        }
+
+        const decoded = await verifyAccessToken(token);
+        const user = await findAndVerifyUser(decoded.userId);
+
+        logInfo(`[${requestId}] User verified successfully: ${user._id}`);
+        req.user = user;
+        next();
+    } catch (error) {
+        logError(`[${requestId}] Token verification failed`, error);
+        res.status(401).json({ 
+            success: false,
+            message: error.name === "TokenExpiredError" 
+                ? ERROR_MESSAGES.TOKEN_EXPIRED 
+                : ERROR_MESSAGES.INVALID_TOKEN 
+        });
+    }
 };
 
 // Middleware xác thực user đăng nhập
 export const verifyUser = async (req, res, next) => {
-  try {
-    await verifyAccessToken(req, res, next);
-  } catch (error) {
-    console.error("❌ Lỗi verifyUser:", error.message);
-    return res.status(401).json({ 
-      success: false,
-      message: error.message 
-    });
-  }
+    try {
+        await verifyAccessTokenMiddleware(req, res, next);
+    } catch (error) {
+        logError(`[${req.id || 'unknown'}] User verification failed`, error);
+        return res.status(401).json({ 
+            success: false,
+            message: error.message 
+        });
+    }
 };
 
 // Middleware xác thực admin
 export const verifyAdmin = async (req, res, next) => {
-  try {
-    // Xác thực access token trước
-    const authHeader = req.header("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return res.status(401).json({ 
-        success: false,
-        message: "Thiếu hoặc sai định dạng Access Token" 
-      });
-    }
+    const requestId = req.id || 'unknown';
+    
+    try {
+        logInfo(`[${requestId}] Processing admin verification`);
 
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, env.ACCESS_TOKEN_SECRET);
+        const token = extractToken(req);
+        if (!token) {
+            logError(`[${requestId}] ${ERROR_MESSAGES.INVALID_TOKEN_FORMAT}`);
+            return res.status(401).json({ 
+                success: false,
+                message: ERROR_MESSAGES.INVALID_TOKEN_FORMAT 
+            });
+        }
 
-    // Tìm user
-    const user = await User.findById(decoded.userId).select("-password");
-    if (!user) {
-      return res.status(401).json({ 
-        success: false,
-        message: "Người dùng không tồn tại" 
-      });
-    }
-    if (!user.isActive) {
-      return res.status(401).json({ 
-        success: false,
-        message: "Tài khoản bị khóa" 
-      });
-    }
+        const decoded = await verifyAccessToken(token);
+        const user = await findAndVerifyUser(decoded.userId);
 
-    // Kiểm tra role admin
-    if (user.role !== "admin") {
-      return res.status(403).json({ 
-        success: false,
-        message: "Bạn không có quyền truy cập trang này" 
-      });
-    }
+        if (user.role !== 'admin') {
+            logError(`[${requestId}] User ${user._id} is not an admin`);
+            return res.status(403).json({ 
+                success: false,
+                message: ERROR_MESSAGES.NOT_ADMIN 
+            });
+        }
 
-    req.user = user;
-    next();
-  } catch (error) {
-    console.error("❌ Lỗi verifyAdmin:", error.message);
-    return res.status(401).json({ 
-      success: false,
-      message: error.message 
-    });
-  }
+        logInfo(`[${requestId}] Admin verified successfully: ${user._id}`);
+        req.user = user;
+        next();
+    } catch (error) {
+        logError(`[${requestId}] Admin verification failed`, error);
+        res.status(401).json({ 
+            success: false,
+            message: error.message 
+        });
+    }
 };
 
-// Middleware kiểm tra Refresh Token
-export const verifyRefreshToken = async (req, res, next) => {
-  try {
-    const refreshToken = req.cookies?.refreshToken; // Kiểm tra cookies an toàn hơn
-    if (!refreshToken) {
-      return res.status(403).json({ message: "Không có Refresh Token, vui lòng đăng nhập lại" });
+// Middleware xác thực Refresh Token
+export const verifyRefreshTokenMiddleware = async (req, res, next) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const refreshToken = req.cookies?.refreshToken;
+        if (!refreshToken) {
+            logError(`[${requestId}] ${ERROR_MESSAGES.NO_REFRESH_TOKEN}`);
+            return res.status(401).json({ 
+                success: false,
+                message: ERROR_MESSAGES.NO_REFRESH_TOKEN 
+            });
+        }
+
+        const decoded = await verifyRefreshToken(refreshToken);
+        const user = await findAndVerifyUser(decoded.userId);
+        
+        logInfo(`[${requestId}] Refresh token verified successfully: ${user._id}`);
+        req.user = user;
+        next();
+    } catch (error) {
+        logError(`[${requestId}] Refresh token verification failed`, error);
+        res.status(401).json({ 
+            success: false,
+            message: error.name === "TokenExpiredError" 
+                ? ERROR_MESSAGES.REFRESH_TOKEN_EXPIRED 
+                : ERROR_MESSAGES.INVALID_TOKEN 
+        });
     }
-
-    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-    const user = await User.findById(decoded.userId);
-
-    if (!user || user.refreshToken !== refreshToken) {
-      return res.status(403).json({ message: "Refresh Token không hợp lệ hoặc đã bị thu hồi" });
-    }
-
-    req.user = user;
-    next();
-  } catch (error) {
-    res.status(403).json({ message: "Refresh Token không hợp lệ hoặc đã hết hạn" });
-  }
 };

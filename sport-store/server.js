@@ -1,123 +1,104 @@
-import dotenv from "dotenv";
-dotenv.config();
-
 import express from "express";
 import cors from "cors";
+import morgan from "morgan";
+import helmet from "helmet";
+import compression from "compression";
+import mongoose from "mongoose";
 import cookieParser from "cookie-parser";
-import http from "http";
-import { Server as socketIo } from "socket.io";
+import rateLimit from 'express-rate-limit';
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+import { logInfo, logError } from "./src/utils/logger.js";
 import env from "./src/config/env.js";
-import connectDB from "./src/config/db.js";
-import userRoutes from "./src/routes/userRoutes.js";
+import { ERROR_MESSAGES } from "./src/utils/constants.js";
+import { requestId } from "./src/middlewares/requestId.js";
+import { errorHandler } from "./src/middlewares/errorHandler.js";
+import { notFoundHandler } from "./src/middlewares/notFoundHandler.js";
+
+// Import routes
 import authRoutes from "./src/routes/authRoutes.js";
-import passport from "./src/config/passport.js";
+import userRoutes from "./src/routes/userRoutes.js";
 import productRoutes from "./src/routes/productRoutes.js";
 import categoryRoutes from "./src/routes/categoryRoutes.js";
 import orderRoutes from "./src/routes/orderRoutes.js";
-import uploadRoutes from './src/routes/uploadRoutes.js';
-import statsRoutes from './src/routes/statsRoutes.js';
+import uploadRoutes from "./src/routes/uploadRoutes.js";
+import dashboardRoutes from "./src/routes/dashboardRoutes.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
-const server = http.createServer(app);
-const io = new socketIo(server, {
-  cors: {
-    origin: "http://localhost:3000",
-    credentials: true,
-    methods: ["GET", "POST"],
-  },
+
+// Rate limiter chung cho toàn bộ API
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: 'Quá nhiều yêu cầu từ IP này. Vui lòng thử lại sau.',
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: true
 });
 
-app.use("/api/orders/stripe-webhook", express.raw({ type: "application/json" }));
 // Middleware
-app.use(express.json());
-app.use(cookieParser());
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: { policy: "unsafe-none" }
+})); // Bảo mật headers
+app.use(compression()); // Nén response
+app.use(cors({
+    origin: ['http://localhost:3000', 'https://sport-store-fe-graduation.vercel.app'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range', 'Set-Cookie'],
+    maxAge: 600
+})); // Cho phép CORS
+app.use(express.json()); // Parse JSON bodies
+app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+app.use(cookieParser()); // Parse cookies
+app.use(morgan("dev")); // Logging
+app.use(requestId); // Thêm request ID
+app.use(apiLimiter); // Áp dụng rate limit chung
 
-// CORS configuration
-const corsOptions = {
-  origin: ['http://localhost:3000', 'http://localhost:3001'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-  exposedHeaders: ['set-cookie']
-};
-
-app.use(cors(corsOptions));
-
-// Middleware để xử lý lỗi multer
-app.use((err, req, res, next) => {
-  if (err.name === 'MulterError') {
-    console.error('Multer error:', err);
-    return res.status(400).json({
-      error: 'Lỗi khi upload file',
-      details: err.message
-    });
-  }
-  next(err);
-});
-
-// Middleware xử lý lỗi chung
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({
-    success: false,
-    message: 'Lỗi server',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined
-  });
-});
-
-// Kết nối Database
-connectDB();
+// Static files
+app.use("/uploads", express.static(join(__dirname, "uploads")));
 
 // Routes
-app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
-app.use(passport.initialize());
 app.use("/api/categories", categoryRoutes);
 app.use("/api/orders", orderRoutes);
-app.use('/api/upload', uploadRoutes);
-app.use('/api', statsRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
-// ==========================
-// ⚡ Socket.IO - Quản lý Chat Live
-// ==========================
-io.on("connection", (socket) => {
-  console.log(`User connected: ${socket.id}`);
+// Error handling
+app.use(notFoundHandler);
+app.use(errorHandler);
 
-  // Xác định loại người dùng (Admin hoặc Guest)
-  socket.on("identifyUser", ({ userId }) => {
-    socket.userId = userId || `guest-${socket.id}`; // Nếu không có userId thì coi là guest
-    socket.userType = userId ? "admin" : "guest"; // Admin nếu có userId, guest nếu không có
+// Connect to MongoDB
+mongoose
+    .connect(env.MONGODB_URI)
+    .then(() => {
+        logInfo("Connected to MongoDB");
+        app.listen(env.PORT, () => {
+            logInfo(`Server is running on port ${env.PORT}`);
+        });
+    })
+    .catch((error) => {
+        logError("MongoDB connection error:", error);
+        process.exit(1);
+    });
 
-    console.log(`User identified - ID: ${socket.userId}, Type: ${socket.userType}`);
-  });
-
-  // Sửa logic sendMessage trong BE
-  socket.on("sendMessage", ({ text }) => {
-    const message = {
-      senderId: socket.userId,
-      senderType: socket.userType,
-      text,
-    };
-
-    console.log("Message received from:", message.senderId, "| Content:", message.text);
-
-    // Gửi tin nhắn đến tất cả user khác (ngoại trừ sender)
-    socket.broadcast.emit("receiveMessage", message);
-
-  });
-
-  // Khi user ngắt kết nối
-  socket.on("disconnect", () => {
-    console.log(`User disconnected: ${socket.id}`);
-  });
+// Handle unhandled promise rejections
+process.on("unhandledRejection", (error) => {
+    logError("Unhandled Promise Rejection:", error);
+    process.exit(1);
 });
 
-// Xuất app để test
-export { app, server };
-
-// Lắng nghe server
-const PORT = env.PORT || 4000;
-if (process.env.NODE_ENV !== "test") {
-  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-}
+// Handle uncaught exceptions
+process.on("uncaughtException", (error) => {
+    logError("Uncaught Exception:", error);
+    process.exit(1);
+});

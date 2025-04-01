@@ -1,42 +1,33 @@
 import express from "express";
-import { 
-  getProducts, 
-  getProductById, 
-  createProduct, 
-  updateProduct, 
-  deleteProduct,
-  toggleProductStatus,
-  getBestSellingProducts,
-  searchProducts 
-} from "../controllers/productController.js";
+import * as productController from "../controllers/productController.js";
 import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
+import { validateRequest } from '../middlewares/validateRequest.js';
+import { 
+    createProductSchema, 
+    updateProductSchema, 
+    updateStockSchema, 
+    searchProductSchema 
+} from '../validations/productSchema.js';
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../utils/constants.js';
 
 const router = express.Router();
 
-// Public Routes (Bất kỳ ai cũng có thể truy cập)
-router.get("/", getProducts);
-router.get("/search", searchProducts);
+// Public routes
+router.get("/test", (req, res) => {
+    res.json({ message: SUCCESS_MESSAGES.ROUTE_WORKING });
+});
 
-// Admin Routes (Chỉ admin mới có thể truy cập)
-router.get("/admin/best-selling", verifyAdmin, getBestSellingProducts);
-
-// Dynamic Routes (Phải đặt sau các route cụ thể)
-router.get("/:id", getProductById);
+// Product routes
+router.get("/", productController.getAllProducts);
+router.get("/:id", productController.getProductById);
+router.get("/category/:categoryId", productController.getProductsByCategory);
+router.get("/search", validateRequest(searchProductSchema), productController.searchProducts);
 
 // Protected routes (Admin only)
-router.post("/", verifyAdmin, createProduct);
-router.put("/:id", verifyAdmin, updateProduct);
-router.patch("/:id/toggle-status", verifyAdmin, toggleProductStatus);
-router.delete("/:id", verifyAdmin, deleteProduct);
-
-// Error handling middleware
-router.use((err, req, res, next) => {
-  console.error('❌ Route error:', err);
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: 'Có lỗi xảy ra khi xử lý yêu cầu',
-    details: err.message
-  });
-});
+router.post("/", verifyAdmin, validateRequest(createProductSchema), productController.createProduct);
+router.put("/:id", verifyAdmin, validateRequest(updateProductSchema), productController.updateProduct);
+router.delete("/:id", verifyAdmin, productController.deleteProduct);
+router.put("/:id/stock", verifyAdmin, validateRequest(updateStockSchema), productController.updateProductStock);
+router.put("/:id/status", verifyAdmin, validateRequest(updateProductSchema), productController.updateProductStatus);
 
 export default router;

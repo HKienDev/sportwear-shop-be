@@ -1,433 +1,856 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import redisClient from "../config/redis.js";
+import { redisClient } from "../config/redis.js";
 import User from "../models/user.js";
 import env from "../config/env.js";
-import { sendOtpEmail } from "../utils/sendEmail.js";
-import { verifyAccessToken } from "../middlewares/authMiddleware.js";
+import { sendEmail } from "../utils/sendEmail.js";
+import { logInfo, logError } from "../utils/logger.js";
+import { ERROR_MESSAGES, SUCCESS_MESSAGES, TOKEN_CONFIG, AUTH_CONFIG } from "../utils/constants.js";
+import { hashPassword, formatUserResponse, handleError, generateOTP, setAuthCookies } from "../utils/helpers.js";
+import { generateAccessToken, generateRefreshToken, verifyAccessToken, verifyRefreshToken } from '../utils/jwt.js';
+import { sendEmail as sendEmailUtil } from '../utils/email.js';
+import { oauth2Client, getGoogleAuthURL, getGoogleUser, verifyGoogleToken } from '../config/google.js';
 
-// Tạo mã OTP ngẫu nhiên 6 chữ số
-const generateOTP = (length = 6) => {
-    return Array.from({ length }, () => Math.floor(Math.random() * 10)).join('');
-};
-
-// Băm mật khẩu
-const hashPassword = (password) => bcrypt.hash(password, 10);
-
-// Đọc/ghi dữ liệu từ Redis
+// Helper functions
 const cacheSet = (key, value, expiry) => redisClient.setEx(key, expiry, JSON.stringify(value));
+
 const cacheGet = async (key) => {
     const data = await redisClient.get(key);
     return data ? JSON.parse(data) : null;
 };
 
-// Gửi OTP qua email và lưu vào Redis
-const sendAndCacheOTP = async (email, otpKey, data, expiry = 60) => {
+const sendAndCacheOTP = async (email, purpose) => {
     const otp = generateOTP();
-    if (!(await sendOtpEmail(email, otp))) return false;
-    await cacheSet(otpKey, { ...data, otp }, expiry);
-    return true;
+    const otpKey = `otp:${purpose}:${email}`;
+    await redisClient.set(otpKey, otp, 'EX', AUTH_CONFIG.OTP_EXPIRY);
+
+    const subject = purpose === 'register' ? 'Xác thực tài khoản' : 'Đặt lại mật khẩu';
+    const html = `
+        <h1>Xác thực tài khoản</h1>
+        <p>Mã OTP của bạn là: <strong>${otp}</strong></p>
+        <p>Mã này sẽ hết hạn sau ${AUTH_CONFIG.OTP_EXPIRY} giây.</p>
+    `;
+
+    await sendEmail(email, subject, html);
+    return otp;
 };
 
-// Đăng ký tài khoản
+const generateTokens = (userId, email) => {
+    if (!env.JWT_SECRET) {
+        throw new Error('JWT secret is not configured');
+    }
+
+    const accessToken = generateAccessToken(userId, email);
+    const refreshToken = generateRefreshToken(userId, email);
+
+    return { accessToken, refreshToken };
+};
+
+// Controllers
 export const register = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
     try {
-        const { email, username, password } = req.body;
-        if (await User.exists({ email })) {
-            return res.status(400).json({ message: "Email đã tồn tại" });
+        const { email, password, username, googleId, googleEmail } = req.body;
+
+        if (!email || !password || !username) {
+            logError(`[${requestId}] Missing required fields`);
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.MISSING_FIELDS
+            });
         }
+
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            logError(`[${requestId}] Email already exists: ${email}`);
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.EMAIL_EXISTS
+            });
+        }
+
         const hashedPassword = await hashPassword(password);
-        if (!(await sendAndCacheOTP(email, `otp:${email}`, { username, hashedPassword }))) {
-            return res.status(500).json({ message: "Gửi OTP thất bại. Vui lòng thử lại!" });
+        const newUser = new User({
+            email,
+            password: hashedPassword,
+            username,
+            role: "user",
+            isVerified: googleId ? true : false,
+            authStatus: googleId ? "verified" : "pending",
+            googleId: googleId || null,
+            googleEmail: googleEmail || null,
+            address: { province: "", district: "", ward: "", street: "" },
+            dob: null,
+            gender: "other",
+            membershipLevel: "Hạng Sắt",
+            totalSpent: 0,
+            orderCount: 0
+        });
+
+        const savedUser = await newUser.save();
+
+        if (!googleId) {
+            await sendAndCacheOTP(email, 'register');
         }
-        res.status(201).json({ message: "Đăng ký thành công! Vui lòng kiểm tra email để xác nhận OTP." });
+
+        logInfo(`[${requestId}] Successfully registered user: ${email}`);
+        res.status(201).json({
+            success: true,
+            message: SUCCESS_MESSAGES.USER_CREATED,
+            data: {
+                id: savedUser._id,
+                email: savedUser.email,
+                username: savedUser.username,
+                isVerified: savedUser.isVerified
+            }
+        });
     } catch (error) {
-        console.error("[REGISTER] Lỗi:", error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
     }
 };
 
-// Xác thực OTP để kích hoạt tài khoản
 export const verifyOTP = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
     try {
         const { email, otp } = req.body;
-        const otpData = await cacheGet(`otp:${email}`);
-        if (!otpData) return res.status(400).json({ message: "OTP không hợp lệ hoặc đã hết hạn" });
-        const { otp: storedOtp, username, hashedPassword } = otpData;
-        if (storedOtp !== otp) return res.status(400).json({ message: "OTP không chính xác!" });
-        if (await User.exists({ email })) return res.status(400).json({ message: "Email đã tồn tại!" });
-        const user = new User({ email, username, password: hashedPassword, isVerified: true });
-        await user.save();
-        await redisClient.del(`otp:${email}`);
-        res.status(200).json({ message: "Tài khoản đã được xác thực và tạo thành công!" });
-    } catch (error) {
-        console.error("[VERIFY OTP] Lỗi:", error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
-    }
-};
-
-// Kiểm tra trạng thái đăng nhập
-export const checkAuth = async (req, res) => {
-  try {
-    // verifyAccessToken middleware đã xác thực token và gán user vào req
-    const user = req.user;
-    
-    if (!user) {
-      return res.status(401).json({ 
-        success: false,
-        message: "Không tìm thấy thông tin người dùng" 
-      });
-    }
-
-    res.json({ 
-      success: true,
-      message: "Xác thực thành công",
-      user: {
-        id: user._id,
-        email: user.email,
-        username: user.username,
-        fullname: user.fullname,
-        avatar: user.avatar,
-        role: user.role,
-        isActive: user.isActive,
-        isVerified: user.isVerified,
-        membershipLevel: user.membershipLevel,
-        totalSpent: user.totalSpent,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt
-      }
-    });
-  } catch (error) {
-    console.error("Lỗi xác thực:", error);
-    res.status(500).json({ 
-      success: false,
-      message: "Lỗi server", 
-      error: error.message 
-    });
-  }
-};
-
-// Đăng nhập
-export const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    console.log("🔹 [Controller] Nhận request login:", { email, password });
-
-    // Kiểm tra email và password
-    const user = await User.findOne({ email });
-    if (!user) {
-      console.log("❌ [Controller] Không tìm thấy user với email:", email);
-      return res.status(401).json({
-        success: false,
-        message: "Email hoặc mật khẩu không chính xác"
-      });
-    }
-
-    console.log("✅ [Controller] Tìm thấy user:", {
-      id: user._id,
-      email: user.email,
-      role: user.role,
-      isActive: user.isActive,
-      isVerified: user.isVerified
-    });
-
-    // Kiểm tra mật khẩu đã hash
-    const isMatch = await bcrypt.compare(password, user.password);
-    console.log("🔹 [Controller] Kết quả so sánh mật khẩu:", isMatch);
-
-    if (!isMatch) {
-      console.log("❌ [Controller] Mật khẩu không chính xác");
-      return res.status(401).json({
-        success: false,
-        message: "Email hoặc mật khẩu không chính xác"
-      });
-    }
-
-    // Kiểm tra tài khoản bị khóa
-    if (!user.isActive) {
-      console.log("❌ [Controller] Tài khoản bị khóa");
-      return res.status(403).json({
-        success: false,
-        message: "Tài khoản của bạn đã bị khóa"
-      });
-    }
-
-    // Tạo token
-    const accessToken = jwt.sign(
-      { userId: user._id },
-      env.ACCESS_TOKEN_SECRET,
-      { expiresIn: "1h" }
-    );
-
-    const refreshToken = jwt.sign(
-      { userId: user._id },
-      env.REFRESH_TOKEN_SECRET,
-      { expiresIn: "7d" }
-    );
-
-    // Lưu refresh token vào database
-    user.refreshToken = refreshToken;
-    await user.save();
-
-    // Set cookie
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
-
-    console.log("✅ [Controller] Đăng nhập thành công");
-    return res.status(200).json({
-      success: true,
-      message: "Đăng nhập thành công",
-      data: {
-        accessToken,
-        user: {
-          id: user._id,
-          email: user.email,
-          role: user.role,
-          isActive: user.isActive,
-          fullname: user.fullname || "",
-          username: user.username || "",
-          avatar: user.avatar || "",
-          membershipLevel: user.membershipLevel || "Hạng Sắt",
-          totalSpent: user.totalSpent || 0,
-          isVerified: user.isVerified,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt
+        const otpKey = `otp:verify:${email}`;
+        const storedOTP = await redisClient.get(otpKey);
+        
+        if (!storedOTP) {
+            logError(`[${requestId}] Invalid or expired OTP for: ${email}`);
+            return res.status(400).json({ 
+                success: false,
+                message: ERROR_MESSAGES.OTP_INVALID 
+            });
         }
-      }
-    });
-  } catch (error) {
-    console.error("❌ [Controller] Lỗi login:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Lỗi server",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined
-    });
-  }
+
+        if (storedOTP !== otp) {
+            logError(`[${requestId}] Incorrect OTP for: ${email}`);
+            return res.status(400).json({ 
+                success: false,
+                message: ERROR_MESSAGES.OTP_INCORRECT 
+            });
+        }
+
+        const user = await User.findOne({ email });
+        if (!user) {
+            logError(`[${requestId}] User not found: ${email}`);
+            return res.status(404).json({ 
+                success: false,
+                message: ERROR_MESSAGES.USER_NOT_FOUND 
+            });
+        }
+
+        user.isVerified = true;
+        user.authStatus = "verified";
+        await user.save();
+
+        await redisClient.del(otpKey);
+
+        logInfo(`[${requestId}] Account verified: ${email}`);
+        res.json({ 
+            success: true,
+            message: SUCCESS_MESSAGES.VERIFY_SUCCESS 
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
 };
 
-// Đăng xuất
+export const checkAuth = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        if (!req.user) {
+            logError(`[${requestId}] User not found in request`);
+            return res.status(401).json({ 
+                success: false,
+                message: ERROR_MESSAGES.USER_NOT_FOUND 
+            });
+        }
+
+        logInfo(`[${requestId}] Auth check successful for user: ${req.user._id}`);
+        res.json({
+            success: true,
+            user: formatUserResponse(req.user)
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
+};
+
+export const login = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { email, password, googleId, googleEmail } = req.body;
+
+        if (!email || (!password && !googleId)) {
+            logError(`[${requestId}] Missing required fields`);
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.MISSING_FIELDS
+            });
+        }
+
+        let user = await User.findOne({ email });
+        if (!user) {
+            if (googleId) {
+                // Nếu đăng nhập bằng Google và user chưa tồn tại, tạo mới
+                return register(req, res);
+            }
+            logError(`[${requestId}] User not found: ${email}`);
+            return res.status(404).json({
+                success: false,
+                message: ERROR_MESSAGES.USER_NOT_FOUND
+            });
+        }
+
+        if (!user.isActive) {
+            logError(`[${requestId}] Account inactive: ${email}`);
+            return res.status(403).json({
+                success: false,
+                message: ERROR_MESSAGES.ACCOUNT_INACTIVE
+            });
+        }
+
+        if (user.isBlocked) {
+            logError(`[${requestId}] Account blocked: ${email}`);
+            return res.status(403).json({
+                success: false,
+                message: ERROR_MESSAGES.ACCOUNT_BLOCKED
+            });
+        }
+
+        if (!googleId) {
+            const isMatch = await user.comparePassword(password);
+            if (!isMatch) {
+                logError(`[${requestId}] Invalid password for user: ${email}`);
+                return res.status(401).json({
+                    success: false,
+                    message: ERROR_MESSAGES.INVALID_CREDENTIALS
+                });
+            }
+        }
+
+        if (!user.isVerified) {
+            logError(`[${requestId}] Account not verified: ${email}`);
+            return res.status(403).json({
+                success: false,
+                message: ERROR_MESSAGES.ACCOUNT_NOT_VERIFIED
+            });
+        }
+
+        // Generate tokens
+        const { accessToken, refreshToken } = generateTokens(user._id, user.email);
+
+        // Update user's last login
+        user.lastLoginAt = new Date();
+        await user.save();
+
+        // Set cookies
+        res.cookie("accessToken", accessToken, {
+            httpOnly: true,
+            secure: env.NODE_ENV === "production",
+            sameSite: "Lax",
+            maxAge: 15 * 60 * 1000 // 15 minutes
+        });
+
+        res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: env.NODE_ENV === "production",
+            sameSite: "Lax",
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+
+        // Return success response
+        return res.status(200).json({
+            success: true,
+            message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
+            data: {
+                user: formatUserResponse(user),
+                accessToken,
+                refreshToken
+            }
+        });
+    } catch (error) {
+        return handleError(error, requestId);
+    }
+};
+
 export const logout = async (req, res) => {
-  try {
-    const refreshToken = req.cookies.refreshToken;
-    if (!refreshToken) {
-      return res.status(400).json({
-        success: false,
-        message: "Không tìm thấy refresh token"
-      });
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const userId = req.user._id;
+        const user = await User.findById(userId);
+        
+        if (user) {
+            user.refreshToken = null;
+            await user.save();
+        }
+
+        res.clearCookie("refreshToken", {
+            httpOnly: true,
+            secure: env.NODE_ENV === "production",
+            sameSite: "Lax",
+            maxAge: 0
+        });
+
+        logInfo(`[${requestId}] Successfully logged out user: ${userId}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.LOGOUT_SUCCESS
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
     }
-
-    // Xóa refresh token trong database
-    await User.findOneAndUpdate(
-      { refreshToken },
-      { refreshToken: null }
-    );
-
-    // Xóa cookie
-    res.clearCookie("refreshToken");
-
-    return res.status(200).json({
-      success: true,
-      message: "Đăng xuất thành công"
-    });
-  } catch (error) {
-    console.error("❌ Lỗi logout:", error.message);
-    return res.status(500).json({
-      success: false,
-      message: "Lỗi server"
-    });
-  }
 };
 
-// Làm mới token
 export const refreshToken = async (req, res) => {
-  try {
-    const refreshToken = req.cookies.refreshToken;
-    if (!refreshToken) {
-      return res.status(401).json({
-        success: false,
-        message: "Không tìm thấy refresh token"
-      });
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const refreshToken = req.cookies?.refreshToken;
+        if (!refreshToken) {
+            logError(`[${requestId}] ${ERROR_MESSAGES.NO_REFRESH_TOKEN}`);
+            return res.status(401).json({ 
+                success: false,
+                message: ERROR_MESSAGES.NO_REFRESH_TOKEN 
+            });
+        }
+
+        // Verify refresh token
+        const decoded = await verifyRefreshToken(refreshToken);
+        const user = await User.findById(decoded.userId);
+        
+        if (!user) {
+            logError(`[${requestId}] User not found: ${decoded.userId}`);
+            return res.status(401).json({ 
+                success: false,
+                message: ERROR_MESSAGES.USER_NOT_FOUND 
+            });
+        }
+
+        // Generate new access token
+        const accessToken = generateAccessToken(user._id, user.email);
+
+        // Set new access token cookie
+        res.cookie("accessToken", accessToken, {
+            httpOnly: true,
+            secure: env.NODE_ENV === "production",
+            sameSite: "Lax",
+            maxAge: 15 * 60 * 1000 // 15 minutes
+        });
+
+        logInfo(`[${requestId}] Token refreshed successfully for user: ${user._id}`);
+        return res.status(200).json({
+            success: true,
+            message: SUCCESS_MESSAGES.TOKEN_REFRESHED,
+            data: {
+                accessToken,
+                user: formatUserResponse(user)
+            }
+        });
+    } catch (error) {
+        logError(`[${requestId}] Token refresh failed`, error);
+        return res.status(401).json({ 
+            success: false,
+            message: error.name === "TokenExpiredError" 
+                ? ERROR_MESSAGES.REFRESH_TOKEN_EXPIRED 
+                : ERROR_MESSAGES.INVALID_TOKEN 
+        });
     }
-
-    // Kiểm tra refresh token trong database
-    const user = await User.findOne({ refreshToken });
-    if (!user) {
-      return res.status(403).json({
-        success: false,
-        message: "Refresh token không hợp lệ"
-      });
-    }
-
-    // Tạo access token mới
-    const accessToken = jwt.sign(
-      { userId: user._id },
-      env.ACCESS_TOKEN_SECRET,
-      { expiresIn: "1h" }
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Làm mới token thành công",
-      data: {
-        accessToken
-      }
-    });
-  } catch (error) {
-    console.error("❌ Lỗi refreshToken:", error.message);
-    return res.status(500).json({
-      success: false,
-      message: "Lỗi server"
-    });
-  }
 };
 
-// Quên mật khẩu
 export const forgotPassword = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
     try {
         const { email } = req.body;
-        if (!(await User.exists({ email }))) return res.status(404).json({ message: "Email không tồn tại" });
-        if (!(await sendAndCacheOTP(email, `forgot-password:${email}`, {}, 60))) {
-            return res.status(500).json({ message: "Gửi OTP thất bại" });
-        }
-        res.json({ success: true, message: "OTP đã được gửi đến email của bạn!" });
-    } catch (error) {
-        console.error("[FORGOT PASSWORD] Lỗi:", error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
-    }
-};
-
-// Xác minh OTP để đặt lại mật khẩu
-export const verifyForgotPasswordOTP = async (req, res) => {
-    try {
-        const { email, otp, newPassword } = req.body;
-
-        // Kiểm tra đầu vào
-        if (!email || !otp || !newPassword) {
-            return res.status(400).json({ message: "Thiếu thông tin cần thiết" });
-        }
-
-        // Kiểm tra xem email có yêu cầu quên mật khẩu không
-        const cachedData = await redisClient.get(`forgot-password:${email}`);
-        if (!cachedData) return res.status(400).json({ message: "OTP không hợp lệ hoặc đã hết hạn" });
-
-        let storedOtp;
-        try {
-            storedOtp = JSON.parse(cachedData).otp;
-        } catch (error) {
-            return res.status(500).json({ message: "Lỗi khi xử lý OTP" });
-        }
-
-        // Kiểm tra OTP hợp lệ không
-        if (String(storedOtp) !== String(otp)) {
-            return res.status(400).json({ message: "OTP không chính xác" });
-        }
-
-        // Kiểm tra user tồn tại không
         const user = await User.findOne({ email });
-        if (!user) return res.status(404).json({ message: "Người dùng không tồn tại" });
+        
+        if (!user) {
+            logError(`[${requestId}] User not found: ${email}`);
+            return res.status(404).json({ 
+                success: false,
+                message: ERROR_MESSAGES.USER_NOT_FOUND 
+            });
+        }
 
-        // Băm mật khẩu mới
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        user.password = hashedPassword;
+        const resetToken = user.generateResetToken();
         await user.save();
 
-        // Xóa OTP khỏi Redis
-        await redisClient.del(`forgot-password:${email}`);
+        const resetUrl = `${env.FRONTEND_URL}/reset-password/${resetToken}`;
+        const html = `
+            <h1>Đặt lại mật khẩu</h1>
+            <p>Bạn đã yêu cầu đặt lại mật khẩu. Vui lòng click vào link bên dưới để đặt lại mật khẩu:</p>
+            <a href="${resetUrl}">Đặt lại mật khẩu</a>
+            <p>Link này sẽ hết hạn sau 30 phút.</p>
+            <p>Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.</p>
+        `;
 
-        res.status(200).json({ message: "Mật khẩu đã được đặt lại thành công!" });
+        await sendEmail(email, 'Đặt lại mật khẩu', html);
+
+        logInfo(`[${requestId}] Password reset email sent to: ${email}`);
+        res.json({ 
+            success: true,
+            message: SUCCESS_MESSAGES.PASSWORD_RESET_SENT 
+        });
     } catch (error) {
-        console.error("[VERIFY FORGOT PASSWORD] Lỗi:", error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
     }
 };
 
-// Xác thực token
-export const verifyToken = (req, res) => {
-    const { token } = req.body;
-    if (!token) return res.status(400).json({ valid: false, message: "Token không được cung cấp" });
-
+export const resetPassword = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
     try {
-        const decoded = jwt.verify(token, env.JWT_SECRET);
-        res.status(200).json({ valid: true, decoded });
-    } catch (error) {
-        const errorMessage = error.name === "TokenExpiredError" ? "Token hết hạn" : "Token không hợp lệ";
-        res.status(401).json({ valid: false, message: errorMessage });
-    }
-};
+        const { token, password } = req.body;
+        
+        const user = await User.findOne({
+            resetPasswordToken: token,
+            resetPasswordExpires: { $gt: Date.now() }
+        });
 
-// Gửi yêu cầu cập nhật thông tin (Gửi OTP về email)
-export const requestUpdate = async (req, res) => {
-    try {
-        const { authorization } = req.headers;
-        const { userId, email, ...updateData } = req.body;
-
-        if (!authorization) return res.status(401).json({ message: "Không có access token" });
-
-        // Xác thực Access Token
-        const token = authorization.split(" ")[1];
-        let decoded;
-        try {
-            decoded = jwt.verify(token, env.ACCESS_TOKEN_SECRET);
-        } catch (error) {
-            return res.status(401).json({ message: "Access token không hợp lệ hoặc đã hết hạn" });
+        if (!user) {
+            logError(`[${requestId}] Invalid or expired reset token`);
+            return res.status(400).json({ 
+                success: false,
+                message: ERROR_MESSAGES.INVALID_RESET_TOKEN 
+            });
         }
 
-        // Kiểm tra userId hợp lệ
-        if (decoded.userId !== userId) return res.status(403).json({ message: "Không có quyền cập nhật thông tin người khác" });
+        user.password = await hashPassword(password);
+        user.resetPasswordToken = null;
+        user.resetPasswordExpires = null;
+        await user.save();
 
-        // Kiểm tra email có tồn tại không
-        const user = await User.findById(userId);
-        if (!user) return res.status(404).json({ message: "Người dùng không tồn tại" });
-
-        // Sinh mã OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6 chữ số
-
-        // Gửi email OTP
-        const emailSent = await sendOtpEmail(user.email, otp);
-        if (!emailSent) return res.status(500).json({ message: "Gửi OTP thất bại" });
-
-        // Lưu dữ liệu cập nhật vào Redis (60 giây)
-        await redisClient.setEx(`update-user:${user.email}`, 60, JSON.stringify({ otp, updateData }));
-
-        res.status(200).json({ message: "OTP đã được gửi. Vui lòng kiểm tra email để xác nhận!" });
+        logInfo(`[${requestId}] Password reset successful for: ${user.email}`);
+        res.json({ 
+            success: true,
+            message: SUCCESS_MESSAGES.PASSWORD_RESET_SUCCESS 
+        });
     } catch (error) {
-        console.error("[REQUEST UPDATE] Lỗi:", error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
     }
 };
 
-// Xác thực OTP & cập nhật thông tin người dùng
-export const updateUser = async (req, res) => {
+export const googleAuth = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
     try {
-        const { email, otp } = req.body;
+        const { token } = req.body;
+        if (!token) {
+            logError(`[${requestId}] No Google token provided`);
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.GOOGLE_AUTH_FAILED
+            });
+        }
 
-        // Lấy dữ liệu từ Redis
-        const cachedData = await redisClient.get(`update-user:${email}`);
-        if (!cachedData) return res.status(400).json({ message: "OTP không hợp lệ hoặc đã hết hạn" });
+        // Verify Google token
+        const ticket = await verifyGoogleToken(token);
+        const payload = ticket.getPayload();
+        
+        // Find or create user
+        let user = await User.findOne({ email: payload.email });
+        if (!user) {
+            user = await User.create({
+                email: payload.email,
+                fullname: payload.name,
+                avatar: payload.picture,
+                isVerified: true,
+                authStatus: "verified",
+                googleId: payload.sub,
+                googleEmail: payload.email
+            });
+        }
 
-        const { otp: storedOtp, updateData } = JSON.parse(cachedData);
+        // Generate tokens
+        const { accessToken, refreshToken } = generateTokens(user._id, user.email);
+        user.refreshToken = refreshToken;
+        await user.save();
+
+        // Set cookies
+        res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: env.NODE_ENV === "production",
+            sameSite: "Lax",
+            maxAge: TOKEN_CONFIG.REFRESH_TOKEN_EXPIRY * 1000
+        });
+
+        logInfo(`[${requestId}] Successfully authenticated with Google: ${user.email}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
+            data: {
+                accessToken,
+                user: {
+                    id: user._id,
+                    email: user.email,
+                    fullname: user.fullname,
+                    avatar: user.avatar,
+                    role: user.role,
+                    isVerified: user.isVerified
+                }
+            }
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
+};
+
+export const getProfile = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('-password');
+        if (!user) {
+            return res.status(404).json({ message: ERROR_MESSAGES.USER_NOT_FOUND });
+        }
+        res.json({
+            message: SUCCESS_MESSAGES.USER_PROFILE,
+            user
+        });
+    } catch (error) {
+        res.status(500).json({ message: ERROR_MESSAGES.SERVER_ERROR });
+    }
+};
+
+export const resendOTP = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { email } = req.body;
+        
+        // Kiểm tra xem email có tồn tại trong hệ thống không
+        const user = await User.findOne({ email });
+        if (!user) {
+            logError(`[${requestId}] User not found: ${email}`);
+            return res.status(404).json({
+                success: false,
+                message: ERROR_MESSAGES.USER_NOT_FOUND
+            });
+        }
+
+        // Gửi OTP mới
+        await sendAndCacheOTP(email, 'verify');
+
+        logInfo(`[${requestId}] Successfully resent OTP to: ${email}`);
+        res.status(200).json({
+            success: true,
+            message: SUCCESS_MESSAGES.OTP_SENT
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
+};
+
+export const googleCallback = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { code } = req.query;
+        if (!code) {
+            logError(`[${requestId}] No code provided for Google callback`);
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.GOOGLE_AUTH_FAILED
+            });
+        }
+
+        // Lấy thông tin user từ Google
+        const googleUser = await getGoogleUser(code);
+        if (!googleUser) {
+            logError(`[${requestId}] Failed to get Google user info`);
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.GOOGLE_AUTH_FAILED
+            });
+        }
+
+        // Tìm hoặc tạo user
+        let user = await User.findOne({ email: googleUser.email });
+        if (!user) {
+            user = await User.create({
+                email: googleUser.email,
+                fullname: googleUser.name,
+                avatar: googleUser.picture,
+                isVerified: true,
+                authStatus: "verified",
+                googleId: googleUser.id,
+                googleEmail: googleUser.email
+            });
+        }
+
+        // Tạo tokens
+        const { accessToken, refreshToken } = generateTokens(user._id, user.email);
+        user.refreshToken = refreshToken;
+        await user.save();
+
+        // Set cookies
+        res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: env.NODE_ENV === "production",
+            sameSite: "Lax",
+            maxAge: TOKEN_CONFIG.REFRESH_TOKEN_EXPIRY * 1000
+        });
+
+        logInfo(`[${requestId}] Successfully authenticated with Google: ${user.email}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
+            data: {
+                accessToken,
+                user: {
+                    id: user._id,
+                    email: user.email,
+                    fullname: user.fullname,
+                    avatar: user.avatar,
+                    role: user.role,
+                    isVerified: user.isVerified
+                }
+            }
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
+};
+
+export const updateProfile = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { fullName, phone, address, dob, gender } = req.body;
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            logError(`[${requestId}] User not found: ${userId}`);
+            return res.status(404).json({
+                success: false,
+                message: ERROR_MESSAGES.USER_NOT_FOUND
+            });
+        }
+
+        // Cập nhật thông tin
+        if (fullName) user.fullname = fullName;
+        if (phone) user.phone = phone;
+        if (address) user.address = address;
+        if (dob) user.dob = dob;
+        if (gender) user.gender = gender;
+
+        await user.save();
+
+        logInfo(`[${requestId}] Profile updated for user: ${userId}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.PROFILE_UPDATED,
+            data: {
+                id: user._id,
+                email: user.email,
+                fullname: user.fullname,
+                phone: user.phone,
+                address: user.address,
+                dob: user.dob,
+                gender: user.gender,
+                avatar: user.avatar,
+                role: user.role,
+                isVerified: user.isVerified
+            }
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
+};
+
+export const changePassword = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            logError(`[${requestId}] User not found: ${userId}`);
+            return res.status(404).json({
+                success: false,
+                message: ERROR_MESSAGES.USER_NOT_FOUND
+            });
+        }
+
+        // Kiểm tra mật khẩu hiện tại
+        const isMatch = await user.comparePassword(currentPassword);
+        if (!isMatch) {
+            logError(`[${requestId}] Invalid current password for user: ${userId}`);
+            return res.status(401).json({
+                success: false,
+                message: ERROR_MESSAGES.INVALID_CURRENT_PASSWORD
+            });
+        }
+
+        // Cập nhật mật khẩu mới
+        user.password = newPassword;
+        await user.save();
+
+        logInfo(`[${requestId}] Password changed for user: ${userId}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.PASSWORD_CHANGED
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
+};
+
+export const verifyToken = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { token } = req.body;
+        if (!token) {
+            logError(`[${requestId}] No token provided`);
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.NO_TOKEN
+            });
+        }
+
+        const decoded = jwt.verify(token, env.JWT_SECRET);
+        const user = await User.findById(decoded.userId).select('-password -refreshToken');
+        
+        if (!user) {
+            logError(`[${requestId}] User not found for token`);
+            return res.status(401).json({
+                success: false,
+                message: ERROR_MESSAGES.USER_NOT_FOUND
+            });
+        }
+
+        logInfo(`[${requestId}] Token verified for user: ${user._id}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.TOKEN_VALID,
+            data: {
+                user: {
+                    id: user._id,
+                    email: user.email,
+                    username: user.username,
+                    role: user.role,
+                    isVerified: user.isVerified
+                }
+            }
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(401).json({
+            success: false,
+            message: ERROR_MESSAGES.INVALID_TOKEN
+        });
+    }
+};
+
+export const requestUpdate = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { email } = req.body;
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            logError(`[${requestId}] User not found: ${userId}`);
+            return res.status(404).json({
+                success: false,
+                message: ERROR_MESSAGES.USER_NOT_FOUND
+            });
+        }
+
+        // Gửi OTP để xác thực
+        await sendAndCacheOTP(email, 'update');
+
+        logInfo(`[${requestId}] Update request sent for user: ${userId}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.OTP_SENT
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
+};
+
+export const updateUser = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { email, username, password, otp } = req.body;
+        const userId = req.user._id;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            logError(`[${requestId}] User not found: ${userId}`);
+            return res.status(404).json({
+                success: false,
+                message: ERROR_MESSAGES.USER_NOT_FOUND
+            });
+        }
 
         // Kiểm tra OTP
-        if (storedOtp !== otp) return res.status(400).json({ message: "OTP không chính xác" });
-
-        // Cập nhật thông tin vào database
-        if (updateData.password) {
-            updateData.password = await bcrypt.hash(updateData.password, 10);
+        const otpKey = `otp:update:${email}`;
+        const storedOTP = await redisClient.get(otpKey);
+        
+        if (!storedOTP) {
+            logError(`[${requestId}] Invalid or expired OTP for: ${email}`);
+            return res.status(400).json({ 
+                success: false,
+                message: ERROR_MESSAGES.OTP_INVALID 
+            });
         }
 
-        const user = await User.findOneAndUpdate({ email }, updateData, { new: true });
-        if (!user) return res.status(404).json({ message: "Người dùng không tồn tại" });
+        if (storedOTP !== otp) {
+            logError(`[${requestId}] Incorrect OTP for: ${email}`);
+            return res.status(400).json({ 
+                success: false,
+                message: ERROR_MESSAGES.OTP_INCORRECT 
+            });
+        }
 
-        // Xóa OTP khỏi Redis
-        await redisClient.del(`update-user:${email}`);
+        // Cập nhật thông tin
+        if (email) user.email = email;
+        if (username) user.username = username;
+        if (password) user.password = await hashPassword(password);
 
-        res.status(200).json({ message: "Cập nhật thông tin thành công!", user });
+        await user.save();
+        await redisClient.del(otpKey);
+
+        logInfo(`[${requestId}] User updated: ${userId}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.USER_UPDATED,
+            data: {
+                id: user._id,
+                email: user.email,
+                username: user.username,
+                role: user.role,
+                isVerified: user.isVerified
+            }
+        });
     } catch (error) {
-        console.error("[UPDATE USER] Lỗi:", error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
     }
 };

@@ -1,22 +1,28 @@
 import express from "express";
-import {
-  getAllCategories,
-  getCategoryById,
-  createCategory,
-  updateCategory,
-  deleteCategory,
-} from "../controllers/categoryController.js";
+import * as categoryController from "../controllers/categoryController.js";
 import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
+import { validateRequest } from '../middlewares/validateRequest.js';
+import { 
+    createCategorySchema, 
+    updateCategorySchema, 
+    searchCategorySchema 
+} from '../validations/categorySchema.js';
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../utils/constants.js';
 
 const router = express.Router();
 
-// Routes cho categories
-router.get("/", getAllCategories); // Ai cũng có thể xem danh mục
-router.get("/:id", getCategoryById); // Ai cũng có thể xem danh mục cụ thể
+// Public routes
+router.get("/test", (req, res) => {
+    res.json({ message: SUCCESS_MESSAGES.ROUTE_WORKING });
+});
 
-// Chỉ admin mới có quyền thêm, sửa, xóa danh mục
-router.post("/", verifyUser, verifyAdmin, createCategory);
-router.put("/:id", verifyUser, verifyAdmin, updateCategory);
-router.delete("/:id", verifyUser, verifyAdmin, deleteCategory);
+// Category routes
+router.get("/", categoryController.getAllCategories);
+router.get("/:id", categoryController.getCategoryById);
+
+// Protected routes (Admin only)
+router.post("/", verifyAdmin, validateRequest(createCategorySchema), categoryController.createCategory);
+router.put("/:id", verifyAdmin, validateRequest(updateCategorySchema), categoryController.updateCategory);
+router.delete("/:id", verifyAdmin, categoryController.deleteCategory);
 
 export default router;
