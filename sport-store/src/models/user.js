@@ -30,11 +30,14 @@ const AUTH_STATUS = {
 
 // Schema
 const userSchema = new mongoose.Schema({
-    googleId: { 
+    // Thông tin cơ bản (Basic Information)
+    username: { 
         type: String, 
-        unique: true, 
-        sparse: true,
-        trim: true
+        required: function () { return !this.googleId; },
+        unique: true,
+        trim: true,
+        minlength: [3, 'Tên đăng nhập phải có ít nhất 3 ký tự'],
+        maxlength: [30, 'Tên đăng nhập không được vượt quá 30 ký tự']
     },
     email: { 
         type: String, 
@@ -51,20 +54,13 @@ const userSchema = new mongoose.Schema({
     },
     fullname: { 
         type: String, 
-        default: "",
+        required: true,
         trim: true,
         maxlength: [100, 'Họ tên không được vượt quá 100 ký tự']
     },
-    username: { 
-        type: String, 
-        required: function () { return !this.googleId; },
-        trim: true,
-        minlength: [3, 'Tên đăng nhập phải có ít nhất 3 ký tự'],
-        maxlength: [30, 'Tên đăng nhập không được vượt quá 30 ký tự']
-    },
     phone: { 
         type: String, 
-        default: "",
+        required: true,
         trim: true,
         match: [/^[0-9]{10}$/, 'Số điện thoại không hợp lệ']
     },
@@ -73,6 +69,52 @@ const userSchema = new mongoose.Schema({
         default: "",
         trim: true
     },
+    gender: { 
+        type: String, 
+        enum: Object.values(GENDERS),
+        default: GENDERS.OTHER
+    },
+    dob: { 
+        type: Date, 
+        default: null 
+    },
+
+    // Thông tin địa chỉ (Address Information)
+    address: {
+        province: { type: String, default: "" },
+        district: { type: String, default: "" },
+        ward: { type: String, default: "" },
+        street: { type: String, default: "" }
+    },
+
+    // Thông tin xác thực (Authentication Information)
+    googleId: { 
+        type: String, 
+        unique: true, 
+        sparse: true,
+        trim: true,
+        default: null
+    },
+    googleEmail: { 
+        type: String, 
+        trim: true,
+        default: null
+    },
+    isVerified: { 
+        type: Boolean, 
+        default: false 
+    },
+    authStatus: {
+        type: String,
+        enum: Object.values(AUTH_STATUS),
+        default: AUTH_STATUS.PENDING
+    },
+    refreshToken: { 
+        type: String, 
+        select: false 
+    },
+
+    // Thông tin phân quyền (Authorization Information)
     role: { 
         type: String, 
         default: ROLES.USER,
@@ -82,14 +124,30 @@ const userSchema = new mongoose.Schema({
         type: Boolean, 
         default: true 
     },
-    authStatus: {
-        type: String,
-        enum: Object.values(AUTH_STATUS),
-        default: AUTH_STATUS.PENDING
+
+    // Thông tin thành viên (Membership Information)
+    membershipLevel: { 
+        type: String, 
+        default: MEMBERSHIP_LEVELS.IRON,
+        enum: Object.values(MEMBERSHIP_LEVELS)
     },
-    lastLoginAt: {
-        type: Date,
-        default: null
+    totalSpent: { 
+        type: Number, 
+        default: 0 
+    },
+    orderCount: { 
+        type: Number, 
+        default: 0 
+    },
+
+    // Thông tin bảo mật (Security Information)
+    resetPasswordToken: { 
+        type: String, 
+        select: false 
+    },
+    resetPasswordExpires: { 
+        type: Date, 
+        select: false 
     },
     loginAttempts: {
         type: Number,
@@ -100,87 +158,21 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: null
     },
-    refreshToken: { 
-        type: String,
-        select: false
+
+    // Thông tin hoạt động (Activity Information)
+    lastLoginAt: {
+        type: Date,
+        default: null
     },
-    isVerified: { 
-        type: Boolean, 
-        default: false 
-    },
-    otp: { 
-        type: String, 
-        default: null,
-        select: false
-    },
-    otpExpires: { 
-        type: Date, 
-        default: null,
-        select: false
-    },
-    resetPasswordToken: { 
-        type: String, 
-        default: null,
-        select: false
-    },
-    resetPasswordExpires: { 
-        type: Date, 
-        default: null,
-        select: false
-    },
+
+    // Thông tin khác (Other Information)
     createdAt: { 
         type: Date, 
         default: Date.now 
     },
-    address: {
-        province: { 
-            type: String, 
-            default: "",
-            trim: true
-        },
-        district: { 
-            type: String, 
-            default: "",
-            trim: true
-        },
-        ward: { 
-            type: String, 
-            default: "",
-            trim: true
-        },
-        street: { 
-            type: String, 
-            default: "",
-            trim: true
-        }
-    },
-    dob: { 
-        type: Date, 
-        default: null 
-    },
-    gender: { 
-        type: String, 
-        enum: Object.values(GENDERS), 
-        default: GENDERS.OTHER 
-    },
-    membershipLevel: { 
-        type: String, 
-        enum: Object.values(MEMBERSHIP_LEVELS), 
-        default: MEMBERSHIP_LEVELS.IRON 
-    },
-    totalSpent: { 
-        type: Number, 
-        default: 0,
-        min: [0, 'Tổng chi tiêu không thể âm']
-    },
     pendingUpdate: { 
         type: Object, 
         default: {} 
-    },
-    orderCount: { 
-        type: Number, 
-        default: 0,
-        min: [0, 'Số đơn hàng không thể âm']
     }
 }, {
     timestamps: true,
@@ -304,10 +296,6 @@ userSchema.statics.findBlocked = function() {
 
 // Pre-save middleware
 userSchema.pre("save", async function(next) {
-    if (this.isNew) {
-        this.authStatus = AUTH_STATUS.PENDING;
-    }
-    
     if (!this.isModified("password") || this.password.startsWith("$2a$10$")) {
         return next();
     }
@@ -325,6 +313,7 @@ userSchema.index({ authStatus: 1 });
 userSchema.index({ lastLoginAt: -1 });
 userSchema.index({ loginAttempts: 1 });
 userSchema.index({ lockedUntil: 1 });
+userSchema.index({ googleId: 1 }, { unique: true, sparse: true });
 
 // Export model
 const User = mongoose.models.User || mongoose.model("User", userSchema);

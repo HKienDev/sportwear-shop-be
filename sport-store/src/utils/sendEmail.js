@@ -9,7 +9,7 @@ const resend = new Resend(env.RESEND_API_KEY);
 const emailTemplates = {
     // Template cho đăng ký
     register: (otp) => ({
-        subject: "Xác nhận đăng ký tài khoản",
+        subject: "Xác nhận đăng ký tài khoản Sport Store",
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <h2 style="color: #333;">Xác nhận đăng ký tài khoản</h2>
@@ -26,7 +26,7 @@ const emailTemplates = {
 
     // Template cho quên mật khẩu
     forgotPassword: (otp) => ({
-        subject: "Đặt lại mật khẩu",
+        subject: "Đặt lại mật khẩu Sport Store",
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <h2 style="color: #333;">Đặt lại mật khẩu</h2>
@@ -43,7 +43,7 @@ const emailTemplates = {
 
     // Template cho đơn hàng mới
     newOrder: (order) => ({
-        subject: "Xác nhận đơn hàng mới",
+        subject: "Xác nhận đơn hàng mới Sport Store",
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <h2 style="color: #333;">Xác nhận đơn hàng mới</h2>
@@ -63,7 +63,7 @@ const emailTemplates = {
 
     // Template cho cập nhật trạng thái đơn hàng
     orderStatusUpdate: (order) => ({
-        subject: "Cập nhật trạng thái đơn hàng",
+        subject: "Cập nhật trạng thái đơn hàng Sport Store",
         html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <h2 style="color: #333;">Cập nhật trạng thái đơn hàng</h2>
@@ -72,6 +72,95 @@ const emailTemplates = {
                 <div style="background-color: #f4f4f4; padding: 15px; margin: 20px 0;">
                     <p><strong>Mã đơn hàng:</strong> ${order._id}</p>
                     <p><strong>Trạng thái mới:</strong> ${order.status}</p>
+                </div>
+                <p>Bạn có thể theo dõi đơn hàng của mình tại trang quản lý đơn hàng.</p>
+                <p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi.</p>
+            </div>
+        `
+    }),
+
+    // Template cho xác nhận cập nhật thông tin cá nhân
+    profileUpdate: (otp) => ({
+        subject: "Xác nhận cập nhật thông tin cá nhân Sport Store",
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #333;">Xác nhận cập nhật thông tin cá nhân</h2>
+                <p>Xin chào,</p>
+                <p>Bạn đã yêu cầu cập nhật thông tin cá nhân. Vui lòng sử dụng mã OTP sau để xác nhận:</p>
+                <div style="background-color: #f4f4f4; padding: 15px; text-align: center; margin: 20px 0;">
+                    <h1 style="color: #007bff; margin: 0;">${otp}</h1>
+                </div>
+                <p>Mã OTP này sẽ hết hạn sau 5 phút.</p>
+                <p>Nếu bạn không yêu cầu cập nhật thông tin, vui lòng bỏ qua email này.</p>
+            </div>
+        `
+    }),
+
+    // Template cho thông báo đơn hàng đã giao thành công
+    orderDelivered: (order) => ({
+        subject: "Đơn hàng đã giao thành công Sport Store",
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #333;">Đơn hàng đã giao thành công</h2>
+                <p>Xin chào ${order.user.name},</p>
+                <p>Đơn hàng của bạn đã được giao thành công:</p>
+                <div style="background-color: #f4f4f4; padding: 15px; margin: 20px 0;">
+                    <p><strong>Mã đơn hàng:</strong> ${order._id}</p>
+                    <p><strong>Ngày giao:</strong> ${new Date().toLocaleDateString('vi-VN')}</p>
+                </div>
+                <p>Cảm ơn bạn đã tin tưởng và ủng hộ Sport Store!</p>
+                <p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi.</p>
+            </div>
+        `
+    }),
+
+    // Template cho thông báo đơn hàng bị hủy
+    orderCancelled: (order) => ({
+        subject: "Đơn hàng đã bị hủy Sport Store",
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #333;">Đơn hàng đã bị hủy</h2>
+                <p>Xin chào ${order.user.name},</p>
+                <p>Đơn hàng của bạn đã bị hủy:</p>
+                <div style="background-color: #f4f4f4; padding: 15px; margin: 20px 0;">
+                    <p><strong>Mã đơn hàng:</strong> ${order._id}</p>
+                    <p><strong>Lý do hủy:</strong> ${order.cancellationReason || 'Không có thông tin'}</p>
+                </div>
+                <p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi.</p>
+            </div>
+        `
+    }),
+
+    // Template cho thông báo đơn hàng đang được xử lý
+    orderProcessing: (order) => ({
+        subject: "Đơn hàng đang được xử lý Sport Store",
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #333;">Đơn hàng đang được xử lý</h2>
+                <p>Xin chào ${order.user.name},</p>
+                <p>Đơn hàng của bạn đang được xử lý:</p>
+                <div style="background-color: #f4f4f4; padding: 15px; margin: 20px 0;">
+                    <p><strong>Mã đơn hàng:</strong> ${order._id}</p>
+                    <p><strong>Trạng thái:</strong> Đang xử lý</p>
+                </div>
+                <p>Chúng tôi sẽ cập nhật trạng thái đơn hàng của bạn sớm nhất có thể.</p>
+                <p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi.</p>
+            </div>
+        `
+    }),
+
+    // Template cho thông báo đơn hàng đang được vận chuyển
+    orderShipped: (order) => ({
+        subject: "Đơn hàng đang được vận chuyển Sport Store",
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #333;">Đơn hàng đang được vận chuyển</h2>
+                <p>Xin chào ${order.user.name},</p>
+                <p>Đơn hàng của bạn đang được vận chuyển:</p>
+                <div style="background-color: #f4f4f4; padding: 15px; margin: 20px 0;">
+                    <p><strong>Mã đơn hàng:</strong> ${order._id}</p>
+                    <p><strong>Đơn vị vận chuyển:</strong> ${order.shippingProvider || 'Chưa có thông tin'}</p>
+                    <p><strong>Mã vận đơn:</strong> ${order.trackingNumber || 'Chưa có thông tin'}</p>
                 </div>
                 <p>Bạn có thể theo dõi đơn hàng của mình tại trang quản lý đơn hàng.</p>
                 <p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi.</p>
@@ -88,33 +177,25 @@ const emailTemplates = {
  * @param {string} requestId - ID của request
  * @returns {Promise<Object>} Kết quả gửi email
  */
-export const sendEmail = async (to, template, data, requestId) => {
+export const sendEmail = async ({ to, template, data, requestId }) => {
     try {
-        if (!emailTemplates[template]) {
-            throw new Error(ERROR_MESSAGES.INVALID_EMAIL_TEMPLATE);
+        const emailTemplate = emailTemplates[template];
+        if (!emailTemplate) {
+            throw new Error(ERROR_MESSAGES.EMAIL_TEMPLATE_NOT_FOUND);
         }
 
-        const { subject, html } = emailTemplates[template](data);
-
+        const { subject, html } = emailTemplate(data);
         const result = await resend.emails.send({
-            from: env.EMAIL_FROM,
+            from: 'Sport Store <onboarding@resend.dev>',
             to,
             subject,
             html
         });
 
-        logInfo(`[${requestId}] Email sent successfully to ${to}`);
-        return {
-            success: true,
-            message: SUCCESS_MESSAGES.EMAIL_SENT,
-            data: result
-        };
+        logInfo(requestId, `Email sent successfully to ${to}`);
+        return result;
     } catch (error) {
-        logError(`[${requestId}] Error sending email to ${to}:`, error);
-        return {
-            success: false,
-            message: ERROR_MESSAGES.EMAIL_SEND_FAILED,
-            error: error.message
-        };
+        logError(requestId, `Error sending email: ${error.message}`);
+        throw error;
     }
 };

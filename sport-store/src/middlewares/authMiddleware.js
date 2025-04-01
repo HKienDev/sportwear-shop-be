@@ -4,6 +4,7 @@ import env from "../config/env.js";
 import { logInfo, logError } from "../utils/logger.js";
 import { ERROR_MESSAGES } from "../utils/constants.js";
 import { verifyAccessToken, verifyRefreshToken } from '../utils/jwt.js';
+import { getRedisClient } from '../config/redis.js';
 
 // Helper functions
 const extractToken = (req) => {
@@ -18,6 +19,13 @@ const extractToken = (req) => {
     }
 
     return null;
+};
+
+const isTokenBlacklisted = async (token) => {
+    const redis = getRedisClient();
+    if (!redis) return false;
+    const blacklisted = await redis.get(`blacklist:${token}`);
+    return !!blacklisted;
 };
 
 const findAndVerifyUser = async (userId) => {
@@ -47,6 +55,47 @@ export const verifyAccessTokenMiddleware = async (req, res, next) => {
             });
         }
 
+        // Kiểm tra token có trong blacklist không
+        const isBlacklisted = await isTokenBlacklisted(token);
+        if (isBlacklisted) {
+            logError(`[${requestId}] Token is blacklisted`);
+            return res.status(401).json({
+                success: false,
+                message: ERROR_MESSAGES.UNAUTHORIZED,
+                errors: [{ message: 'Token đã bị vô hiệu hóa' }]
+            });
+        }
+
+        const decoded = await verifyAccessToken(token);
+        const user = await findAndVerifyUser(decoded.userId);
+        req.user = user;
+        next();
+    } catch (error) {
+        logError(`[${requestId}] Token verification failed: ${error.message}`);
+        return res.status(401).json({
+            success: false,
+            message: ERROR_MESSAGES.UNAUTHORIZED,
+            errors: [{ message: error.message }]
+        });
+    }
+};
+
+// Middleware xác thực user đăng nhập
+export const verifyUser = async (req, res, next) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        logInfo(`[${requestId}] Processing user verification`);
+
+        const token = extractToken(req);
+        if (!token) {
+            logError(`[${requestId}] ${ERROR_MESSAGES.NO_TOKEN}`);
+            return res.status(401).json({ 
+                success: false,
+                message: ERROR_MESSAGES.NO_TOKEN 
+            });
+        }
+
         const decoded = await verifyAccessToken(token);
         const user = await findAndVerifyUser(decoded.userId);
 
@@ -54,25 +103,12 @@ export const verifyAccessTokenMiddleware = async (req, res, next) => {
         req.user = user;
         next();
     } catch (error) {
-        logError(`[${requestId}] Token verification failed`, error);
-        res.status(401).json({ 
+        logError(`[${requestId}] User verification failed`, error);
+        return res.status(401).json({ 
             success: false,
             message: error.name === "TokenExpiredError" 
                 ? ERROR_MESSAGES.TOKEN_EXPIRED 
                 : ERROR_MESSAGES.INVALID_TOKEN 
-        });
-    }
-};
-
-// Middleware xác thực user đăng nhập
-export const verifyUser = async (req, res, next) => {
-    try {
-        await verifyAccessTokenMiddleware(req, res, next);
-    } catch (error) {
-        logError(`[${req.id || 'unknown'}] User verification failed`, error);
-        return res.status(401).json({ 
-            success: false,
-            message: error.message 
         });
     }
 };

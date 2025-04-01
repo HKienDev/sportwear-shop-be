@@ -13,23 +13,30 @@ import {
     resetPasswordSchema, 
     changePasswordSchema, 
     updateProfileSchema,
-    verifyOTPSchema,
-    resendOTPSchema
+    updateProfileRequestSchema
 } from '../validations/authSchema.js';
-import { auth } from '../middlewares/auth.js';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../utils/constants.js';
 import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
 
-// Rate limiter cho refresh token
+// Rate limiter cho refresh token và các route nhạy cảm
 const refreshTokenLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // limit each IP to 5 requests per windowMs
-    message: 'Quá nhiều yêu cầu refresh token. Vui lòng thử lại sau.',
-    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-    skipSuccessfulRequests: true // Skip successful requests in rate limiting
+    windowMs: 15 * 60 * 1000, // 15 phút
+    max: 5, // giới hạn 5 request mỗi IP trong khoảng thời gian
+    message: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: true
+});
+
+const sensitiveRouteLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 giờ
+    max: 3, // giới hạn 3 request mỗi IP trong 1 giờ
+    message: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: true
 });
 
 // Public routes
@@ -37,62 +44,41 @@ router.get("/test", (req, res) => {
     res.json({ message: SUCCESS_MESSAGES.ROUTE_WORKING });
 });
 
-// Auth routes
+// Authentication routes
 router.post("/register", validateRequest(registerSchema), authController.register);
 router.post("/login", validateRequest(loginSchema), authController.login);
-router.post("/logout", authController.logout);
+router.post("/logout", verifyUser, authController.logout);
 router.post("/refresh-token", refreshTokenLimiter, authController.refreshToken);
+
+// Password management routes
 router.post("/forgot-password", validateRequest(forgotPasswordSchema), authController.forgotPassword);
 router.post("/reset-password", validateRequest(resetPasswordSchema), authController.resetPassword);
-router.post("/verify-otp", validateRequest(verifyOTPSchema), authController.verifyOTP);
-router.post("/resend-otp", validateRequest(resendOTPSchema), authController.resendOTP);
 
-// Google Auth routes
+// Google OAuth routes
 router.get("/google", authController.googleAuth);
 router.get("/google/callback", authController.googleCallback);
 
-// Protected routes
-router.get("/profile", auth, authController.getProfile);
-router.put("/profile", auth, validateRequest(updateProfileSchema), authController.updateProfile);
-router.put("/change-password", auth, validateRequest(changePasswordSchema), authController.changePassword);
+// Protected user profile routes
+router.get("/profile", verifyUser, authController.getProfile);
 
-// Kiểm tra route hoạt động
-router.get("/", (req, res) => {
-    res.json({ message: "Route xác thực đang hoạt động!" });
-});
-
-// Xác thực OTP để kích hoạt tài khoản
-router.post("/verify-account", authController.verifyOTP);
-
-// Gửi OTP để xác thực trước khi thay đổi thông tin bảo mật
-router.post("/request-update", verifyUser, authController.requestUpdate); // ✅ Thêm `verifyUser`
-
-// Xác thực OTP và cập nhật thông tin bảo mật (email, username, password)
-router.put("/update-user", verifyUser, authController.updateUser); // ✅ Thêm `verifyUser`
-
-// Lấy thông tin user từ token
-router.get("/profile", verifyUser, async (req, res) => {
-  try {
-      // Tìm user trong database
-      const user = await User.findById(req.user.userId).select("-password -refreshToken");
-      
-      if (!user) {
-          return res.status(404).json({ message: "Không tìm thấy người dùng" });
-      }
-
-      res.json({ message: "User Profile", user });
-  } catch (error) {
-      res.status(500).json({ message: "Lỗi server", error: error.message });
-  }
-});
+// Kiểm tra trạng thái đăng nhập
+router.get("/check", verifyUser, authController.checkAuth);
 
 // Xác thực token
-router.post("/verify-token", authController.verifyToken);
+router.post("/verify-token", verifyUser, authController.verifyToken);
 
-// Check auth status
-router.get("/check", verifyRefreshTokenMiddleware, authController.checkAuth);
+// Cập nhật thông tin cá nhân (yêu cầu OTP)
+router.post("/profile/update-request", verifyUser, validateRequest(updateProfileRequestSchema), authController.requestProfileUpdate);
 
-// Get current user
-router.get("/me", verifyUser, authController.checkAuth);
+// Xác nhận cập nhật thông tin với OTP
+router.put("/profile/update", verifyUser, validateRequest(updateProfileSchema), authController.updateProfile);
+
+// Security update routes
+router.post("/request-update", verifyUser, sensitiveRouteLimiter, authController.requestUpdate);
+
+// Health check route
+router.get("/", (req, res) => {
+    res.json({ message: "Auth service is running!" });
+});
 
 export default router;

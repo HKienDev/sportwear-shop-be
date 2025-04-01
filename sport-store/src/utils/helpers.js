@@ -61,10 +61,7 @@ export const setAuthCookies = (res, accessToken, refreshToken) => {
         httpOnly: true,
         secure: env.NODE_ENV === "production",
         sameSite: "lax",
-        path: '/',
-        domain: env.NODE_ENV === "production" 
-            ? ".sport-store-fe-graduation.vercel.app" 
-            : "localhost"
+        path: '/'
     };
 
     // Set access token cookie

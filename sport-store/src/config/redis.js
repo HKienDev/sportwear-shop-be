@@ -33,10 +33,22 @@ const connectRedis = async () => {
         redisClient.on("end", () => {
             logInfo("Redis connection closed");
         });
+
+        // Test kết nối
+        await redisClient.ping();
+        logInfo("Redis connection test successful");
     } catch (error) {
         logError("Redis connection error:", error);
         process.exit(1);
     }
 };
 
-export { connectRedis, redisClient };
+// Export một getter function để đảm bảo luôn lấy được instance mới nhất
+export const getRedisClient = () => {
+    if (!redisClient) {
+        throw new Error('Redis connection not available');
+    }
+    return redisClient;
+};
+
+export { connectRedis };

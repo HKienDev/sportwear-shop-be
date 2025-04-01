@@ -16,6 +16,7 @@ import { requestId } from "./src/middlewares/requestId.js";
 import { errorHandler } from "./src/middlewares/errorHandler.js";
 import { notFoundHandler } from "./src/middlewares/notFoundHandler.js";
 import { initSocket } from "./src/config/socket.js";
+import { connectRedis } from "./src/config/redis.js";
 
 // Import routes
 import authRoutes from "./src/routes/authRoutes.js";
@@ -83,19 +84,28 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Connect to MongoDB
-mongoose
-    .connect(env.MONGODB_URI)
-    .then(() => {
+// Connect to MongoDB and Redis
+const startServer = async () => {
+    try {
+        // Kết nối MongoDB
+        await mongoose.connect(env.MONGODB_URI);
         logInfo("Connected to MongoDB");
+
+        // Kết nối Redis
+        await connectRedis();
+        logInfo("Connected to Redis");
+
+        // Khởi động server
         httpServer.listen(env.PORT, () => {
             logInfo(`Server is running on port ${env.PORT}`);
         });
-    })
-    .catch((error) => {
-        logError("MongoDB connection error:", error);
+    } catch (error) {
+        logError("Failed to start server:", error);
         process.exit(1);
-    });
+    }
+};
+
+startServer();
 
 // Handle unhandled promise rejections
 process.on("unhandledRejection", (error) => {

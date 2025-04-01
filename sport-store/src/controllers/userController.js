@@ -5,8 +5,13 @@ import Order from "../models/order.js";
 import jwt from "jsonwebtoken";
 import { logInfo, logError } from "../utils/logger.js";
 import env from "../config/env.js";
-import { ERROR_MESSAGES, SUCCESS_MESSAGES, USER_ROLES, USER_STATUS, USER_CONFIG } from "../utils/constants.js";
-import { handleError } from "../utils/helpers.js";
+import { ERROR_MESSAGES, SUCCESS_MESSAGES, USER_ROLES, USER_STATUS, USER_CONFIG, TOKEN_CONFIG } from "../utils/constants.js";
+import { handleError, setAuthCookies } from "../utils/helpers.js";
+import { generateTokens } from "./authController.js";
+import { sendEmail } from "../utils/sendEmail.js";
+import { AUTH_CONFIG } from "../utils/constants.js";
+import { generateOTP } from "../utils/helpers.js";
+import { getRedisClient } from "../config/redis.js";
 
 // Helper functions
 const hashPassword = (password) => bcrypt.hash(password, 10);
@@ -91,8 +96,8 @@ export const updateUser = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { name, phone, address } = req.body;
-        const userId = req.params.id;
+        const { email, username, password, otp } = req.body;
+        const userId = req.user._id;
 
         const user = await User.findById(userId);
         if (!user) {
@@ -103,17 +108,50 @@ export const updateUser = async (req, res) => {
             });
         }
 
-        user.name = name || user.name;
-        user.phone = phone || user.phone;
-        user.address = address || user.address;
+        const redis = getRedisClient();
+        if (!redis) {
+            throw new Error('Redis connection not available');
+        }
 
-        const updatedUser = await user.save();
+        // Kiểm tra OTP
+        const otpKey = `otp:update:${email}`;
+        const storedOTP = await redis.get(otpKey);
+        
+        if (!storedOTP) {
+            logError(`[${requestId}] Invalid or expired OTP for: ${email}`);
+            return res.status(400).json({ 
+                success: false,
+                message: ERROR_MESSAGES.OTP_INVALID 
+            });
+        }
 
-        logInfo(`[${requestId}] Successfully updated user: ${user.name}`);
+        if (storedOTP !== otp) {
+            logError(`[${requestId}] Incorrect OTP for: ${email}`);
+            return res.status(400).json({ 
+                success: false,
+                message: ERROR_MESSAGES.OTP_INCORRECT 
+            });
+        }
+
+        // Cập nhật thông tin
+        if (email) user.email = email;
+        if (username) user.username = username;
+        if (password) user.password = await hashPassword(password);
+
+        await user.save();
+        await redis.del(otpKey);
+
+        logInfo(`[${requestId}] User updated: ${userId}`);
         res.json({
             success: true,
             message: SUCCESS_MESSAGES.USER_UPDATED,
-            data: formatUserResponse(updatedUser)
+            data: {
+                id: user._id,
+                email: user.email,
+                username: user.username,
+                role: user.role,
+                isVerified: user.isVerified
+            }
         });
     } catch (error) {
         const errorResponse = handleError(error, requestId);
@@ -793,12 +831,15 @@ export const login = async (req, res) => {
             });
         }
 
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email }).select('+password');
         if (!user) {
             logError(`[${requestId}] User not found: ${email}`);
-            return res.status(404).json({
+            return res.status(401).json({
                 success: false,
-                message: ERROR_MESSAGES.USER_NOT_FOUND
+                message: ERROR_MESSAGES.INVALID_CREDENTIALS,
+                errors: [
+                    { field: 'email', message: 'Email hoặc mật khẩu không chính xác' }
+                ]
             });
         }
 
@@ -823,39 +864,50 @@ export const login = async (req, res) => {
             logError(`[${requestId}] Invalid password for user: ${email}`);
             return res.status(401).json({
                 success: false,
-                message: ERROR_MESSAGES.INVALID_PASSWORD
+                message: ERROR_MESSAGES.INVALID_CREDENTIALS,
+                errors: [
+                    { field: 'password', message: 'Email hoặc mật khẩu không chính xác' }
+                ]
             });
         }
 
+        // Cập nhật thời gian đăng nhập cuối
+        user.lastLogin = new Date();
+        await user.save();
+
+        // Tạo tokens
         const { accessToken, refreshToken } = generateTokens(user._id, user.email);
         user.refreshToken = refreshToken;
         await user.save();
 
-        res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: env.NODE_ENV === "production",
-            sameSite: "Lax",
-            maxAge: TOKEN_CONFIG.REFRESH_TOKEN_EXPIRY * 1000
-        });
+        // Set cookies
+        setAuthCookies(res, accessToken, refreshToken);
 
         logInfo(`[${requestId}] Successfully logged in user: ${email}`);
         res.json({
             success: true,
             message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
             data: {
-                accessToken,
-                user: {
-                    id: user._id,
-                    email: user.email,
-                    username: user.username,
-                    role: user.role,
-                    isVerified: user.isVerified
-                }
+                id: user._id,
+                email: user.email,
+                username: user.username,
+                fullname: user.fullname,
+                phone: user.phone,
+                role: user.role,
+                isVerified: user.isVerified,
+                authStatus: user.authStatus
             }
         });
     } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
+        logError(`[${requestId}] Login failed: ${error.message}`);
+        logError(`Stack trace: ${error.stack}`);
+        res.status(500).json({
+            success: false,
+            message: ERROR_MESSAGES.SERVER_ERROR,
+            errors: [
+                { message: error.message }
+            ]
+        });
     }
 };
 
@@ -871,10 +923,28 @@ export const logout = async (req, res) => {
             await user.save();
         }
 
+        // Xóa tất cả cookies
+        res.clearCookie("accessToken", {
+            httpOnly: true,
+            secure: env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: '/',
+            maxAge: 0
+        });
+
         res.clearCookie("refreshToken", {
             httpOnly: true,
             secure: env.NODE_ENV === "production",
-            sameSite: "Lax",
+            sameSite: "lax",
+            path: '/',
+            maxAge: 0
+        });
+
+        res.clearCookie("user", {
+            httpOnly: true,
+            secure: env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: '/',
             maxAge: 0
         });
 
@@ -884,7 +954,14 @@ export const logout = async (req, res) => {
             message: SUCCESS_MESSAGES.LOGOUT_SUCCESS
         });
     } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
+        logError(`[${requestId}] Logout failed: ${error.message}`);
+        logError(`Stack trace: ${error.stack}`);
+        res.status(500).json({
+            success: false,
+            message: ERROR_MESSAGES.SERVER_ERROR,
+            errors: [
+                { message: error.message }
+            ]
+        });
     }
 };
