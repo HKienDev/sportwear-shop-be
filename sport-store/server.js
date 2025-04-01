@@ -8,12 +8,14 @@ import cookieParser from "cookie-parser";
 import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { createServer } from 'http';
 import { logInfo, logError } from "./src/utils/logger.js";
 import env from "./src/config/env.js";
 import { ERROR_MESSAGES } from "./src/utils/constants.js";
 import { requestId } from "./src/middlewares/requestId.js";
 import { errorHandler } from "./src/middlewares/errorHandler.js";
 import { notFoundHandler } from "./src/middlewares/notFoundHandler.js";
+import { initSocket } from "./src/config/socket.js";
 
 // Import routes
 import authRoutes from "./src/routes/authRoutes.js";
@@ -28,6 +30,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
+const httpServer = createServer(app);
+
+// Khởi tạo Socket.IO
+initSocket(httpServer);
 
 // Rate limiter chung cho toàn bộ API
 const apiLimiter = rateLimit({
@@ -82,7 +88,7 @@ mongoose
     .connect(env.MONGODB_URI)
     .then(() => {
         logInfo("Connected to MongoDB");
-        app.listen(env.PORT, () => {
+        httpServer.listen(env.PORT, () => {
             logInfo(`Server is running on port ${env.PORT}`);
         });
     })

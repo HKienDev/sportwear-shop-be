@@ -287,6 +287,21 @@ export const logout = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
+        // Kiểm tra xem có user trong request không
+        if (!req.user) {
+            // Nếu không có user, chỉ cần xóa cookie và trả về success
+            res.clearCookie("refreshToken", {
+                httpOnly: true,
+                secure: env.NODE_ENV === "production",
+                sameSite: "strict",
+                path: "/"
+            });
+            return res.status(200).json({
+                success: true,
+                message: "Đăng xuất thành công"
+            });
+        }
+
         const userId = req.user._id;
         const user = await User.findById(userId);
         
@@ -298,18 +313,16 @@ export const logout = async (req, res) => {
         res.clearCookie("refreshToken", {
             httpOnly: true,
             secure: env.NODE_ENV === "production",
-            sameSite: "Lax",
-            maxAge: 0
+            sameSite: "strict",
+            path: "/"
         });
 
-        logInfo(`[${requestId}] Successfully logged out user: ${userId}`);
-        res.json({
+        return res.status(200).json({
             success: true,
-            message: SUCCESS_MESSAGES.LOGOUT_SUCCESS
+            message: "Đăng xuất thành công"
         });
     } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
+        return handleError(error, requestId);
     }
 };
 
