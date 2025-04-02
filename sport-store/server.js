@@ -17,6 +17,7 @@ import { errorHandler } from "./src/middlewares/errorHandler.js";
 import { notFoundHandler } from "./src/middlewares/notFoundHandler.js";
 import { initSocket } from "./src/config/socket.js";
 import { connectRedis } from "./src/config/redis.js";
+import corsOptions from './src/config/cors.js';
 
 // Import routes
 import authRoutes from "./src/routes/authRoutes.js";
@@ -54,14 +55,7 @@ app.use(helmet({
     crossOriginOpenerPolicy: { policy: "unsafe-none" }
 })); // Bảo mật headers
 app.use(compression()); // Nén response
-app.use(cors({
-    origin: ['http://localhost:3000', 'https://sport-store-fe-graduation.vercel.app'],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-    exposedHeaders: ['Content-Range', 'X-Content-Range', 'Set-Cookie'],
-    maxAge: 600
-})); // Cho phép CORS
+app.use(cors(corsOptions));
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use(cookieParser()); // Parse cookies
