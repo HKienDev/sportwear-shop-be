@@ -26,29 +26,13 @@ async function createAdmin() {
     const newAdmin = new User({
       email: "adminVjuSport@gmail.com",
       password: hashedPassword,
-      username: "adminvjusport",
+      username: "adminVjuSport",
+      fullname: "Admin System",
+      phone: "0123456789",
       role: "admin",
       isActive: true,
       isVerified: true,
-      permissions: ["full_access"],
-      firstName: "Admin",
-      lastName: "System",
-      phoneNumber: "0123456789",
-      address: "System Address",
-      avatar: "default-avatar.png",
-      gender: "male",
-      dateOfBirth: new Date("1990-01-01"),
-      lastLogin: new Date(),
-      loginAttempts: 0,
-      lockUntil: null,
-      resetPasswordToken: null,
-      resetPasswordExpires: null,
-      verificationToken: null,
-      verificationTokenExpires: null,
-      otp: null,
-      otpExpires: null,
-      googleId: null,
-      facebookId: null
+      authStatus: "verified"
     });
 
     // Lưu tài khoản admin vào cơ sở dữ liệu

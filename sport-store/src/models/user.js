@@ -90,7 +90,6 @@ const userSchema = new mongoose.Schema({
     // Thông tin xác thực (Authentication Information)
     googleId: { 
         type: String, 
-        unique: true, 
         sparse: true,
         trim: true,
         default: null
@@ -313,7 +312,6 @@ userSchema.index({ authStatus: 1 });
 userSchema.index({ lastLoginAt: -1 });
 userSchema.index({ loginAttempts: 1 });
 userSchema.index({ lockedUntil: 1 });
-userSchema.index({ googleId: 1 }, { unique: true, sparse: true });
 
 // Export model
 const User = mongoose.models.User || mongoose.model("User", userSchema);
