@@ -56,7 +56,7 @@ export const generateOTP = (length = 6) => {
     return Array.from({ length }, () => Math.floor(Math.random() * 10)).join('');
 };
 
-export const setAuthCookies = (res, accessToken, refreshToken) => {
+export const setAuthCookies = (res, accessToken, refreshToken, userData) => {
     const cookieOptions = {
         httpOnly: true,
         secure: env.NODE_ENV === "production",
@@ -76,14 +76,39 @@ export const setAuthCookies = (res, accessToken, refreshToken) => {
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
-    // Set user cookie for frontend
-    res.cookie("user", JSON.stringify({
-        isAuthenticated: true,
-        timestamp: Date.now()
-    }), {
-        ...cookieOptions,
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
+    // Set user cookie for frontend with full user data
+    if (userData && typeof userData === 'object') {
+        const userCookieData = {
+            _id: userData._id,
+            email: userData.email,
+            role: userData.role,
+            isActive: userData.isActive,
+            isVerified: userData.isVerified,
+            authStatus: userData.authStatus,
+            username: userData.username,
+            fullname: userData.fullname,
+            phone: userData.phone,
+            avatar: userData.avatar,
+            gender: userData.gender,
+            dob: userData.dob,
+            address: userData.address,
+            membershipLevel: userData.membershipLevel,
+            points: userData.points,
+            isAuthenticated: true,
+            timestamp: Date.now()
+        };
+
+        // Validate required fields
+        if (!userCookieData._id || !userCookieData.email || !userCookieData.role) {
+            throw new Error('Missing required user data fields');
+        }
+
+        // Set user cookie with proper encoding
+        res.cookie("user", encodeURIComponent(JSON.stringify(userCookieData)), {
+            ...cookieOptions,
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+    }
 };
 
 // Thêm hàm mới để xóa cookies

@@ -34,7 +34,10 @@ export const verifyAccessToken = (token) => {
   try {
     return jwt.verify(token, env.JWT_SECRET);
   } catch (error) {
-    throw new Error('Invalid access token');
+    if (error.name === 'TokenExpiredError') {
+      throw new Error('Token đã hết hạn');
+    }
+    throw new Error('Token không hợp lệ');
   }
 };
 

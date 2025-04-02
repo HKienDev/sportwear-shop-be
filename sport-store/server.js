@@ -28,6 +28,7 @@ import categoryRoutes from "./src/routes/categoryRoutes.js";
 import orderRoutes from "./src/routes/orderRoutes.js";
 import uploadRoutes from "./src/routes/uploadRoutes.js";
 import dashboardRoutes from "./src/routes/dashboardRoutes.js";
+import couponRoutes from "./src/routes/couponRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -75,6 +76,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/coupons", couponRoutes);
 
 // Error handling
 app.use(notFoundHandler);

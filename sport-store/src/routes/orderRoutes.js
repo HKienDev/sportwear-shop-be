@@ -23,6 +23,7 @@ router.get("/my-orders/:id", verifyUser, orderController.getMyOrderById);
 router.put("/my-orders/:id/cancel", verifyUser, orderController.cancelOrder);
 
 // Protected routes (Admin only)
+router.get("/admin", verifyAdmin, orderController.getAdminOrders);
 router.get("/", verifyAdmin, orderController.getAllOrders);
 router.get("/:id", verifyAdmin, orderController.getOrderById);
 router.put("/:id/status", verifyAdmin, validateRequest(updateOrderStatusSchema), orderController.updateOrderStatus);

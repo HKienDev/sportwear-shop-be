@@ -27,13 +27,37 @@ export const getAllCategories = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const categories = await Category.find().sort({ name: 1 });
-        
-        logInfo(`[${requestId}] Successfully retrieved all categories`);
+        const { page = 1, limit = 10, search } = req.query;
+        const skip = (page - 1) * limit;
+
+        // Xây dựng query
+        const query = {};
+        if (search) {
+            query.name = { $regex: search, $options: 'i' };
+        }
+
+        // Lấy danh sách categories với phân trang
+        const categories = await Category.find(query)
+            .sort({ name: 1 })
+            .skip(skip)
+            .limit(limit);
+
+        // Đếm tổng số categories
+        const total = await Category.countDocuments(query);
+
+        logInfo(`[${requestId}] Successfully retrieved categories`);
         res.json({
             success: true,
             message: SUCCESS_MESSAGES.CATEGORIES_RETRIEVED,
-            data: categories
+            data: {
+                categories,
+                pagination: {
+                    total,
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    totalPages: Math.ceil(total / limit)
+                }
+            }
         });
     } catch (error) {
         const errorResponse = handleError(error, requestId);
@@ -168,6 +192,35 @@ export const deleteCategory = async (req, res) => {
         res.json({
             success: true,
             message: SUCCESS_MESSAGES.CATEGORY_DELETED
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
+};
+
+export const searchCategories = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { query } = req.query;
+        
+        if (!query) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.SEARCH_QUERY_REQUIRED
+            });
+        }
+
+        const categories = await Category.find({
+            name: { $regex: query, $options: 'i' }
+        }).sort({ name: 1 });
+
+        logInfo(`[${requestId}] Successfully searched categories for query: ${query}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.CATEGORIES_RETRIEVED,
+            data: categories
         });
     } catch (error) {
         const errorResponse = handleError(error, requestId);

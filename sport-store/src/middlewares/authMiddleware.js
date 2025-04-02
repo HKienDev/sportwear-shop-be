@@ -106,9 +106,8 @@ export const verifyUser = async (req, res, next) => {
         logError(`[${requestId}] User verification failed`, error);
         return res.status(401).json({ 
             success: false,
-            message: error.name === "TokenExpiredError" 
-                ? ERROR_MESSAGES.TOKEN_EXPIRED 
-                : ERROR_MESSAGES.INVALID_TOKEN 
+            message: ERROR_MESSAGES.UNAUTHORIZED,
+            errors: [{ message: error.message }]
         });
     }
 };

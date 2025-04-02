@@ -534,3 +534,60 @@ export const getStats = async (req, res) => {
         res.status(500).json(errorResponse);
     }
 };
+
+export const getAdminOrders = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { page = 1, limit = 10, status, search } = req.query;
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        // Xây dựng query
+        const query = {};
+        if (status) {
+            query.status = status;
+        }
+        if (search) {
+            query.$or = [
+                { orderNumber: { $regex: search, $options: 'i' } },
+                { customerName: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        // Lấy tổng số đơn hàng
+        const totalOrders = await Order.countDocuments(query);
+
+        // Lấy danh sách đơn hàng với phân trang
+        const orders = await Order.find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit))
+            .populate('user', 'name email')
+            .lean();
+
+        // Tính toán thông tin phân trang
+        const totalPages = Math.ceil(totalOrders / parseInt(limit));
+        const hasMore = parseInt(page) < totalPages;
+
+        logInfo(`[${requestId}] Successfully fetched admin orders`);
+        res.json({
+            success: true,
+            data: {
+                orders,
+                pagination: {
+                    currentPage: parseInt(page),
+                    totalPages,
+                    totalOrders,
+                    hasMore
+                }
+            }
+        });
+    } catch (error) {
+        logError(`[${requestId}] Error fetching admin orders: ${error.message}`);
+        res.status(500).json({
+            success: false,
+            message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR
+        });
+    }
+};

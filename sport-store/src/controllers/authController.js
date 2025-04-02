@@ -212,25 +212,71 @@ export const register = async (req, res) => {
 };
 
 export const checkAuth = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
     try {
-        // Nếu middleware verifyUser đã chạy thành công, user đã được gán vào req.user
+        logInfo(`[${requestId}] Processing auth check request`);
+        
         const user = req.user;
         
-        // Trả về thông tin user đã được lọc
-        return res.status(200).json({
-            success: true,
-            data: {
-                email: user.email,
-                fullname: user.fullname,
-                role: user.role,
-                avatar: user.avatar
+        if (!user) {
+            logError(`[${requestId}] No user found in request`);
+            return res.status(401).json({
+                success: false,
+                message: ERROR_MESSAGES.UNAUTHORIZED
+            });
+        }
+
+        // Kiểm tra cache
+        const redis = getRedisClient();
+        if (redis) {
+            const cacheKey = `user:${user._id}`;
+            const cachedUser = await redis.get(cacheKey);
+            
+            if (cachedUser) {
+                logInfo(`[${requestId}] Returning cached user data for: ${user._id}`);
+                return res.json({
+                    success: true,
+                    data: JSON.parse(cachedUser),
+                    cached: true
+                });
             }
+        }
+
+        // Format user data
+        const userData = {
+            _id: user._id,
+            email: user.email,
+            role: user.role,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            phone: user.phone,
+            address: user.address,
+            avatar: user.avatar,
+            isVerified: user.isVerified,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt
+        };
+
+        // Cache user data
+        if (redis) {
+            const cacheKey = `user:${user._id}`;
+            await redis.set(cacheKey, JSON.stringify(userData), 'EX', 300); // Cache 5 phút
+        }
+
+        logInfo(`[${requestId}] Successfully processed auth check for user: ${user._id}`);
+        return res.json({
+            success: true,
+            data: userData,
+            cached: false
         });
     } catch (error) {
-        console.error('Error in checkAuth:', error);
+        logError(`[${requestId}] Check auth error: ${error.message}`);
+        logError(`Stack trace: ${error.stack}`);
         return res.status(500).json({
             success: false,
-            message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR
+            message: ERROR_MESSAGES.SERVER_ERROR,
+            error: error.message
         });
     }
 };
@@ -313,7 +359,23 @@ export const login = async (req, res) => {
         await user.save();
 
         // Set cookies
-        setAuthCookies(res, accessToken, refreshToken);
+        setAuthCookies(res, accessToken, refreshToken, {
+            _id: user._id,
+            email: user.email,
+            role: user.role,
+            isActive: user.isActive,
+            isVerified: user.isVerified,
+            authStatus: user.authStatus,
+            username: user.username,
+            fullname: user.fullname,
+            phone: user.phone,
+            avatar: user.avatar,
+            gender: user.gender,
+            dob: user.dob,
+            address: user.address,
+            membershipLevel: user.membershipLevel,
+            points: user.points
+        });
 
         // Log success
         logInfo(`[${requestId}] Successfully logged in user: ${email}`);
@@ -325,14 +387,21 @@ export const login = async (req, res) => {
             data: {
                 accessToken,
                 user: {
-                    id: user._id,
+                    _id: user._id,
                     email: user.email,
+                    role: user.role,
+                    isActive: user.isActive,
+                    isVerified: user.isVerified,
+                    authStatus: user.authStatus,
                     username: user.username,
                     fullname: user.fullname,
                     phone: user.phone,
-                    role: user.role,
-                    isVerified: user.isVerified,
-                    authStatus: user.authStatus
+                    avatar: user.avatar,
+                    gender: user.gender,
+                    dob: user.dob,
+                    address: user.address,
+                    membershipLevel: user.membershipLevel,
+                    points: user.points
                 }
             }
         });
@@ -437,54 +506,71 @@ export const refreshToken = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const refreshToken = req.cookies?.refreshToken;
+        const { refreshToken } = req.body;
+        
         if (!refreshToken) {
-            logError(`[${requestId}] ${ERROR_MESSAGES.NO_REFRESH_TOKEN}`);
-            return res.status(401).json({ 
+            logError(`[${requestId}] Refresh token is required`);
+            return res.status(400).json({
                 success: false,
-                message: ERROR_MESSAGES.NO_REFRESH_TOKEN 
+                message: ERROR_MESSAGES.REFRESH_TOKEN_REQUIRED
             });
         }
 
         // Verify refresh token
-        const decoded = await verifyRefreshToken(refreshToken);
-        const user = await User.findById(decoded.userId);
+        const decoded = verifyRefreshToken(refreshToken);
         
+        // Get user from database
+        const user = await User.findById(decoded.userId).select('-password');
         if (!user) {
             logError(`[${requestId}] User not found: ${decoded.userId}`);
-            return res.status(401).json({ 
+            return res.status(404).json({
                 success: false,
-                message: ERROR_MESSAGES.USER_NOT_FOUND 
+                message: ERROR_MESSAGES.USER_NOT_FOUND
             });
         }
 
-        // Generate new access token
+        // Generate new tokens
         const accessToken = generateAccessToken(user._id, user.email);
+        const newRefreshToken = generateRefreshToken(user._id, user.email);
 
-        // Set new access token cookie
-        res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: env.NODE_ENV === "production",
-            sameSite: "Lax",
-            maxAge: 15 * 60 * 1000 // 15 minutes
-        });
+        // Update user's refresh token
+        user.refreshToken = newRefreshToken;
+        await user.save();
 
-        logInfo(`[${requestId}] Token refreshed successfully for user: ${user._id}`);
-        return res.status(200).json({
+        // Get Redis client
+        const redis = getRedisClient();
+        if (!redis) {
+            throw new Error('Redis connection not available');
+        }
+
+        // Cache user data
+        await redis.set(
+            `user:${user._id}`,
+            JSON.stringify(user),
+            'EX',
+            env.REDIS_CACHE_TTL
+        );
+
+        logInfo(`[${requestId}] Successfully refreshed token for user: ${user._id}`);
+        res.json({
             success: true,
-            message: SUCCESS_MESSAGES.TOKEN_REFRESHED,
             data: {
                 accessToken,
-                user: formatUserResponse(user)
+                refreshToken: newRefreshToken,
+                user: {
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                    avatar: user.avatar
+                }
             }
         });
     } catch (error) {
-        logError(`[${requestId}] Token refresh failed`, error);
-        return res.status(401).json({ 
+        logError(`[${requestId}] Error refreshing token: ${error.message}`);
+        res.status(401).json({
             success: false,
-            message: error.name === "TokenExpiredError" 
-                ? ERROR_MESSAGES.REFRESH_TOKEN_EXPIRED 
-                : ERROR_MESSAGES.INVALID_TOKEN 
+            message: ERROR_MESSAGES.INVALID_REFRESH_TOKEN
         });
     }
 };

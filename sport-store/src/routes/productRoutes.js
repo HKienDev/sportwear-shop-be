@@ -19,11 +19,11 @@ router.get("/test", (req, res) => {
 
 // Product routes
 router.get("/", productController.getAllProducts);
-router.get("/:id", productController.getProductById);
-router.get("/category/:categoryId", productController.getProductsByCategory);
 router.get("/search", validateRequest(searchProductSchema), productController.searchProducts);
+router.get("/category/:categoryId", productController.getProductsByCategory);
 
 // Protected routes (Admin only)
+router.get("/admin", verifyAdmin, productController.getAllProducts);
 router.post("/", verifyAdmin, validateRequest(createProductSchema), productController.createProduct);
 router.put("/:id", verifyAdmin, validateRequest(updateProductSchema), productController.updateProduct);
 router.delete("/:id", verifyAdmin, productController.deleteProduct);
