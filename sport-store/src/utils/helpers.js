@@ -6,7 +6,7 @@ import { ERROR_MESSAGES } from "./constants.js";
 export const hashPassword = (password) => bcrypt.hash(password, 10);
 
 export const formatUserResponse = (user) => ({
-    id: user._id,
+    _id: user._id,
     email: user.email,
     username: user.username,
     fullname: user.fullname || "",

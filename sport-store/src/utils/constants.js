@@ -48,7 +48,11 @@ export const ERROR_MESSAGES = {
     USER_UPDATE_FAILED: "Cập nhật thông tin người dùng thất bại",
     USER_DELETE_FAILED: "Xóa người dùng thất bại",
     USER_ROLE_INVALID: "Vai trò người dùng không hợp lệ",
-    USER_STATUS_INVALID: "Trạng thái người dùng không hợp lệ"
+    USER_STATUS_INVALID: "Trạng thái người dùng không hợp lệ",
+    OTP_REQUIRED: "Mã OTP là bắt buộc",
+    CURRENT_PASSWORD_REQUIRED: "Mật khẩu hiện tại là bắt buộc",
+    NEW_PASSWORD_REQUIRED: "Mật khẩu mới là bắt buộc",
+    PASSWORDS_MUST_DIFFER: "Mật khẩu mới phải khác mật khẩu hiện tại"
 };
 
 export const SUCCESS_MESSAGES = {
@@ -86,7 +90,10 @@ export const SUCCESS_MESSAGES = {
     UPLOAD_SUCCESS: "Tải lên file thành công",
     // User specific success messages
     USER_STATUS_UPDATED: "Cập nhật trạng thái người dùng thành công",
-    USER_ROLE_UPDATED: "Cập nhật vai trò người dùng thành công"
+    USER_ROLE_UPDATED: "Cập nhật vai trò người dùng thành công",
+    OTP_SENT: "Đã gửi mã OTP xác thực đổi mật khẩu",
+    PASSWORD_CHANGED_WITH_OTP: "Đổi mật khẩu thành công",
+    OTP_VERIFIED: "Xác thực OTP thành công"
 };
 
 export const TOKEN_CONFIG = {

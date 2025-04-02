@@ -18,9 +18,10 @@ const hashPassword = (password) => bcrypt.hash(password, 10);
 
 const formatUserResponse = (user) => {
     return {
-        id: user._id,
-        name: user.name,
+        _id: user._id,
         email: user.email,
+        username: user.username,
+        fullname: user.fullname,
         role: user.role,
         avatar: user.avatar,
         phone: user.phone,
@@ -146,7 +147,6 @@ export const updateUser = async (req, res) => {
             success: true,
             message: SUCCESS_MESSAGES.USER_UPDATED,
             data: {
-                id: user._id,
                 email: user.email,
                 username: user.username,
                 role: user.role,
@@ -266,62 +266,58 @@ export const updateUserStatus = async (req, res) => {
 };
 
 export const getUserProfile = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
     try {
-        const user = await User.findById(req.user.id).select('-password');
-        
+        const user = await User.findById(req.user._id).select('-password');
         if (!user) {
-            logError(`[${requestId}] User not found: ${req.user.id}`);
             return res.status(404).json({
                 success: false,
                 message: ERROR_MESSAGES.USER_NOT_FOUND
             });
         }
-
-        logInfo(`[${requestId}] Successfully retrieved user profile: ${user.name}`);
-        res.json({
+        res.status(200).json({
             success: true,
-            message: SUCCESS_MESSAGES.USER_RETRIEVED,
-            data: formatUserResponse(user)
+            data: user
         });
     } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
+        res.status(500).json({
+            success: false,
+            message: ERROR_MESSAGES.SERVER_ERROR
+        });
     }
 };
 
-export const updateUserProfile = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
+export const updateProfile = async (req, res) => {
     try {
-        const { name, phone, address } = req.body;
-        const userId = req.user.id;
-
-        const user = await User.findById(userId);
+        const { username, fullname, phone, address, dob, gender } = req.body;
+        const user = await User.findById(req.user._id);
+        
         if (!user) {
-            logError(`[${requestId}] User not found: ${userId}`);
             return res.status(404).json({
                 success: false,
                 message: ERROR_MESSAGES.USER_NOT_FOUND
             });
         }
 
-        user.name = name || user.name;
+        // Cập nhật thông tin
+        user.username = username || user.username;
+        user.fullname = fullname || user.fullname;
         user.phone = phone || user.phone;
         user.address = address || user.address;
+        user.dob = dob || user.dob;
+        user.gender = gender || user.gender;
 
-        const updatedUser = await user.save();
-
-        logInfo(`[${requestId}] Successfully updated user profile: ${user.name}`);
-        res.json({
+        await user.save();
+        
+        res.status(200).json({
             success: true,
-            message: SUCCESS_MESSAGES.USER_UPDATED,
-            data: formatUserResponse(updatedUser)
+            message: SUCCESS_MESSAGES.PROFILE_UPDATED,
+            data: user
         });
     } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
+        res.status(500).json({
+            success: false,
+            message: ERROR_MESSAGES.SERVER_ERROR
+        });
     }
 };
 
@@ -504,7 +500,6 @@ export const createNewAdmin = async (req, res) => {
             success: true,
             message: SUCCESS_MESSAGES.ADMIN_CREATED,
             data: {
-                id: savedAdmin._id,
                 email: savedAdmin.email,
                 username: savedAdmin.username,
                 role: savedAdmin.role
@@ -680,140 +675,39 @@ export const resetUserPassword = async (req, res) => {
 };
 
 export const changePassword = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
     try {
         const { currentPassword, newPassword } = req.body;
-        const userId = req.user.userId;
-
-        if (!currentPassword || !newPassword) {
-            logError(`[${requestId}] Missing password fields`);
-            return res.status(400).json({
-                success: false,
-                message: ERROR_MESSAGES.MISSING_FIELDS
-            });
-        }
-
-        const user = await User.findById(userId);
+        const user = await User.findById(req.user._id).select('+password');
+        
         if (!user) {
-            logError(`[${requestId}] User not found: ${userId}`);
             return res.status(404).json({
                 success: false,
                 message: ERROR_MESSAGES.USER_NOT_FOUND
             });
         }
 
-        if (!user.isActive) {
-            logError(`[${requestId}] Account inactive: ${user.email}`);
-            return res.status(403).json({
-                success: false,
-                message: ERROR_MESSAGES.ACCOUNT_INACTIVE
-            });
-        }
-
-        if (user.isBlocked) {
-            logError(`[${requestId}] Account blocked: ${user.email}`);
-            return res.status(403).json({
-                success: false,
-                message: ERROR_MESSAGES.ACCOUNT_BLOCKED
-            });
-        }
-
-        const isMatch = await user.comparePassword(currentPassword);
-        if (!isMatch) {
-            logError(`[${requestId}] Invalid current password for user: ${user.email}`);
+        // Kiểm tra mật khẩu hiện tại
+        const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+        if (!isPasswordValid) {
             return res.status(400).json({
                 success: false,
                 message: ERROR_MESSAGES.INVALID_PASSWORD
             });
         }
 
-        if (currentPassword === newPassword) {
-            logError(`[${requestId}] New password same as current password for user: ${user.email}`);
-            return res.status(400).json({
-                success: false,
-                message: ERROR_MESSAGES.SAME_PASSWORD
-            });
-        }
-
+        // Cập nhật mật khẩu mới
         user.password = newPassword;
         await user.save();
 
-        logInfo(`[${requestId}] Successfully changed password for user: ${user.email}`);
-        res.json({
+        res.status(200).json({
             success: true,
             message: SUCCESS_MESSAGES.PASSWORD_CHANGED
         });
     } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
-    }
-};
-
-export const updateProfile = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
-    try {
-        const userId = req.user.userId;
-        const { 
-            fullname, 
-            phone, 
-            avatar, 
-            address, 
-            dob, 
-            gender 
-        } = req.body;
-
-        const user = await User.findById(userId);
-        if (!user) {
-            logError(`[${requestId}] User not found: ${userId}`);
-            return res.status(404).json({
-                success: false,
-                message: ERROR_MESSAGES.USER_NOT_FOUND
-            });
-        }
-
-        if (!user.isActive) {
-            logError(`[${requestId}] Account inactive: ${user.email}`);
-            return res.status(403).json({
-                success: false,
-                message: ERROR_MESSAGES.ACCOUNT_INACTIVE
-            });
-        }
-
-        if (user.isBlocked) {
-            logError(`[${requestId}] Account blocked: ${user.email}`);
-            return res.status(403).json({
-                success: false,
-                message: ERROR_MESSAGES.ACCOUNT_BLOCKED
-            });
-        }
-
-        if (fullname) user.fullname = fullname;
-        if (phone) user.phone = phone;
-        if (avatar) user.avatar = avatar;
-        if (address) {
-            user.address = {
-                province: address.province || user.address.province || "",
-                district: address.district || user.address.district || "",
-                ward: address.ward || user.address.ward || "",
-                street: address.street || user.address.street || ""
-            };
-        }
-        if (dob) user.dob = dob;
-        if (gender) user.gender = gender;
-
-        await user.save();
-
-        logInfo(`[${requestId}] Successfully updated profile for user: ${user.email}`);
-        res.json({
-            success: true,
-            message: SUCCESS_MESSAGES.PROFILE_UPDATED,
-            data: formatUserResponse(user)
+        res.status(500).json({
+            success: false,
+            message: ERROR_MESSAGES.SERVER_ERROR
         });
-    } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
     }
 };
 
@@ -888,7 +782,6 @@ export const login = async (req, res) => {
             success: true,
             message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
             data: {
-                id: user._id,
                 email: user.email,
                 username: user.username,
                 fullname: user.fullname,
