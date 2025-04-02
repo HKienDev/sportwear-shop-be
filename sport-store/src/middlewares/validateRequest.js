@@ -4,7 +4,10 @@ export const validateRequest = (schema) => {
   return (req, res, next) => {
     try {
       // Validate request body
-      const { error, value } = schema.validate(req.body);
+      const { error, value } = schema.validate(req.body, {
+        abortEarly: false,
+        stripUnknown: true
+      });
       
       if (error) {
         // Nếu có lỗi validation, trả về lỗi 400
