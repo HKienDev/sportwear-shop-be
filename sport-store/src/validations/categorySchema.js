@@ -10,12 +10,12 @@ export const createCategorySchema = Joi.object({
   description: Joi.string().allow('', null).max(500).messages({
     'string.max': 'Mô tả không được vượt quá 500 ký tự'
   }),
-  image: Joi.string().required().messages({
+  image: Joi.string().uri().required().messages({
     'string.empty': 'Vui lòng chọn ảnh cho danh mục',
+    'string.uri': 'URL ảnh không hợp lệ',
     'any.required': 'Ảnh danh mục là bắt buộc'
   }),
-  isActive: Joi.boolean().default(true),
-  isFeatured: Joi.boolean().default(false)
+  isActive: Joi.boolean().default(true)
 }).strict();
 
 // Schema cho cập nhật danh mục
@@ -27,11 +27,11 @@ export const updateCategorySchema = Joi.object({
   description: Joi.string().allow('', null).max(500).messages({
     'string.max': 'Mô tả không được vượt quá 500 ký tự'
   }),
-  image: Joi.string().messages({
-    'string.empty': 'Vui lòng chọn ảnh cho danh mục'
+  image: Joi.string().uri().messages({
+    'string.empty': 'Vui lòng chọn ảnh cho danh mục',
+    'string.uri': 'URL ảnh không hợp lệ'
   }),
-  isActive: Joi.boolean(),
-  isFeatured: Joi.boolean()
+  isActive: Joi.boolean()
 }).strict();
 
 // Schema cho tìm kiếm danh mục
@@ -41,7 +41,6 @@ export const searchCategorySchema = Joi.object({
     'string.pattern.base': 'ID danh mục không hợp lệ'
   }),
   isActive: Joi.boolean(),
-  isFeatured: Joi.boolean(),
   page: Joi.number().integer().min(1),
   limit: Joi.number().integer().min(1).max(100)
 }).strict(); 

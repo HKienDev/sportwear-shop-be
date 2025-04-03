@@ -3,41 +3,62 @@ import Category from "../models/category.js";
 import { logInfo, logError } from "../utils/logger.js";
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from "../utils/constants.js";
 import { handleError } from "../utils/helpers.js";
+import Product from "../models/product.js";
+import cloudinary from "../config/cloudinary.js";
+import User from "../models/user.js";
 
 // Controllers
 export const getAllCategories = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { page = 1, limit = 10, search, categoryId, isActive, isFeatured } = req.query;
+        const { 
+            page = 1, 
+            limit = 10, 
+            search, 
+            isActive, 
+            sort = "createdAt", 
+            order = "desc",
+            _t // Bỏ qua tham số timestamp
+        } = req.query;
+        
         const skip = (page - 1) * limit;
 
         // Xây dựng query
-        const query = { isDeleted: false };
+        const filterQuery = {};
         if (search) {
-            query.name = { $regex: search, $options: 'i' };
-        }
-        if (categoryId) {
-            query.categoryId = categoryId.toUpperCase();
+            filterQuery.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { categoryId: { $regex: search, $options: 'i' } }
+            ];
         }
         if (isActive !== undefined) {
-            query.isActive = isActive === 'true';
+            filterQuery.isActive = isActive === "true";
         }
-        if (isFeatured !== undefined) {
-            query.isFeatured = isFeatured === 'true';
-        }
+
+        // Xây dựng sort
+        const sortQuery = {};
+        sortQuery[sort] = order === "asc" ? 1 : -1;
 
         // Lấy danh sách categories với phân trang
-        const categories = await Category.find(query)
-            .sort({ name: 1 })
+        const categories = await Category.find(filterQuery)
+            .sort(sortQuery)
             .skip(skip)
-            .limit(limit);
+            .limit(parseInt(limit));
 
         // Đếm tổng số categories
-        const total = await Category.countDocuments(query);
+        const total = await Category.countDocuments(filterQuery);
 
         logInfo(`[${requestId}] Successfully retrieved categories`);
-        res.json({
+        
+        // Tắt hoàn toàn caching
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, private');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('ETag', null);
+        
+        // Gửi response
+        res.status(200).json({
             success: true,
             message: SUCCESS_MESSAGES.CATEGORIES_RETRIEVED,
             data: {
@@ -57,28 +78,53 @@ export const getAllCategories = async (req, res) => {
 };
 
 export const getCategoryById = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
     try {
-        const category = await Category.findByCategoryId(req.params.id);
+        const category = await Category.findById(req.params.id);
         
         if (!category) {
-            logError(`[${requestId}] Category not found: ${req.params.id}`);
             return res.status(404).json({
                 success: false,
-                message: ERROR_MESSAGES.CATEGORY_NOT_FOUND
+                message: "Không tìm thấy danh mục"
             });
         }
 
-        logInfo(`[${requestId}] Successfully retrieved category: ${category.name}`);
+        // Lấy thông tin người tạo và cập nhật
+        const [creator, updater] = await Promise.all([
+            User.findById(category.createdBy).select('name'),
+            category.updatedBy ? User.findById(category.updatedBy).select('name') : null
+        ]);
+
+        // Format response
+        const response = {
+            categoryId: category.categoryId,
+            name: category.name,
+            slug: category.slug,
+            description: category.description,
+            image: category.image,
+            isActive: category.isActive,
+            createdBy: {
+                _id: creator._id,
+                name: creator.name
+            },
+            updatedBy: updater ? {
+                _id: updater._id,
+                name: updater.name
+            } : null,
+            createdAt: category.createdAt,
+            updatedAt: category.updatedAt
+        };
+
         res.json({
             success: true,
-            message: SUCCESS_MESSAGES.CATEGORY_RETRIEVED,
-            data: category
+            message: "Lấy thông tin danh mục thành công",
+            data: response
         });
     } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
+        console.error("Error getting category:", error);
+        res.status(500).json({
+            success: false,
+            message: "Lỗi server"
+        });
     }
 };
 
@@ -86,44 +132,100 @@ export const createCategory = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { name, description, slug, image, isActive, isFeatured } = req.body;
+        const { name, description, image, isActive } = req.body;
 
-        const existingCategory = await Category.findOne({ name });
-        if (existingCategory) {
-            logError(`[${requestId}] Category already exists: ${name}`);
+        // Log request data
+        logInfo(`[${requestId}] Creating category with data:`, {
+            name,
+            description,
+            image,
+            isActive
+        });
+
+        // Validate required fields
+        if (!name) {
+            logError(`[${requestId}] Missing required field: name`);
             return res.status(400).json({
                 success: false,
-                message: ERROR_MESSAGES.CATEGORY_EXISTS
+                message: "Tên danh mục là bắt buộc"
             });
         }
 
-        // Tạo categoryId mới
-        const lastCategory = await Category.findOne().sort({ categoryId: -1 });
-        const lastId = lastCategory ? parseInt(lastCategory.categoryId.slice(-4)) : 0;
-        const newId = `VJUSPORTCAT${String(lastId + 1).padStart(4, '0')}`;
+        if (!image) {
+            logError(`[${requestId}] Missing required field: image`);
+            return res.status(400).json({
+                success: false,
+                message: "Ảnh danh mục là bắt buộc"
+            });
+        }
 
-        const category = new Category({
-            categoryId: newId,
+        // Check if category name already exists
+        const existingCategory = await Category.findOne({ name });
+        if (existingCategory) {
+            logError(`[${requestId}] Category name already exists: ${name}`);
+            return res.status(400).json({
+                success: false,
+                message: "Tên danh mục đã tồn tại"
+            });
+        }
+
+        // Generate slug from name
+        const slug = name
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[đĐ]/g, 'd')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)+/g, '');
+
+        // Get last category ID
+        const lastCategory = await Category.findOne({}, {}, { sort: { 'categoryId': -1 } });
+        const lastId = lastCategory ? parseInt(lastCategory.categoryId.slice(-4)) : 0;
+        const categoryId = `VJUSPORTCAT${String(lastId + 1).padStart(4, '0')}`;
+
+        // Create new category
+        const newCategory = await Category.create({
+            categoryId,
             name,
-            description,
             slug,
+            description: description || "",
             image,
-            isActive,
-            isFeatured,
+            isActive: isActive !== undefined ? isActive : true,
             createdBy: req.user._id
         });
 
-        await category.save();
+        // Lấy thông tin người tạo
+        const creator = await User.findById(req.user._id).select('name');
+        
+        // Format response
+        const response = {
+            categoryId: newCategory.categoryId,
+            name: newCategory.name,
+            slug: newCategory.slug,
+            description: newCategory.description,
+            image: newCategory.image,
+            isActive: newCategory.isActive,
+            createdBy: {
+                _id: creator._id,
+                name: creator.name
+            },
+            createdAt: newCategory.createdAt,
+            updatedAt: newCategory.updatedAt
+        };
 
-        logInfo(`[${requestId}] Successfully created category: ${category.name}`);
+        logInfo(`[${requestId}] Successfully created category: ${newCategory.name}`);
         res.status(201).json({
             success: true,
-            message: SUCCESS_MESSAGES.CATEGORY_CREATED,
-            data: category
+            message: "Tạo danh mục thành công",
+            data: response
         });
     } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
+        logError(`[${requestId}] Error creating category:`, error);
+        res.status(500).json({
+            success: false,
+            message: "Lỗi server",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 };
 
@@ -131,17 +233,36 @@ export const updateCategory = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { name, description, slug, image, isActive, isFeatured } = req.body;
-        const categoryId = req.params.id;
+        const { name, description, slug, image, isActive } = req.body;
+        const id = req.params.id;
 
-        const category = await Category.findByCategoryId(categoryId);
+        logInfo(`[${requestId}] Updating category with ID: ${id}`);
+        logInfo(`[${requestId}] Update data:`, { name, description, slug, image, isActive });
+
+        // Tìm category bằng categoryId trước
+        let category = await Category.findOne({ categoryId: id });
         if (!category) {
-            logError(`[${requestId}] Category not found: ${categoryId}`);
+            logInfo(`[${requestId}] Category not found by categoryId, trying _id`);
+            // Nếu không tìm thấy bằng categoryId, thử tìm bằng _id
+            try {
+                category = await Category.findById(id);
+            } catch (error) {
+                // Bỏ qua lỗi CastError khi id không phải là ObjectId hợp lệ
+                if (error.name !== 'CastError') {
+                    throw error;
+                }
+            }
+        }
+        
+        if (!category) {
+            logError(`[${requestId}] Category not found: ${id}`);
             return res.status(404).json({
                 success: false,
                 message: ERROR_MESSAGES.CATEGORY_NOT_FOUND
             });
         }
+
+        logInfo(`[${requestId}] Found category:`, category);
 
         if (name && name !== category.name) {
             const existingCategory = await Category.findOne({ name });
@@ -154,53 +275,85 @@ export const updateCategory = async (req, res) => {
             }
         }
 
-        category.name = name || category.name;
-        category.description = description || category.description;
-        category.slug = slug || category.slug;
-        category.image = image || category.image;
-        category.isActive = isActive !== undefined ? isActive : category.isActive;
-        category.isFeatured = isFeatured !== undefined ? isFeatured : category.isFeatured;
-        category.updatedBy = req.user._id;
+        // Chỉ cập nhật các trường được cung cấp
+        const updateData = {};
+        if (name !== undefined) updateData.name = name;
+        if (description !== undefined) updateData.description = description;
+        if (slug !== undefined) updateData.slug = slug;
+        if (image !== undefined) updateData.image = image;
+        if (isActive !== undefined) updateData.isActive = isActive;
+        updateData.updatedBy = req.user._id;
 
-        const updatedCategory = await category.save();
+        logInfo(`[${requestId}] Update data to be applied:`, updateData);
 
-        logInfo(`[${requestId}] Successfully updated category: ${category.name}`);
+        const updatedCategory = await Category.findByIdAndUpdate(
+            category._id,
+            { $set: updateData },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedCategory) {
+            logError(`[${requestId}] Failed to update category`);
+            return res.status(500).json({
+                success: false,
+                message: "Có lỗi xảy ra khi cập nhật danh mục"
+            });
+        }
+
+        logInfo(`[${requestId}] Successfully updated category:`, updatedCategory);
         res.json({
             success: true,
             message: SUCCESS_MESSAGES.CATEGORY_UPDATED,
             data: updatedCategory
         });
     } catch (error) {
+        logError(`[${requestId}] Error updating category:`, error);
         const errorResponse = handleError(error, requestId);
         res.status(500).json(errorResponse);
     }
 };
 
 export const deleteCategory = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
     try {
-        const categoryId = req.params.id;
-
-        const category = await Category.findByCategoryId(categoryId);
+        const { id } = req.params;
+        
+        // Kiểm tra xem danh mục có tồn tại không
+        const category = await Category.findById(id);
         if (!category) {
-            logError(`[${requestId}] Category not found: ${categoryId}`);
             return res.status(404).json({
                 success: false,
-                message: ERROR_MESSAGES.CATEGORY_NOT_FOUND
+                message: 'Không tìm thấy danh mục'
             });
         }
 
-        await category.softDelete(req.user._id);
+        // Kiểm tra xem danh mục có sản phẩm không
+        const hasProducts = await Product.exists({ categoryId: id });
+        if (hasProducts) {
+            return res.status(400).json({
+                success: false,
+                message: 'Không thể xóa danh mục vì có sản phẩm đang sử dụng'
+            });
+        }
 
-        logInfo(`[${requestId}] Successfully deleted category: ${category.name}`);
+        // Xóa ảnh khỏi Cloudinary
+        if (category.image) {
+            const publicId = category.image.split('/').pop().split('.')[0];
+            await cloudinary.uploader.destroy(`sport-store/categories/${publicId}`);
+        }
+
+        // Xóa danh mục khỏi database
+        await Category.findByIdAndDelete(id);
+
         res.json({
             success: true,
-            message: SUCCESS_MESSAGES.CATEGORY_DELETED
+            message: 'Xóa danh mục thành công'
         });
     } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
+        console.error('Error deleting category:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi server'
+        });
     }
 };
 
@@ -208,26 +361,25 @@ export const searchCategories = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { query, categoryId } = req.query;
+        const { query } = req.query;
         
-        if (!query && !categoryId) {
+        if (!query) {
             return res.status(400).json({
                 success: false,
                 message: ERROR_MESSAGES.SEARCH_QUERY_REQUIRED
             });
         }
 
-        const searchQuery = { isDeleted: false };
-        if (query) {
-            searchQuery.name = { $regex: query, $options: 'i' };
-        }
-        if (categoryId) {
-            searchQuery.categoryId = categoryId.toUpperCase();
-        }
+        const searchQuery = { 
+            $or: [
+                { name: { $regex: query, $options: 'i' } },
+                { categoryId: { $regex: query, $options: 'i' } }
+            ]
+        };
 
         const categories = await Category.find(searchQuery).sort({ name: 1 });
 
-        logInfo(`[${requestId}] Successfully searched categories for query: ${query || categoryId}`);
+        logInfo(`[${requestId}] Successfully searched categories for query: ${query}`);
         res.json({
             success: true,
             message: SUCCESS_MESSAGES.CATEGORIES_RETRIEVED,

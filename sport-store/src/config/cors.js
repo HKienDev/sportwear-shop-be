@@ -14,11 +14,38 @@ const corsOptions = {
         'Access-Control-Request-Method',
         'Access-Control-Request-Headers',
         'Access-Control-Allow-Origin',
-        'Cache-Control'
+        'Cache-Control',
+        'Pragma',
+        'X-CSRF-Token',
+        'X-Requested-With',
+        'Accept-Language',
+        'Accept-Encoding',
+        'Connection',
+        'Host',
+        'Referer',
+        'User-Agent',
+        'Expires',
+        'If-Match',
+        'If-None-Match',
+        'If-Modified-Since',
+        'If-Unmodified-Since',
+        'Range',
+        'If-Range',
+        'Content-Range',
+        'Content-Disposition',
+        'Content-Encoding',
+        'Content-Language',
+        'Content-Location',
+        'Content-MD5',
+        'Content-Range',
+        'Content-Type',
+        'Last-Modified',
+        'ETag'
     ],
-    exposedHeaders: ['Set-Cookie'],
+    exposedHeaders: ['Set-Cookie', 'Authorization', 'Content-Range', 'Content-Encoding', 'ETag'],
     preflightContinue: false,
-    optionsSuccessStatus: 204
+    optionsSuccessStatus: 204,
+    maxAge: 86400 // 24 hours
 };
 
 export default corsOptions; 

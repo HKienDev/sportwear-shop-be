@@ -48,37 +48,14 @@ const fileFilter = (req, file, cb) => {
             cb(new Error(ERROR_MESSAGES.INVALID_FILE_TYPE), false);
             return;
         }
-
-        logInfo(`[${requestId}] File type validated: ${file.mimetype}`);
         cb(null, true);
     } catch (error) {
-        logError(`[${requestId}] Error in fileFilter:`, error);
+        logError(`[${requestId}] Error in file filter: ${error.message}`);
         cb(error, false);
     }
 };
 
-// Middleware xử lý lỗi upload
-const handleUploadError = (error, req, res, next) => {
-    const requestId = req.id || 'unknown';
-    
-    if (error instanceof multer.MulterError) {
-        if (error.code === 'LIMIT_FILE_SIZE') {
-            logError(`[${requestId}] File too large: ${error.message}`);
-            return res.status(400).json({
-                success: false,
-                message: ERROR_MESSAGES.FILE_TOO_LARGE
-            });
-        }
-    }
-
-    logError(`[${requestId}] Upload error:`, error);
-    return res.status(400).json({
-        success: false,
-        message: ERROR_MESSAGES.UPLOAD_ERROR
-    });
-};
-
-// Cấu hình multer
+// Tạo middleware upload
 const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
@@ -86,6 +63,74 @@ const upload = multer({
         fileSize: UPLOAD_CONFIG.MAX_FILE_SIZE
     }
 });
+
+// Middleware upload single file
+const uploadSingle = (fieldName) => {
+    return (req, res, next) => {
+        const requestId = req.id || 'unknown';
+        
+        upload.single(fieldName)(req, res, (err) => {
+            if (err) {
+                logError(`[${requestId}] Upload error: ${err.message}`);
+                
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(400).json({
+                        success: false,
+                        message: ERROR_MESSAGES.FILE_TOO_LARGE
+                    });
+                }
+                
+                if (err.message === ERROR_MESSAGES.INVALID_FILE_TYPE) {
+                    return res.status(400).json({
+                        success: false,
+                        message: ERROR_MESSAGES.INVALID_FILE_TYPE
+                    });
+                }
+                
+                return res.status(500).json({
+                    success: false,
+                    message: ERROR_MESSAGES.UPLOAD_ERROR
+                });
+            }
+            
+            next();
+        });
+    };
+};
+
+// Middleware upload multiple files
+const uploadMultiple = (fieldName, maxCount) => {
+    return (req, res, next) => {
+        const requestId = req.id || 'unknown';
+        
+        upload.array(fieldName, maxCount)(req, res, (err) => {
+            if (err) {
+                logError(`[${requestId}] Upload error: ${err.message}`);
+                
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(400).json({
+                        success: false,
+                        message: ERROR_MESSAGES.FILE_TOO_LARGE
+                    });
+                }
+                
+                if (err.message === ERROR_MESSAGES.INVALID_FILE_TYPE) {
+                    return res.status(400).json({
+                        success: false,
+                        message: ERROR_MESSAGES.INVALID_FILE_TYPE
+                    });
+                }
+                
+                return res.status(500).json({
+                    success: false,
+                    message: ERROR_MESSAGES.UPLOAD_ERROR
+                });
+            }
+            
+            next();
+        });
+    };
+};
 
 // Middleware kiểm tra thư mục upload tồn tại
 const ensureUploadDir = (req, res, next) => {
@@ -96,4 +141,4 @@ const ensureUploadDir = (req, res, next) => {
     next();
 };
 
-export { upload, handleUploadError, ensureUploadDir }; 
+export { upload, uploadSingle, uploadMultiple, ensureUploadDir }; 

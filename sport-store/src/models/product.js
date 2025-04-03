@@ -34,12 +34,14 @@ const productSchema = new mongoose.Schema({
     description: { 
         type: String, 
         required: [true, "Mô tả sản phẩm là bắt buộc"],
-        trim: true
+        trim: true,
+        maxlength: [2000, "Mô tả không được vượt quá 2000 ký tự"]
     },
     brand: { 
         type: String, 
         required: [true, "Thương hiệu sản phẩm là bắt buộc"],
-        trim: true
+        trim: true,
+        maxlength: [100, "Thương hiệu không được vượt quá 100 ký tự"]
     },
     price: { 
         type: Number, 
@@ -112,7 +114,8 @@ const productSchema = new mongoose.Schema({
         type: String,
         required: [true, "SKU là bắt buộc"],
         unique: true,
-        trim: true
+        trim: true,
+        uppercase: true
     },
     tags: { 
         type: [String], 
@@ -146,6 +149,15 @@ const productSchema = new mongoose.Schema({
         type: Number,
         default: 0,
         min: [0, "Số lượt xem không thể âm"]
+    },
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: [true, "Người tạo là bắt buộc"]
+    },
+    updatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
     }
 }, {
     timestamps: true,
@@ -190,11 +202,17 @@ productSchema.methods.updateRating = async function(newRating) {
 
 // Static methods
 productSchema.statics.findBySKU = function(sku) {
-    return this.findOne({ sku: sku.toUpperCase() });
+    return this.findOne({ 
+        sku: sku.toUpperCase(),
+        isActive: true 
+    });
 };
 
 productSchema.statics.findByCategory = function(categoryId) {
-    return this.find({ category: categoryId, isActive: true });
+    return this.find({ 
+        category: categoryId, 
+        isActive: true 
+    });
 };
 
 productSchema.statics.findBestSellers = function(limit = 10) {
@@ -231,12 +249,14 @@ productSchema.post('remove', async function(doc, next) {
     next();
 });
 
-// Indexes
-productSchema.index({ category: 1 });
-productSchema.index({ brand: 1 });
-productSchema.index({ price: 1 });
-productSchema.index({ isActive: 1 });
-productSchema.index({ createdAt: -1 });
+// Compound indexes
+productSchema.index({ category: 1, isActive: 1 });
+productSchema.index({ brand: 1, isActive: 1 });
+productSchema.index({ price: 1, isActive: 1 });
+productSchema.index({ createdAt: -1, isActive: 1 });
+productSchema.index({ ratings: -1, isActive: 1 });
+productSchema.index({ soldCount: -1, isActive: 1 });
+productSchema.index({ viewCount: -1, isActive: 1 });
 
 const Product = mongoose.model("Product", productSchema);
 export default Product;
