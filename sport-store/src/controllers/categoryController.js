@@ -78,10 +78,25 @@ export const getAllCategories = async (req, res) => {
 };
 
 export const getCategoryById = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
     try {
-        const category = await Category.findById(req.params.id);
+        const { id } = req.params;
+        
+        // Tìm category bằng categoryId trước
+        let category = await Category.findOne({ categoryId: id });
+        
+        // Nếu không tìm thấy bằng categoryId, thử tìm bằng _id
+        if (!category) {
+            try {
+                category = await Category.findById(id);
+            } catch (error) {
+                // Bỏ qua lỗi CastError khi id không phải là ObjectId hợp lệ
+            }
+        }
         
         if (!category) {
+            logError(`[${requestId}] Category not found with id: ${id}`);
             return res.status(404).json({
                 success: false,
                 message: "Không tìm thấy danh mục"
@@ -96,6 +111,7 @@ export const getCategoryById = async (req, res) => {
 
         // Format response
         const response = {
+            _id: category._id,
             categoryId: category.categoryId,
             name: category.name,
             slug: category.slug,
@@ -111,20 +127,21 @@ export const getCategoryById = async (req, res) => {
                 name: updater.name
             } : null,
             createdAt: category.createdAt,
-            updatedAt: category.updatedAt
+            updatedAt: category.updatedAt,
+            productCount: category.productCount || 0,
+            hasProducts: category.hasProducts || false
         };
 
-        res.json({
+        logInfo(`[${requestId}] Successfully retrieved category: ${category.name}`);
+        res.status(200).json({
             success: true,
             message: "Lấy thông tin danh mục thành công",
             data: response
         });
     } catch (error) {
-        console.error("Error getting category:", error);
-        res.status(500).json({
-            success: false,
-            message: "Lỗi server"
-        });
+        logError(`[${requestId}] Error getting category:`, error);
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
     }
 };
 
