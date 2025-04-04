@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Category from "./category.js";
+import { generateSKU } from "../utils/productUtils.js";
 
 // Constants
 const PRODUCT_STATUS = {
@@ -22,7 +23,8 @@ const productSchema = new mongoose.Schema({
         type: String, 
         required: [true, "Tên sản phẩm là bắt buộc"],
         trim: true,
-        maxlength: [200, "Tên sản phẩm không được vượt quá 200 ký tự"]
+        maxlength: [200, "Tên sản phẩm không được vượt quá 200 ký tự"],
+        unique: true
     },
     slug: {
         type: String,
@@ -43,20 +45,20 @@ const productSchema = new mongoose.Schema({
         trim: true,
         maxlength: [100, "Thương hiệu không được vượt quá 100 ký tự"]
     },
-    price: { 
+    originalPrice: { 
         type: Number, 
-        required: [true, "Giá sản phẩm là bắt buộc"],
-        min: [0, "Giá sản phẩm không thể âm"]
+        required: [true, "Giá gốc là bắt buộc"],
+        min: [0, "Giá không thể âm"]
     },
-    discountPrice: { 
+    salePrice: { 
         type: Number, 
         default: 0,
-        min: [0, "Giá giảm không thể âm"],
+        min: [0, "Giá không thể âm"],
         validate: {
-            validator: function(v) {
-                return v <= this.price;
+            validator: function(value) {
+                return value <= this.originalPrice;
             },
-            message: "Giá giảm không thể cao hơn giá gốc"
+            message: "Giá khuyến mãi phải nhỏ hơn hoặc bằng giá gốc"
         }
     },
     stock: { 
@@ -65,68 +67,51 @@ const productSchema = new mongoose.Schema({
         min: [0, "Số lượng sản phẩm không thể âm"]
     },
     category: { 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: "Category", 
-        required: [true, "Danh mục sản phẩm là bắt buộc"]
+        type: String, 
+        required: [true, "Danh mục sản phẩm là bắt buộc"],
+        ref: 'Category',
+        refPath: 'category'
     },
     isActive: { 
         type: Boolean, 
         default: PRODUCT_STATUS.ACTIVE 
     },
-    images: {
-        main: { 
-            type: String, 
-            required: [true, "Ảnh chính là bắt buộc"],
-            trim: true
-        },
-        sub: { 
-            type: [String], 
-            default: [],
-            validate: {
-                validator: function(v) {
-                    return v.length <= 5;
-                },
-                message: "Không được phép upload quá 5 ảnh phụ"
-            }
-        }
+    mainImage: {
+        type: String,
+        required: [true, "Hình ảnh chính là bắt buộc"],
     },
-    color: { 
-        type: [String], 
-        default: [],
+    subImages: {
+        type: [String],
         validate: {
             validator: function(v) {
-                return v.length <= 10;
+                return v.length <= 5;
             },
-            message: "Không được phép thêm quá 10 màu sắc"
+            message: "Không được phép upload quá 5 ảnh phụ"
         }
     },
-    size: { 
-        type: [String], 
-        default: [],
-        validate: {
-            validator: function(v) {
-                return v.length <= 10;
-            },
-            message: "Không được phép thêm quá 10 kích thước"
-        }
-    },
+    colors: [{
+        type: String,
+        trim: true,
+    }],
+    sizes: [{
+        type: String,
+        trim: true,
+    }],
     sku: {
         type: String,
         required: [true, "SKU là bắt buộc"],
         unique: true,
-        trim: true,
-        uppercase: true
-    },
-    tags: { 
-        type: [String], 
-        default: [],
         validate: {
             validator: function(v) {
-                return v.length <= 10;
+                return /^VJUSPORTPRO-[A-Z0-9]{4}$/.test(v);
             },
-            message: "Không được phép thêm quá 10 tags"
+            message: "SKU không hợp lệ, phải có định dạng VJUSPORTPRO-XXXX"
         }
     },
+    tags: [{
+        type: String,
+        trim: true
+    }],
     ratings: {
         average: { 
             type: Number, 
@@ -152,12 +137,23 @@ const productSchema = new mongoose.Schema({
     },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: [true, "Người tạo là bắt buộc"]
+        ref: 'User'
     },
     updatedBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "User"
+        ref: 'User'
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now,
+    },
+    isDeleted: {
+        type: Boolean,
+        default: false,
     }
 }, {
     timestamps: true,
@@ -167,8 +163,11 @@ const productSchema = new mongoose.Schema({
 
 // Virtual fields
 productSchema.virtual('discountPercentage').get(function() {
-    if (this.discountPrice === 0) return 0;
-    return Math.round(((this.price - this.discountPrice) / this.price) * 100);
+    if (this.salePrice && this.originalPrice) {
+        const discount = ((this.originalPrice - this.salePrice) / this.originalPrice) * 100;
+        return Math.round(discount);
+    }
+    return 0;
 });
 
 productSchema.virtual('isOutOfStock').get(function() {
@@ -237,7 +236,13 @@ productSchema.statics.findMostViewed = function(limit = 10) {
 productSchema.pre('save', async function(next) {
     if (this.isNew) {
         // Tăng productCount trong category
-        await Category.findByIdAndUpdate(this.category, { $inc: { productCount: 1 } });
+        await Category.findOneAndUpdate(
+            { categoryId: this.category },
+            { $inc: { productCount: 1 } }
+        );
+    }
+    if (!this.salePrice) {
+        this.salePrice = this.originalPrice;
     }
     next();
 });
@@ -245,13 +250,17 @@ productSchema.pre('save', async function(next) {
 // Post-save middleware
 productSchema.post('remove', async function(doc, next) {
     // Giảm productCount trong category
-    await Category.findByIdAndUpdate(doc.category, { $inc: { productCount: -1 } });
+    await Category.findOneAndUpdate(
+        { categoryId: doc.category },
+        { $inc: { productCount: -1 } }
+    );
     next();
 });
 
 // Compound indexes
-productSchema.index({ category: 1, isActive: 1 });
-productSchema.index({ brand: 1, isActive: 1 });
+productSchema.index({ name: 'text', description: 'text' });
+productSchema.index({ category: 1, brand: 1 });
+productSchema.index({ isActive: 1, isDeleted: 1 });
 productSchema.index({ price: 1, isActive: 1 });
 productSchema.index({ createdAt: -1, isActive: 1 });
 productSchema.index({ ratings: -1, isActive: 1 });

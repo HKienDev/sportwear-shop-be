@@ -2,11 +2,10 @@ import express from "express";
 import * as orderController from "../controllers/orderController.js";
 import { verifyUser, verifyAdmin } from "../middlewares/authMiddleware.js";
 import { validateRequest } from '../middlewares/validateRequest.js';
-import { 
-    createOrderSchema, 
-    updateOrderStatusSchema, 
-    searchOrderSchema 
-} from '../validations/orderSchema.js';
+import {
+  createOrderSchema,
+  updateOrderSchema
+} from '../schemas/orderSchema.js';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../utils/constants.js';
 
 const router = express.Router();
@@ -26,8 +25,8 @@ router.put("/my-orders/:id/cancel", verifyUser, orderController.cancelOrder);
 router.get("/admin", verifyAdmin, orderController.getAdminOrders);
 router.get("/", verifyAdmin, orderController.getAllOrders);
 router.get("/:id", verifyAdmin, orderController.getOrderById);
-router.put("/:id/status", verifyAdmin, validateRequest(updateOrderStatusSchema), orderController.updateOrderStatus);
-router.put("/:id/payment", verifyAdmin, validateRequest(updateOrderStatusSchema), orderController.updateOrderPayment);
+router.put("/:id/status", verifyAdmin, validateRequest(updateOrderSchema), orderController.updateOrderStatus);
+router.put("/:id/payment", verifyAdmin, validateRequest(updateOrderSchema), orderController.updateOrderPayment);
 router.delete("/:id", verifyAdmin, orderController.deleteOrder);
 
 export default router;

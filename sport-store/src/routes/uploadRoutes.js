@@ -6,7 +6,7 @@ import * as uploadController from '../controllers/uploadController.js';
 import { verifyUser, verifyAdmin } from '../middlewares/authMiddleware.js';
 import fs from 'fs';
 import { validateRequest } from '../middlewares/validateRequest.js';
-import { uploadFileSchema } from '../validations/uploadSchema.js';
+import { uploadFileSchema } from '../schemas/uploadSchema.js';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../utils/constants.js';
 
 const router = express.Router();

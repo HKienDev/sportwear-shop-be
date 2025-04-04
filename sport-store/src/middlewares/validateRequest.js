@@ -3,18 +3,15 @@ import { ERROR_MESSAGES } from '../utils/constants.js';
 export const validateRequest = (schema) => {
   return (req, res, next) => {
     try {
-      // Validate request body
-      const { error, value } = schema.validate(req.body, {
-        abortEarly: false,
-        stripUnknown: true
-      });
+      // Validate request body using Zod's parse method
+      const result = schema.safeParse(req.body);
       
-      if (error) {
+      if (!result.success) {
         // Nếu có lỗi validation, trả về lỗi 400
         return res.status(400).json({
           success: false,
           message: ERROR_MESSAGES.VALIDATION_ERROR,
-          errors: error.details.map(err => ({
+          errors: result.error.errors.map(err => ({
             field: err.path.join('.'),
             message: err.message
           }))
@@ -22,7 +19,7 @@ export const validateRequest = (schema) => {
       }
       
       // Thay thế request body bằng dữ liệu đã được validate
-      req.body = value;
+      req.body = result.data;
       
       next();
     } catch (error) {

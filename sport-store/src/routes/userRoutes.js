@@ -5,7 +5,7 @@ import { validateRequest } from '../middlewares/validateRequest.js';
 import { 
     updateProfileSchema, 
     changePasswordSchema
-} from '../validations/userSchema.js';
+} from '../schemas/userSchema.js';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../utils/constants.js';
 
 const router = express.Router();

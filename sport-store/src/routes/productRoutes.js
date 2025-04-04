@@ -5,9 +5,8 @@ import { validateRequest } from '../middlewares/validateRequest.js';
 import { 
     createProductSchema, 
     updateProductSchema, 
-    updateStockSchema, 
     searchProductSchema 
-} from '../validations/productSchema.js';
+} from '../schemas/productSchema.js';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../utils/constants.js';
 
 const router = express.Router();
@@ -27,7 +26,6 @@ router.get("/admin", verifyAdmin, productController.getAllProducts);
 router.post("/", verifyAdmin, validateRequest(createProductSchema), productController.createProduct);
 router.put("/:id", verifyAdmin, validateRequest(updateProductSchema), productController.updateProduct);
 router.delete("/:id", verifyAdmin, productController.deleteProduct);
-router.put("/:id/stock", verifyAdmin, validateRequest(updateStockSchema), productController.updateProductStock);
 router.put("/:id/status", verifyAdmin, validateRequest(updateProductSchema), productController.updateProductStatus);
 
 export default router;

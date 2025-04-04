@@ -13,11 +13,12 @@ import {
 } from '../controllers/adminController.js';
 import { getStats, getRevenue } from '../controllers/statsController.js';
 import { validateRequest } from '../middlewares/validateRequest.js';
-import { 
-  createUserSchema, 
-  updateUserSchema, 
-  resetUserPasswordSchema 
-} from '../validations/userSchema.js';
+import {
+  createUserSchema,
+  updateUserSchema,
+  searchUserSchema,
+  resetUserPasswordSchema
+} from '../schemas/userSchema.js';
 import mongoose from 'mongoose';
 
 const router = express.Router();

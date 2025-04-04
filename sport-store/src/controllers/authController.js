@@ -311,8 +311,30 @@ export const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
+        if (!email || !password) {
+            logError(`[${requestId}] Missing email or password`);
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.INVALID_CREDENTIALS,
+                errors: [
+                    { field: !email ? 'email' : 'password', message: 'Vui lòng nhập đầy đủ thông tin' }
+                ]
+            });
+        }
+
         // Tìm user theo email
-        const user = await User.findOne({ email }).select('+password');
+        let user;
+        try {
+            user = await User.findOne({ email }).select('+password');
+        } catch (error) {
+            logError(`[${requestId}] Error finding user: ${error.message}`);
+            return res.status(500).json({
+                success: false,
+                message: ERROR_MESSAGES.SERVER_ERROR,
+                errors: [{ message: 'Lỗi khi tìm kiếm người dùng' }]
+            });
+        }
+
         if (!user) {
             logError(`[${requestId}] User not found: ${email}`);
             return res.status(401).json({
@@ -325,7 +347,18 @@ export const login = async (req, res) => {
         }
 
         // Kiểm tra mật khẩu
-        const isPasswordValid = await user.comparePassword(password);
+        let isPasswordValid;
+        try {
+            isPasswordValid = await user.comparePassword(password);
+        } catch (error) {
+            logError(`[${requestId}] Error comparing password: ${error.message}`);
+            return res.status(500).json({
+                success: false,
+                message: ERROR_MESSAGES.SERVER_ERROR,
+                errors: [{ message: 'Lỗi khi xác thực mật khẩu' }]
+            });
+        }
+
         if (!isPasswordValid) {
             logError(`[${requestId}] Invalid password for user: ${email}`);
             return res.status(401).json({
@@ -373,14 +406,28 @@ export const login = async (req, res) => {
         }
 
         // Cập nhật thông tin đăng nhập
-        await user.updateLastLogin();
+        try {
+            await user.updateLastLogin();
+        } catch (error) {
+            logError(`[${requestId}] Error updating last login: ${error.message}`);
+            // Không return error vì đây không phải lỗi nghiêm trọng
+        }
 
         // Tạo tokens
         const { accessToken, refreshToken } = generateTokens(user._id, user.email);
 
         // Lưu refresh token vào database
-        user.refreshToken = refreshToken;
-        await user.save();
+        try {
+            user.refreshToken = refreshToken;
+            await user.save();
+        } catch (error) {
+            logError(`[${requestId}] Error saving refresh token: ${error.message}`);
+            return res.status(500).json({
+                success: false,
+                message: ERROR_MESSAGES.SERVER_ERROR,
+                errors: [{ message: 'Lỗi khi lưu token' }]
+            });
+        }
 
         // Set cookies
         setAuthCookies(res, accessToken, refreshToken, {
@@ -398,46 +445,24 @@ export const login = async (req, res) => {
             dob: user.dob,
             address: user.address,
             membershipLevel: user.membershipLevel,
-            points: user.points
         });
 
-        // Log success
-        logInfo(`[${requestId}] Successfully logged in user: ${email}`);
-
-        // Trả về thông tin user và access token
-        res.json({
+        // Trả về response
+        return res.status(200).json({
             success: true,
             message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
             data: {
                 accessToken,
-                user: {
-                    _id: user._id,
-                    email: user.email,
-                    role: user.role,
-                    isActive: user.isActive,
-                    isVerified: user.isVerified,
-                    authStatus: user.authStatus,
-                    username: user.username,
-                    fullname: user.fullname,
-                    phone: user.phone,
-                    avatar: user.avatar,
-                    gender: user.gender,
-                    dob: user.dob,
-                    address: user.address,
-                    membershipLevel: user.membershipLevel,
-                    points: user.points
-                }
+                refreshToken,
+                user: formatUserResponse(user)
             }
         });
     } catch (error) {
-        logError(`[${requestId}] Login failed: ${error.message}`);
-        logError(`Stack trace: ${error.stack}`);
-        res.status(500).json({
+        logError(`[${requestId}] Unexpected error in login: ${error.message}`);
+        return res.status(500).json({
             success: false,
             message: ERROR_MESSAGES.SERVER_ERROR,
-            errors: [
-                { message: error.message }
-            ]
+            errors: [{ message: 'Lỗi máy chủ nội bộ' }]
         });
     }
 };
