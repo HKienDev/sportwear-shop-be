@@ -129,19 +129,31 @@ export const register = async (req, res) => {
         const existingUser = await User.findOne({ 
             $or: [
                 { email },
-                { username }
+                { username },
+                { phone }
             ]
         });
 
         if (existingUser) {
             logError(`[${requestId}] User already exists: ${email}`);
+            let errorField = 'email';
+            let errorMessage = ERROR_MESSAGES.EMAIL_EXISTS;
+
+            if (existingUser.username === username) {
+                errorField = 'username';
+                errorMessage = 'Tên đăng nhập đã tồn tại';
+            } else if (existingUser.phone === phone) {
+                errorField = 'phone';
+                errorMessage = 'Số điện thoại đã được sử dụng';
+            }
+
             return res.status(400).json({
                 success: false,
-                message: existingUser.email === email ? ERROR_MESSAGES.EMAIL_EXISTS : 'Tên đăng nhập đã tồn tại',
+                message: errorMessage,
                 errors: [
                     { 
-                        field: existingUser.email === email ? 'email' : 'username', 
-                        message: existingUser.email === email ? ERROR_MESSAGES.EMAIL_EXISTS : 'Tên đăng nhập đã tồn tại' 
+                        field: errorField, 
+                        message: errorMessage
                     }
                 ]
             });
