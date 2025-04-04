@@ -42,6 +42,11 @@ const sendAndCacheOTP = async (email, purpose, requestId) => {
     return otp;
 };
 
+// Helper function để tạo ID tùy chỉnh
+const generateCustomId = (prefix, uuid) => {
+    return `${prefix}-${uuid.substring(0, 8)}`;
+};
+
 // Helper function để tạo tokens
 export const generateTokens = (userId, email) => {
     const accessToken = generateAccessToken(userId, email);
@@ -178,6 +183,11 @@ export const register = async (req, res) => {
         });
 
         const savedUser = await newUser.save();
+        
+        // Tạo ID tùy chỉnh sau khi lưu user
+        const customId = generateCustomId('VJUSPORTUSER', savedUser._id.toString());
+        savedUser.customId = customId;
+        await savedUser.save();
 
         try {
             // Gửi email thông báo đăng ký thành công
@@ -188,7 +198,8 @@ export const register = async (req, res) => {
                     fullname: savedUser.fullname,
                     email: savedUser.email,
                     username: savedUser.username,
-                    phone: savedUser.phone
+                    phone: savedUser.phone,
+                    customId: savedUser.customId
                 },
                 requestId
             });
@@ -203,6 +214,7 @@ export const register = async (req, res) => {
             success: true,
             message: SUCCESS_MESSAGES.USER_CREATED,
             data: {
+                id: savedUser.customId,
                 email: savedUser.email,
                 username: savedUser.username,
                 fullname: savedUser.fullname,

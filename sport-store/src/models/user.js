@@ -31,6 +31,12 @@ const AUTH_STATUS = {
 // Schema
 const userSchema = new mongoose.Schema({
     // Thông tin cơ bản (Basic Information)
+    customId: {
+        type: String,
+        unique: true,
+        sparse: true,
+        trim: true
+    },
     username: { 
         type: String, 
         required: function () { return !this.googleId; },
