@@ -25,12 +25,27 @@ const router = express.Router();
 // Middleware kiểm tra ObjectId hợp lệ
 const validateObjectId = (req, res, next) => {
   const id = req.params.id;
+  console.log('Validating ObjectId:', id);
+  
   if (!id) {
-    return res.status(400).json({ message: "ID không tồn tại." });
+    console.log('ID is missing');
+    return res.status(400).json({ 
+      success: false,
+      message: "ID không tồn tại.",
+      path: req.url
+    });
   }
+  
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({ message: "ID không hợp lệ!" });
+    console.log('Invalid ObjectId format:', id);
+    return res.status(400).json({ 
+      success: false,
+      message: "ID không hợp lệ!",
+      path: req.url
+    });
   }
+  
+  console.log('ObjectId is valid:', id);
   next();
 };
 

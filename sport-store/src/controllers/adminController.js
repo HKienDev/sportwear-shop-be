@@ -1,5 +1,6 @@
 import User from '../models/user.js';
 import { ERROR_MESSAGES } from '../utils/constants.js';
+import mongoose from 'mongoose';
 
 // Lấy danh sách tất cả users
 export const getAllUsers = async (req, res, next) => {
@@ -14,12 +15,38 @@ export const getAllUsers = async (req, res, next) => {
 // Lấy thông tin chi tiết của một user
 export const getUserById = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
-    if (!user) {
-      return res.status(404).json({ message: ERROR_MESSAGES.NOT_FOUND_ERROR });
+    console.log('Searching for user with ID:', req.params.id);
+    
+    // Kiểm tra xem ID có phải là ObjectId hợp lệ không
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      console.log('Invalid ObjectId format:', req.params.id);
+      return res.status(400).json({ 
+        success: false,
+        message: "ID không hợp lệ!",
+        path: `/api/users/${req.params.id}`
+      });
     }
-    res.status(200).json(user);
+    
+    // Thử tìm user bằng ID
+    const user = await User.findById(req.params.id).select('-password');
+    
+    if (!user) {
+      console.log('User not found by ID:', req.params.id);
+      return res.status(404).json({ 
+        success: false,
+        message: ERROR_MESSAGES.NOT_FOUND_ERROR,
+        path: `/api/users/${req.params.id}`
+      });
+    }
+    
+    console.log('User found:', user._id);
+    res.status(200).json({
+      success: true,
+      data: user,
+      path: `/api/users/${req.params.id}`
+    });
   } catch (error) {
+    console.error('Error in getUserById:', error);
     next(error);
   }
 };
