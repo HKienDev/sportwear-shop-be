@@ -3,9 +3,13 @@
  * @returns {string} Generated coupon code
  */
 export const generateCouponCode = () => {
-    const prefix = "VJUSPORTCODE";
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    return `${prefix}${randomNum}`;
+    const prefix = "VJUSPORTVOUCHER";
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 3; i++) {
+        result += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+    return `${prefix}${result}`;
 };
 
 /**

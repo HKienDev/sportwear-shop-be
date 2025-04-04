@@ -71,7 +71,8 @@ export const getAllCoupons = async (req, res) => {
     const requestId = req.id || "unknown";
 
     try {
-        const { page = 1, limit = 10, search, status } = req.query;
+        const { page = 1, limit = 10, search } = req.query;
+        const status = req.query['status'];
         const skip = (page - 1) * limit;
 
         // Xây dựng query
@@ -79,8 +80,39 @@ export const getAllCoupons = async (req, res) => {
         if (search) {
             query.code = { $regex: search, $options: "i" };
         }
-        if (status) {
+        
+        // Log để debug
+        console.log('Status from query:', status, 'Type:', typeof status);
+        console.log('COUPON_STATUS values:', Object.values(COUPON_STATUS));
+        
+        // Kiểm tra chi tiết từng ký tự trong chuỗi status
+        if (status && typeof status === 'string') {
+            console.log('Status length:', status.length);
+            console.log('Status characters:', Array.from(status).map(c => `${c} (${c.charCodeAt(0)})`));
+            
+            // Kiểm tra từng giá trị trong COUPON_STATUS
+            Object.values(COUPON_STATUS).forEach(validStatus => {
+                console.log(`Comparing with "${validStatus}" (length: ${validStatus.length}):`, status === validStatus);
+                console.log('Valid status characters:', Array.from(validStatus).map(c => `${c} (${c.charCodeAt(0)})`));
+            });
+        }
+        
+        // Kiểm tra xem status có phải là một trong các giá trị hợp lệ không
+        const isValidStatus = status && 
+                             status !== 'null' && 
+                             status !== 'undefined' && 
+                             (status === COUPON_STATUS.ACTIVE || 
+                              status === COUPON_STATUS.PAUSED || 
+                              status === COUPON_STATUS.EXPIRED);
+        
+        console.log('Is status valid?', isValidStatus);
+        
+        // Chỉ thêm điều kiện status vào query nếu status có giá trị và là một trong các giá trị hợp lệ
+        if (isValidStatus) {
             query.status = status;
+            console.log('Added status to query:', query.status);
+        } else {
+            console.log('Status not added to query. Status value:', status);
         }
 
         // Lấy danh sách coupons với phân trang
@@ -260,16 +292,17 @@ export const updateCoupon = async (req, res) => {
             }
         }
 
-        const updateData = {};
-        if (type) updateData.type = type;
-        if (value) updateData.value = value;
-        if (usageLimit) updateData.usageLimit = usageLimit;
-        if (userLimit) updateData.userLimit = userLimit;
-        if (startDate) updateData.startDate = new Date(startDate);
-        if (endDate) updateData.endDate = new Date(endDate);
-        if (minimumPurchaseAmount) updateData.minimumPurchaseAmount = minimumPurchaseAmount;
-        if (status) updateData.status = status;
-        updateData.updatedBy = req.user._id;
+        const updateData = {
+            type: type || existingCoupon.type,
+            value: value !== undefined ? value : existingCoupon.value,
+            usageLimit: usageLimit !== undefined ? usageLimit : existingCoupon.usageLimit,
+            userLimit: userLimit !== undefined ? userLimit : existingCoupon.userLimit,
+            startDate: startDate ? new Date(startDate) : existingCoupon.startDate,
+            endDate: endDate ? new Date(endDate) : existingCoupon.endDate,
+            minimumPurchaseAmount: minimumPurchaseAmount !== undefined ? minimumPurchaseAmount : existingCoupon.minimumPurchaseAmount,
+            status: status || existingCoupon.status,
+            updatedBy: req.user._id
+        };
 
         const coupon = await Coupon.findByIdAndUpdate(
             id,

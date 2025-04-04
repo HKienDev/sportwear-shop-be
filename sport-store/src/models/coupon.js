@@ -8,8 +8,8 @@ export const COUPON_STATUS = {
 };
 
 export const DISCOUNT_TYPE = {
-    PERCENTAGE: "%",
-    FIXED_AMOUNT: "VNĐ"
+    PERCENTAGE: "percentage",
+    FIXED_AMOUNT: "fixed"
 };
 
 // Schema
