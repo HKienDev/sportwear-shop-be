@@ -259,7 +259,7 @@ export const sendEmail = async ({ to, template, data, requestId }) => {
 
         const { subject, html } = emailTemplate(data);
         const result = await resend.emails.send({
-            from: 'Sport Store <onboarding@resend.dev>',
+            from: 'Sport Store <no-reply@vjusport.com>',
             to,
             subject,
             html

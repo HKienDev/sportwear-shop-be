@@ -60,9 +60,12 @@ const couponSchema = new mongoose.Schema(
             required: [true, "Ngày bắt đầu là bắt buộc"],
             validate: {
                 validator: function(v) {
-                    const startDate = new Date(v);
-                    const now = new Date();
-                    return startDate >= now;
+                    if (this.isNew) {
+                        const startDate = new Date(v);
+                        const now = new Date();
+                        return startDate >= now;
+                    }
+                    return true;
                 },
                 message: "Ngày bắt đầu phải lớn hơn hoặc bằng ngày hiện tại"
             }
