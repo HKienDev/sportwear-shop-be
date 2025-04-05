@@ -87,9 +87,11 @@ export const getAllProducts = async (req, res) => {
             .limit(parseInt(limit))
             .populate({
                 path: 'category',
-                select: 'name slug',
+                select: 'name slug categoryId',
                 match: { isActive: true },
-                model: 'Category'
+                model: 'Category',
+                localField: 'category',
+                foreignField: 'categoryId'
             });
 
         // Đếm tổng số sản phẩm
@@ -124,11 +126,6 @@ export const getProductById = async (req, res) => {
             _id: id,
             isActive: true,
             isDeleted: false
-        }).populate({
-            path: 'category',
-            select: 'name slug',
-            match: { isActive: true },
-            model: 'Category'
         });
         
         if (!product) {
@@ -146,7 +143,7 @@ export const getProductById = async (req, res) => {
         });
     } catch (error) {
         const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
+        res.status(errorResponse.statusCode || 500).json(errorResponse);
     }
 };
 
@@ -350,7 +347,7 @@ export const createProduct = async (req, res) => {
         const maxAttempts = 10;
 
         while (!isUniqueSKU && attempts < maxAttempts) {
-            sku = generateSKU();
+            sku = generateSKU(name, brand);
             const existingProduct = await Product.findOne({ sku });
             if (!existingProduct) {
                 isUniqueSKU = true;
@@ -511,11 +508,11 @@ export const deleteProduct = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const productId = req.params.id;
+        const productSku = req.params.id;
 
-        const product = await Product.findById(productId);
+        const product = await Product.findOne({ sku: productSku });
         if (!product) {
-            logError(`[${requestId}] Product not found: ${productId}`);
+            logError(`[${requestId}] Product not found with SKU: ${productSku}`);
             return res.status(404).json({
                 success: false,
                 message: ERROR_MESSAGES.PRODUCT_NOT_FOUND

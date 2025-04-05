@@ -21,11 +21,16 @@ router.get("/", productController.getAllProducts);
 router.get("/search", validateRequest(searchProductSchema), productController.searchProducts);
 router.get("/category/:categoryId", productController.getProductsByCategory);
 
-// Protected routes (Admin only)
+// Protected routes (require authentication)
+router.use(verifyUser);
+
+// Admin routes (require admin role)
 router.get("/admin", verifyAdmin, productController.getAllProducts);
 router.post("/", verifyAdmin, validateRequest(createProductSchema), productController.createProduct);
 router.put("/:id", verifyAdmin, validateRequest(updateProductSchema), productController.updateProduct);
 router.delete("/:id", verifyAdmin, productController.deleteProduct);
 router.put("/:id/status", verifyAdmin, validateRequest(updateProductSchema), productController.updateProductStatus);
 
+// Get product by ID (public route)
+router.get("/:id", productController.getProductById);
 export default router;
