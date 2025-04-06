@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 // Constants
 const ORDER_STATUS = {
     PENDING: "pending",
-    PROCESSING: "processing",
+    CONFIRMED: "confirmed",
     SHIPPED: "shipped",
     DELIVERED: "delivered",
     CANCELLED: "cancelled"
@@ -23,12 +23,37 @@ const PAYMENT_STATUS = {
 
 const SHIPPING_METHODS = {
     STANDARD: "standard",
-    EXPRESS: "express"
+    EXPRESS: "express",
+    SAME_DAY: "same_day"
+};
+
+const SHIPPING_FEES = {
+    [SHIPPING_METHODS.STANDARD]: 30000,
+    [SHIPPING_METHODS.EXPRESS]: 45000,
+    [SHIPPING_METHODS.SAME_DAY]: 60000
 };
 
 // Helper functions
 const generateOrderId = () => {
-    return `VJUSPORT${nanoid(7).toUpperCase()}`;
+    // Lấy ngày giờ hiện tại theo múi giờ Việt Nam (UTC+7)
+    const now = new Date();
+    const vietnamTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+    
+    // Format ngày tháng năm: DDMMYY
+    const day = String(vietnamTime.getUTCDate()).padStart(2, '0');
+    const month = String(vietnamTime.getUTCMonth() + 1).padStart(2, '0');
+    const year = String(vietnamTime.getUTCFullYear()).slice(-2);
+    const dateStr = `${day}${month}${year}`;
+    
+    // Tạo chuỗi ngẫu nhiên 5 ký tự (số và chữ in hoa)
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let randomStr = '';
+    for (let i = 0; i < 5; i++) {
+        randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    
+    // Kết hợp thành mã đơn hàng: VJUSPORTORDER-YYYYYY-XXXXX
+    return `VJUSPORTORDER-${dateStr}-${randomStr}`;
 };
 
 // Schema
@@ -98,46 +123,75 @@ const orderSchema = new mongoose.Schema({
         fullName: {
             type: String,
             required: [true, "Họ tên là bắt buộc"],
-            trim: true,
-            maxlength: [100, "Họ tên không được vượt quá 100 ký tự"]
-        },
-        address: {
-            type: String,
-            required: [true, "Địa chỉ là bắt buộc"],
             trim: true
-        },
-        city: {
-            type: String,
-            required: [true, "Thành phố là bắt buộc"],
-            trim: true
-        },
-        district: {
-            type: String,
-            required: [true, "Quận/Huyện là bắt buộc"],
-            trim: true
-        },
-        ward: {
-            type: String,
-            required: [true, "Phường/Xã là bắt buộc"],
-            trim: true
-        },
-        postalCode: {
-            type: String,
-            required: [true, "Mã bưu điện là bắt buộc"],
-            trim: true,
-            match: [/^[0-9]{6}$/, "Mã bưu điện không hợp lệ"]
         },
         phone: {
             type: String,
             required: [true, "Số điện thoại là bắt buộc"],
-            trim: true,
-            match: [/^[0-9]{10}$/, "Số điện thoại không hợp lệ"]
+            trim: true
+        },
+        address: {
+            province: {
+                name: {
+                    type: String,
+                    required: [true, "Tên tỉnh/thành phố là bắt buộc"],
+                    trim: true
+                },
+                code: {
+                    type: Number,
+                    required: [true, "Mã tỉnh/thành phố là bắt buộc"]
+                }
+            },
+            district: {
+                name: {
+                    type: String,
+                    required: [true, "Tên quận/huyện là bắt buộc"],
+                    trim: true
+                },
+                code: {
+                    type: Number,
+                    required: [true, "Mã quận/huyện là bắt buộc"]
+                }
+            },
+            ward: {
+                name: {
+                    type: String,
+                    required: [true, "Tên phường/xã là bắt buộc"],
+                    trim: true
+                },
+                code: {
+                    type: Number,
+                    required: [true, "Mã phường/xã là bắt buộc"]
+                }
+            },
+            street: {
+                type: String,
+                trim: true
+            }
         }
     },
     shippingMethod: {
-        type: String,
-        enum: Object.values(SHIPPING_METHODS),
-        required: [true, "Phương thức vận chuyển là bắt buộc"]
+        method: {
+            type: String,
+            enum: Object.values(SHIPPING_METHODS),
+            required: [true, "Phương thức vận chuyển là bắt buộc"]
+        },
+        fee: {
+            type: Number,
+            required: [true, "Phí vận chuyển là bắt buộc"],
+            min: [0, "Phí vận chuyển không thể âm"]
+        },
+        expectedDate: {
+            type: Date
+        },
+        courier: {
+            type: String,
+            trim: true
+        },
+        trackingId: {
+            type: String,
+            trim: true
+        }
     },
     shippingFee: {
         type: Number,

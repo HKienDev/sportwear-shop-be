@@ -7,14 +7,13 @@ import getExchangeRate from "../utils/exchangeRate.js";
 import { nanoid } from "nanoid";
 import { logInfo, logError } from "../utils/logger.js";
 import env from "../config/env.js";
-import { ERROR_MESSAGES, SUCCESS_MESSAGES, ORDER_STATUS, PAYMENT_METHODS } from "../utils/constants.js";
+import { ERROR_MESSAGES, SUCCESS_MESSAGES, ORDER_STATUS, PAYMENT_METHODS, SHIPPING_METHODS, SHIPPING_FEES } from "../utils/constants.js";
 import { handleError } from "../utils/helpers.js";
+import Coupon from "../models/coupon.js";
 
 const stripeInstance = stripe(env.STRIPE_SECRET_KEY);
 
 // Helper functions
-const generateOrderId = () => `VJUSPORT${nanoid(7).toUpperCase()}`;
-
 const validateShippingAddress = (shippingAddress) => {
     const requiredFields = [
         'fullName', 
@@ -63,7 +62,7 @@ export const createOrder = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { items, shippingAddress, paymentMethod } = req.body;
+        const { items, shippingAddress, paymentMethod, couponCode, shippingMethod } = req.body;
         const userId = req.user._id;
 
         // Validate items
@@ -75,15 +74,57 @@ export const createOrder = async (req, res) => {
             });
         }
 
+        // Validate shipping address
+        if (!shippingAddress || 
+            !shippingAddress.fullName || !shippingAddress.phone ||
+            !shippingAddress.address || 
+            !shippingAddress.address.province || !shippingAddress.address.province.name || !shippingAddress.address.province.code ||
+            !shippingAddress.address.district || !shippingAddress.address.district.name || !shippingAddress.address.district.code ||
+            !shippingAddress.address.ward || !shippingAddress.address.ward.name || !shippingAddress.address.ward.code) {
+            logError(`[${requestId}] Invalid shipping address`);
+            return res.status(400).json({
+                success: false,
+                message: "Thông tin địa chỉ giao hàng không hợp lệ"
+            });
+        }
+
+        // Validate shipping method
+        if (!Object.values(SHIPPING_METHODS).includes(shippingMethod)) {
+            logError(`[${requestId}] Invalid shipping method: ${shippingMethod}`);
+            return res.status(400).json({
+                success: false,
+                message: "Phương thức vận chuyển không hợp lệ"
+            });
+        }
+
         // Calculate total and validate stock
-        let total = 0;
+        let subtotal = 0;
+        const orderItems = [];
+
         for (const item of items) {
-            const product = await Product.findById(item.productId);
+            // Tìm sản phẩm theo SKU
+            const product = await Product.findOne({ sku: item.sku });
+            
             if (!product) {
-                logError(`[${requestId}] Product not found: ${item.productId}`);
+                logError(`[${requestId}] Product not found with SKU: ${item.sku}`);
                 return res.status(404).json({
                     success: false,
                     message: ERROR_MESSAGES.PRODUCT_NOT_FOUND
+                });
+            }
+
+            // Validate color and size
+            if (item.color && !product.colors.includes(item.color)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Màu sắc ${item.color} không có sẵn cho sản phẩm này`
+                });
+            }
+
+            if (item.size && !product.sizes.includes(item.size)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Kích thước ${item.size} không có sẵn cho sản phẩm này`
                 });
             }
 
@@ -95,24 +136,210 @@ export const createOrder = async (req, res) => {
                 });
             }
 
-            total += product.price * item.quantity;
+            // Sử dụng salePrice nếu có, ngược lại dùng originalPrice
+            const price = product.salePrice > 0 ? product.salePrice : product.originalPrice;
+            subtotal += price * item.quantity;
+
+            orderItems.push({
+                product: product._id,
+                quantity: item.quantity,
+                price: price,
+                name: product.name,
+                sku: product.sku,
+                color: item.color,
+                size: item.size
+            });
+        }
+
+        // Tính phí vận chuyển
+        const shippingFee = SHIPPING_FEES[shippingMethod];
+        subtotal += shippingFee;
+
+        // Xử lý mã giảm giá nếu có
+        let discountAmount = 0;
+        let appliedCoupon = null;
+        if (couponCode) {
+            const coupon = await Coupon.findOne({ code: couponCode });
+            
+            if (!coupon) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Mã giảm giá không tồn tại"
+                });
+            }
+
+            // Kiểm tra trạng thái coupon
+            if (coupon.status !== "Hoạt động") {
+                return res.status(400).json({
+                    success: false,
+                    message: "Mã giảm giá không còn hoạt động"
+                });
+            }
+
+            // Kiểm tra thời hạn sử dụng
+            const now = new Date();
+            if (now < coupon.startDate) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Mã giảm giá sẽ có hiệu lực từ ${new Date(coupon.startDate).toLocaleString('vi-VN')}`
+                });
+            }
+            if (now > coupon.endDate) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Mã giảm giá đã hết hạn từ ${new Date(coupon.endDate).toLocaleString('vi-VN')}`
+                });
+            }
+
+            // Kiểm tra số lần sử dụng
+            if (coupon.usageCount >= coupon.usageLimit) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Mã giảm giá đã hết lượt sử dụng"
+                });
+            }
+
+            // Kiểm tra số lần sử dụng của user
+            const userUsageCount = coupon.userUsageCount.get(userId) || 0;
+            if (userUsageCount >= coupon.userLimit) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Bạn đã sử dụng hết lượt cho mã giảm giá này"
+                });
+            }
+
+            // Kiểm tra giá trị đơn hàng tối thiểu
+            if (subtotal < coupon.minimumPurchaseAmount) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Đơn hàng cần tối thiểu ${coupon.minimumPurchaseAmount.toLocaleString('vi-VN')}đ để áp dụng mã giảm giá này`
+                });
+            }
+
+            // Tính giá trị giảm giá
+            if (coupon.type === "percentage") {
+                discountAmount = (subtotal * coupon.value) / 100;
+            } else if (coupon.type === "fixed") {
+                discountAmount = coupon.value;
+            }
+
+            try {
+                // Cập nhật usageCount, userUsageCount và giảm usageLimit
+                await Coupon.findByIdAndUpdate(coupon._id, {
+                    $inc: { 
+                        usageCount: 1,
+                        usageLimit: -1,
+                        [`userUsageCount.${userId}`]: 1
+                    }
+                });
+            } catch (error) {
+                return res.status(400).json({
+                    success: false,
+                    message: error.message
+                });
+            }
+
+            appliedCoupon = {
+                code: coupon.code,
+                type: coupon.type,
+                value: coupon.value,
+                discountAmount: discountAmount
+            };
+        }
+
+        // Tính tổng tiền cuối cùng
+        const total = subtotal - discountAmount;
+
+        // Tìm user theo số điện thoại nếu có
+        let orderUser = userId;
+        if (shippingAddress.phone) {
+            const userByPhone = await User.findOne({ phone: shippingAddress.phone });
+            if (userByPhone) {
+                orderUser = userByPhone._id;
+            }
+        }
+
+        // Tạo mã đơn hàng duy nhất
+        let shortId;
+        let isUnique = false;
+        let attempts = 0;
+        const maxAttempts = 10;
+
+        // Lấy ngày giờ hiện tại theo múi giờ Việt Nam (UTC+7)
+        const now = new Date();
+        const vietnamTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+        
+        // Format ngày tháng năm: DDMMYY
+        const day = String(vietnamTime.getUTCDate()).padStart(2, '0');
+        const month = String(vietnamTime.getUTCMonth() + 1).padStart(2, '0');
+        const year = String(vietnamTime.getUTCFullYear()).slice(-2);
+        const dateStr = `${day}${month}${year}`;
+
+        while (!isUnique && attempts < maxAttempts) {
+            // Tạo chuỗi ngẫu nhiên 5 ký tự (số và chữ in hoa)
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let randomStr = '';
+            for (let i = 0; i < 5; i++) {
+                randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            
+            // Kết hợp thành mã đơn hàng: VJUSPORTORDER-YYYYYY-XXXXX
+            shortId = `VJUSPORTORDER-${dateStr}-${randomStr}`;
+            
+            const existingOrder = await Order.findOne({ shortId });
+            if (!existingOrder) {
+                isUnique = true;
+            }
+            attempts++;
+        }
+
+        if (!isUnique) {
+            logError(`[${requestId}] Failed to generate unique order ID after ${maxAttempts} attempts`);
+            return res.status(500).json({
+                success: false,
+                message: "Không thể tạo mã đơn hàng duy nhất. Vui lòng thử lại sau."
+            });
         }
 
         // Create order
         const order = new Order({
-            user: userId,
-            items,
-            total,
-            shippingAddress,
+            user: orderUser,
+            shortId: shortId,
+            items: orderItems,
+            totalPrice: total,
+            shippingAddress: {
+                fullName: shippingAddress.fullName,
+                phone: shippingAddress.phone,
+                address: {
+                    province: {
+                        name: shippingAddress.address.province.name,
+                        code: shippingAddress.address.province.code
+                    },
+                    district: {
+                        name: shippingAddress.address.district.name,
+                        code: shippingAddress.address.district.code
+                    },
+                    ward: {
+                        name: shippingAddress.address.ward.name,
+                        code: shippingAddress.address.ward.code
+                    },
+                    street: shippingAddress.address.street || ''
+                }
+            },
             paymentMethod,
-            status: ORDER_STATUS.PENDING
+            shippingMethod: {
+                method: shippingMethod,
+                fee: shippingFee
+            },
+            status: ORDER_STATUS.PENDING,
+            coupon: appliedCoupon
         });
 
         const savedOrder = await order.save();
 
         // Update product stock
-        for (const item of items) {
-            await Product.findByIdAndUpdate(item.productId, {
+        for (const item of orderItems) {
+            await Product.findByIdAndUpdate(item.product, {
                 $inc: { stock: -item.quantity }
             });
         }
@@ -210,6 +437,21 @@ export const cancelOrder = async (req, res) => {
             });
         }
 
+        // Nếu đơn hàng có sử dụng coupon, hoàn lại usageLimit và userLimit
+        if (order.coupon) {
+            const coupon = await Coupon.findOne({ code: order.coupon.code });
+            if (coupon) {
+                // Hoàn lại usageCount, userUsageCount và tăng usageLimit
+                await Coupon.findByIdAndUpdate(coupon._id, {
+                    $inc: { 
+                        usageCount: -1,
+                        usageLimit: 1,
+                        [`userUsageCount.${order.user}`]: -1
+                    }
+                });
+            }
+        }
+
         order.status = ORDER_STATUS.CANCELLED;
         await order.save();
 
@@ -250,9 +492,9 @@ export const getOrderById = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const order = await Order.findById(req.params.id)
+        const order = await Order.findOne({ shortId: req.params.id })
             .populate('user', 'email username')
-            .populate('items.productId', 'name price image');
+            .populate('items.product', 'name price image');
 
         if (!order) {
             logError(`[${requestId}] Order not found: ${req.params.id}`);
@@ -278,8 +520,9 @@ export const updateOrderStatus = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { status } = req.body;
+        const { status, note } = req.body;
         const orderId = req.params.id;
+        const userId = req.user._id;
 
         if (!Object.values(ORDER_STATUS).includes(status)) {
             logError(`[${requestId}] Invalid order status: ${status}`);
@@ -289,7 +532,7 @@ export const updateOrderStatus = async (req, res) => {
             });
         }
 
-        const order = await Order.findById(orderId);
+        const order = await Order.findOne({ shortId: orderId });
         if (!order) {
             logError(`[${requestId}] Order not found: ${orderId}`);
             return res.status(404).json({
@@ -298,7 +541,83 @@ export const updateOrderStatus = async (req, res) => {
             });
         }
 
-        order.status = status;
+        // Kiểm tra quy trình trạng thái đơn hàng
+        const currentStatus = order.status;
+        const newStatus = status;
+
+        // Kiểm tra xem có thể chuyển từ trạng thái hiện tại sang trạng thái mới không
+        const validTransitions = {
+            [ORDER_STATUS.PENDING]: [ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED],
+            [ORDER_STATUS.CONFIRMED]: [ORDER_STATUS.SHIPPED, ORDER_STATUS.CANCELLED],
+            [ORDER_STATUS.SHIPPED]: [ORDER_STATUS.DELIVERED, ORDER_STATUS.CANCELLED],
+            [ORDER_STATUS.DELIVERED]: [], // Không thể chuyển từ DELIVERED sang trạng thái khác
+            [ORDER_STATUS.CANCELLED]: [] // Không thể chuyển từ CANCELLED sang trạng thái khác
+        };
+
+        if (!validTransitions[currentStatus].includes(newStatus)) {
+            logError(`[${requestId}] Invalid status transition from ${currentStatus} to ${newStatus}`);
+            return res.status(400).json({
+                success: false,
+                message: `Không thể chuyển đơn hàng từ trạng thái "${currentStatus}" sang trạng thái "${newStatus}"`
+            });
+        }
+
+        // Cập nhật trạng thái đơn hàng
+        order.status = newStatus;
+
+        // Nếu đơn hàng chuyển sang trạng thái DELIVERED, cập nhật orderCount và totalSpent của user
+        if (newStatus === ORDER_STATUS.DELIVERED && currentStatus !== ORDER_STATUS.DELIVERED) {
+            // Cập nhật orderCount và totalSpent của user
+            await User.findByIdAndUpdate(order.user, {
+                $inc: { 
+                    orderCount: 1,
+                    totalSpent: order.totalPrice
+                }
+            });
+
+            // Cập nhật stock của sản phẩm
+            for (const item of order.items) {
+                await Product.findOneAndUpdate(
+                    { sku: item.sku },
+                    { $inc: { stock: -item.quantity } }
+                );
+            }
+        }
+        
+        // Nếu đơn hàng bị hủy, hoàn lại stock
+        if (newStatus === ORDER_STATUS.CANCELLED && currentStatus !== ORDER_STATUS.CANCELLED) {
+            // Hoàn lại stock cho tất cả các sản phẩm
+            for (const item of order.items) {
+                await Product.findOneAndUpdate(
+                    { sku: item.sku },
+                    { $inc: { stock: item.quantity } }
+                );
+            }
+
+            // Chỉ hoàn lại usageLimit và userLimit khi hủy đơn ở trạng thái PENDING
+            if (currentStatus === ORDER_STATUS.PENDING && order.coupon) {
+                const coupon = await Coupon.findOne({ code: order.coupon.code });
+                if (coupon) {
+                    // Hoàn lại usageCount, userUsageCount và tăng usageLimit
+                    await Coupon.findByIdAndUpdate(coupon._id, {
+                        $inc: { 
+                            usageCount: -1,
+                            usageLimit: 1,
+                            [`userUsageCount.${order.user}`]: -1
+                        }
+                    });
+                }
+            }
+        }
+        
+        // Thêm vào lịch sử trạng thái
+        order.statusHistory.push({
+            status: newStatus,
+            updatedAt: new Date(), // Tự động lưu theo giờ Việt Nam
+            updatedBy: userId,
+            note: note || ''
+        });
+        
         await order.save();
 
         logInfo(`[${requestId}] Successfully updated order status: ${order._id}`);
@@ -359,7 +678,7 @@ export const deleteOrder = async (req, res) => {
     try {
         const orderId = req.params.id;
 
-        const order = await Order.findById(orderId);
+        const order = await Order.findOne({ shortId: orderId });
         if (!order) {
             logError(`[${requestId}] Order not found: ${orderId}`);
             return res.status(404).json({
@@ -371,7 +690,7 @@ export const deleteOrder = async (req, res) => {
         // Restore product stock if order is pending
         if (order.status === ORDER_STATUS.PENDING) {
             for (const item of order.items) {
-                await Product.findByIdAndUpdate(item.productId, {
+                await Product.findByIdAndUpdate(item.product, {
                     $inc: { stock: item.quantity }
                 });
             }

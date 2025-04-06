@@ -149,12 +149,11 @@ export const CATEGORY_REQUIRED_FIELDS = {
 
 // Order specific constants
 export const ORDER_STATUS = {
-    PENDING: "pending",
-    PROCESSING: "processing",
-    SHIPPED: "shipped",
-    DELIVERED: "delivered",
-    CANCELLED: "cancelled",
-    COMPLETED: "completed"
+    PENDING: "pending", // Đang xử lý
+    CONFIRMED: "confirmed", // Đã xác nhận
+    SHIPPED: "shipped", // Đang giao
+    DELIVERED: "delivered", // Giao thành công
+    CANCELLED: "cancelled" // Đã hủy
 };
 
 export const PAYMENT_METHODS = {
@@ -195,4 +194,16 @@ export const USER_CONFIG = {
         NAME: "name",
         EMAIL: "email"
     }
+};
+
+export const SHIPPING_METHODS = {
+    STANDARD: "standard",
+    EXPRESS: "express",
+    SAME_DAY: "same_day"
+};
+
+export const SHIPPING_FEES = {
+    [SHIPPING_METHODS.STANDARD]: 30000,
+    [SHIPPING_METHODS.EXPRESS]: 45000,
+    [SHIPPING_METHODS.SAME_DAY]: 60000
 }; 
