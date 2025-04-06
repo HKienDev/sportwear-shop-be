@@ -1,11 +1,18 @@
 export const ERROR_MESSAGES = {
+    // General errors
     SERVER_ERROR: "Lỗi máy chủ nội bộ",
-    USER_NOT_FOUND: "Không tìm thấy người dùng",
-    EMAIL_EXISTS: "Email đã được sử dụng",
-    INVALID_ID: "ID không hợp lệ",
+    INTERNAL_SERVER_ERROR: "Lỗi máy chủ nội bộ",
+    VALIDATION_ERROR: "Lỗi xác thực dữ liệu",
+    DUPLICATE_ERROR: "Dữ liệu trùng lặp",
+    NOT_FOUND: "Không tìm thấy tài nguyên",
     MISSING_FIELDS: "Thiếu thông tin bắt buộc",
+    INVALID_ID: "ID không hợp lệ",
+    
+    // Authentication errors
+    INVALID_CREDENTIALS: "Email hoặc mật khẩu không chính xác",
+    INVALID_TOKEN: "Token không hợp lệ",
+    TOKEN_EXPIRED: "Token đã hết hạn",
     UNAUTHORIZED: "Bạn không có quyền thực hiện thao tác này",
-    INVALID_PHONE: "Số điện thoại không hợp lệ",
     INVALID_PASSWORD: "Mật khẩu không chính xác",
     SAME_PASSWORD: "Mật khẩu mới không được trùng với mật khẩu cũ",
     ACCOUNT_BLOCKED: "Tài khoản đã bị khóa",
@@ -15,35 +22,13 @@ export const ERROR_MESSAGES = {
     SEND_OTP_FAILED: "Gửi OTP thất bại. Vui lòng thử lại!",
     OTP_INVALID: "OTP không hợp lệ hoặc đã hết hạn",
     OTP_INCORRECT: "OTP không chính xác!",
-    // Auth specific error messages
-    INVALID_CREDENTIALS: "Email hoặc mật khẩu không chính xác",
     ACCOUNT_LOCKED: "Tài khoản của bạn đã bị khóa. Vui lòng thử lại sau 30 phút",
     GOOGLE_AUTH_FAILED: "Xác thực Google thất bại",
-    // Category specific error messages
-    CATEGORY_NOT_FOUND: "Danh mục không tồn tại",
-    DUPLICATE_NAME: "Tên danh mục đã tồn tại",
-    INVALID_PARENT: "Danh mục cha không tồn tại",
-    // Order specific error messages
-    ORDER_NOT_FOUND: "Đơn hàng không tồn tại",
-    INVALID_PRODUCT: "Sản phẩm không tồn tại",
-    INSUFFICIENT_STOCK: "Sản phẩm không đủ số lượng trong kho",
-    INVALID_PAYMENT: "Phương thức thanh toán không hợp lệ",
-    INVALID_SHIPPING: "Thông tin vận chuyển không hợp lệ",
-    PRICE_MISMATCH: "Tổng tiền không khớp với dữ liệu từ server",
-    // Product specific error messages
-    PRODUCT_NOT_FOUND: "Sản phẩm không tồn tại",
-    PRODUCT_EXISTS: "Sản phẩm đã tồn tại",
-    INVALID_PRICE: "Giá sản phẩm không hợp lệ",
-    INVALID_DISCOUNT: "Giá khuyến mãi không hợp lệ",
-    INVALID_QUANTITY: "Số lượng sản phẩm không hợp lệ",
-    // Upload specific error messages
-    UPLOAD_FAILED: "Tải lên file thất bại",
-    INVALID_FILE_TYPE: "Loại file không được hỗ trợ",
-    FILE_TOO_LARGE: "File quá lớn",
-    // Stats specific error messages
-    STATS_NOT_FOUND: "Không tìm thấy thống kê",
+    
     // User specific error messages
+    USER_NOT_FOUND: "Không tìm thấy người dùng",
     USER_EXISTS: "Người dùng đã tồn tại",
+    EMAIL_EXISTS: "Email đã được sử dụng",
     INVALID_USER_DATA: "Dữ liệu người dùng không hợp lệ",
     USER_UPDATE_FAILED: "Cập nhật thông tin người dùng thất bại",
     USER_DELETE_FAILED: "Xóa người dùng thất bại",
@@ -52,10 +37,44 @@ export const ERROR_MESSAGES = {
     OTP_REQUIRED: "Mã OTP là bắt buộc",
     CURRENT_PASSWORD_REQUIRED: "Mật khẩu hiện tại là bắt buộc",
     NEW_PASSWORD_REQUIRED: "Mật khẩu mới là bắt buộc",
-    PASSWORDS_MUST_DIFFER: "Mật khẩu mới phải khác mật khẩu hiện tại"
+    PASSWORDS_MUST_DIFFER: "Mật khẩu mới phải khác mật khẩu hiện tại",
+    INVALID_PHONE: "Số điện thoại không hợp lệ",
+    
+    // Category specific error messages
+    CATEGORY_NOT_FOUND: "Danh mục không tồn tại",
+    DUPLICATE_NAME: "Tên danh mục đã tồn tại",
+    INVALID_PARENT: "Danh mục cha không tồn tại",
+    
+    // Order specific error messages
+    ORDER_NOT_FOUND: "Đơn hàng không tồn tại",
+    INVALID_PRODUCT: "Sản phẩm không tồn tại",
+    INSUFFICIENT_STOCK: "Sản phẩm không đủ số lượng trong kho",
+    INVALID_PAYMENT: "Phương thức thanh toán không hợp lệ",
+    INVALID_SHIPPING: "Thông tin vận chuyển không hợp lệ",
+    PRICE_MISMATCH: "Tổng tiền không khớp với dữ liệu từ server",
+    
+    // Product specific error messages
+    PRODUCT_NOT_FOUND: "Sản phẩm không tồn tại",
+    PRODUCT_EXISTS: "Sản phẩm đã tồn tại",
+    INVALID_PRICE: "Giá sản phẩm không hợp lệ",
+    INVALID_DISCOUNT: "Giá khuyến mãi không hợp lệ",
+    INVALID_QUANTITY: "Số lượng sản phẩm không hợp lệ",
+    INVALID_STOCK: "Số lượng tồn kho không hợp lệ",
+    
+    // Upload specific error messages
+    UPLOAD_FAILED: "Tải lên file thất bại",
+    INVALID_FILE_TYPE: "Loại file không được hỗ trợ",
+    FILE_TOO_LARGE: "File quá lớn",
+    
+    // Stats specific error messages
+    STATS_NOT_FOUND: "Không tìm thấy thống kê"
 };
 
 export const SUCCESS_MESSAGES = {
+    // General success messages
+    ROUTE_WORKING: "Route đang hoạt động!",
+    
+    // User specific success messages
     USER_CREATED: "Tạo người dùng thành công",
     USER_UPDATED: "Cập nhật thông tin người dùng thành công",
     USER_DELETED: "Xóa người dùng thành công",
@@ -69,42 +88,58 @@ export const SUCCESS_MESSAGES = {
     LOGIN_SUCCESS: "Đăng nhập thành công",
     LOGOUT_SUCCESS: "Đăng xuất thành công",
     PASSWORD_RESET_SENT: "Mật khẩu mới đã được gửi đến email của bạn",
-    // Auth specific success messages
     PASSWORD_RESET_SUCCESS: "Mật khẩu đã được cập nhật thành công",
-    ROUTE_WORKING: "Route xác thực đang hoạt động!",
     USER_PROFILE: "User Profile",
+    USER_STATUS_UPDATED: "Cập nhật trạng thái người dùng thành công",
+    USER_ROLE_UPDATED: "Cập nhật vai trò người dùng thành công",
+    OTP_SENT: "Đã gửi mã OTP xác thực đổi mật khẩu",
+    PASSWORD_CHANGED_WITH_OTP: "Đổi mật khẩu thành công",
+    OTP_VERIFIED: "Xác thực OTP thành công",
+    
     // Category specific success messages
     CATEGORY_CREATED: "Tạo danh mục thành công",
     CATEGORY_UPDATED: "Cập nhật danh mục thành công",
     CATEGORY_DELETED: "Xóa danh mục thành công",
+    
     // Order specific success messages
     ORDER_CREATED: "Đặt hàng thành công",
     ORDER_UPDATED: "Cập nhật đơn hàng thành công",
     ORDER_DELETED: "Xóa đơn hàng thành công",
     STATUS_UPDATED: "Cập nhật trạng thái đơn hàng thành công",
+    
     // Product specific success messages
     PRODUCT_CREATED: "Tạo sản phẩm thành công",
     PRODUCT_UPDATED: "Cập nhật sản phẩm thành công",
     PRODUCT_DELETED: "Xóa sản phẩm thành công",
+    PRODUCT_STATUS_UPDATED: "Cập nhật trạng thái sản phẩm thành công",
+    
     // Upload specific success messages
-    UPLOAD_SUCCESS: "Tải lên file thành công",
-    // User specific success messages
-    USER_STATUS_UPDATED: "Cập nhật trạng thái người dùng thành công",
-    USER_ROLE_UPDATED: "Cập nhật vai trò người dùng thành công",
-    OTP_SENT: "Đã gửi mã OTP xác thực đổi mật khẩu",
-    PASSWORD_CHANGED_WITH_OTP: "Đổi mật khẩu thành công",
-    OTP_VERIFIED: "Xác thực OTP thành công"
+    UPLOAD_SUCCESS: "Tải lên file thành công"
 };
 
 export const TOKEN_CONFIG = {
     ACCESS_TOKEN_EXPIRY: "1h",
-    REFRESH_TOKEN_EXPIRY: "7d",
-    COOKIE_CONFIG: {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/"
-    }
+    REFRESH_TOKEN_EXPIRY: "7d"
+};
+
+export const PRODUCT_STATUS = {
+    ACTIVE: true,
+    INACTIVE: false
+};
+
+export const SORT_OPTIONS = {
+    PRICE_ASC: 'price_asc',
+    PRICE_DESC: 'price_desc',
+    NAME_ASC: 'name_asc',
+    NAME_DESC: 'name_desc',
+    RATING_DESC: 'rating_desc',
+    NEWEST: 'newest'
+};
+
+export const UPLOAD_CONFIG = {
+    ALLOWED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/webp'],
+    MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
+    CLOUDINARY_FOLDER: 'sport-store'
 };
 
 // Category specific required fields
@@ -125,20 +160,6 @@ export const ORDER_STATUS = {
 export const PAYMENT_METHODS = {
     COD: "COD",
     STRIPE: "Stripe"
-};
-
-// Product specific constants
-export const PRODUCT_STATUS = {
-    ACTIVE: "active",
-    INACTIVE: "inactive",
-    OUT_OF_STOCK: "out_of_stock"
-};
-
-// Upload specific constants
-export const UPLOAD_CONFIG = {
-    MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
-    ALLOWED_FILE_TYPES: ["image/jpeg", "image/png", "image/webp"],
-    MAX_FILES: 5
 };
 
 // Auth specific constants

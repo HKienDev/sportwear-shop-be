@@ -1,140 +1,142 @@
 import mongoose from "mongoose";
 import Category from "./category.js";
 import { generateSKU } from "../utils/productUtils.js";
-
-// Constants
-const PRODUCT_STATUS = {
-    ACTIVE: true,
-    INACTIVE: false
-};
-
-const SORT_OPTIONS = {
-    PRICE_ASC: 'price_asc',
-    PRICE_DESC: 'price_desc',
-    NAME_ASC: 'name_asc',
-    NAME_DESC: 'name_desc',
-    RATING_DESC: 'rating_desc',
-    NEWEST: 'newest'
-};
+import { PRODUCT_STATUS, SORT_OPTIONS } from '../utils/constants.js';
+import * as slugifyModule from 'slugify';
+const slugify = slugifyModule.default || slugifyModule;
 
 // Schema
 const productSchema = new mongoose.Schema({
-    name: { 
-        type: String, 
-        required: [true, "Tên sản phẩm là bắt buộc"],
+    name: {
+        type: String,
+        required: [true, 'Tên sản phẩm là bắt buộc'],
         trim: true,
-        maxlength: [200, "Tên sản phẩm không được vượt quá 200 ký tự"],
-        unique: true
+        maxlength: [100, 'Tên sản phẩm không được vượt quá 100 ký tự'],
+        unique: [true, 'Tên sản phẩm đã tồn tại'],
+        validate: {
+            validator: async function(value) {
+                const product = await this.constructor.findOne({ 
+                    name: value,
+                    _id: { $ne: this._id }
+                });
+                return !product;
+            },
+            message: 'Tên sản phẩm đã tồn tại'
+        }
     },
     slug: {
         type: String,
-        required: [true, "Slug là bắt buộc"],
-        unique: true,
-        trim: true,
-        lowercase: true
+        required: true,
+        lowercase: true,
+        trim: true
     },
-    description: { 
-        type: String, 
-        required: [true, "Mô tả sản phẩm là bắt buộc"],
-        trim: true,
-        maxlength: [2000, "Mô tả không được vượt quá 2000 ký tự"]
+    description: {
+        type: String,
+        required: [true, 'Mô tả sản phẩm là bắt buộc'],
+        trim: true
     },
-    brand: { 
-        type: String, 
-        required: [true, "Thương hiệu sản phẩm là bắt buộc"],
-        trim: true,
-        maxlength: [100, "Thương hiệu không được vượt quá 100 ký tự"]
+    brand: {
+        type: String,
+        required: [true, 'Thương hiệu là bắt buộc'],
+        trim: true
     },
-    originalPrice: { 
-        type: Number, 
-        required: [true, "Giá gốc là bắt buộc"],
-        min: [0, "Giá không thể âm"]
+    originalPrice: {
+        type: Number,
+        required: [true, 'Giá gốc là bắt buộc'],
+        min: [0, 'Giá gốc không được âm']
     },
-    salePrice: { 
-        type: Number, 
-        default: 0,
-        min: [0, "Giá không thể âm"],
+    salePrice: {
+        type: Number,
+        min: [0, 'Giá khuyến mãi không được âm'],
         validate: {
             validator: function(value) {
                 return value <= this.originalPrice;
             },
-            message: "Giá khuyến mãi phải nhỏ hơn hoặc bằng giá gốc"
+            message: 'Giá khuyến mãi không được cao hơn giá gốc'
         }
     },
-    stock: { 
-        type: Number, 
-        required: [true, "Số lượng sản phẩm là bắt buộc"],
-        min: [0, "Số lượng sản phẩm không thể âm"]
+    stock: {
+        type: Number,
+        required: [true, 'Số lượng tồn kho là bắt buộc'],
+        min: [0, 'Số lượng tồn kho không được âm'],
+        default: 0
     },
-    category: { 
-        type: String, 
-        required: [true, "Danh mục sản phẩm là bắt buộc"],
-        ref: 'Category',
-        refPath: 'category'
+    categoryId: {
+        type: String,
+        required: [true, 'Danh mục là bắt buộc'],
+        trim: true
     },
-    isActive: { 
-        type: Boolean, 
-        default: PRODUCT_STATUS.ACTIVE 
+    isActive: {
+        type: Boolean,
+        default: true
     },
     mainImage: {
         type: String,
-        required: [true, "Hình ảnh chính là bắt buộc"],
+        required: [true, 'Hình ảnh chính là bắt buộc']
     },
-    subImages: {
-        type: [String],
-        validate: {
-            validator: function(v) {
-                return v.length <= 5;
-            },
-            message: "Không được phép upload quá 5 ảnh phụ"
-        }
-    },
+    subImages: [{
+        type: String
+    }],
     colors: [{
         type: String,
-        trim: true,
+        trim: true
     }],
     sizes: [{
         type: String,
-        trim: true,
+        trim: true
     }],
     sku: {
         type: String,
-        required: [true, "SKU là bắt buộc"],
-        unique: true,
-        validate: {
-            validator: function(v) {
-                return /^VJUSPORTPRO-[A-Z0-9]{4}$/.test(v);
-            },
-            message: "SKU không hợp lệ, phải có định dạng VJUSPORTPRO-XXXX"
-        }
+        required: true,
+        trim: true
     },
     tags: [{
         type: String,
         trim: true
     }],
-    ratings: {
-        average: { 
-            type: Number, 
-            default: 0,
-            min: [0, "Đánh giá trung bình không thể âm"],
-            max: [5, "Đánh giá trung bình không thể vượt quá 5"]
-        },
-        count: { 
-            type: Number, 
-            default: 0,
-            min: [0, "Số lượng đánh giá không thể âm"]
-        }
-    },
-    soldCount: {
+    rating: {
         type: Number,
         default: 0,
-        min: [0, "Số lượng đã bán không thể âm"]
+        min: 0,
+        max: 5
+    },
+    numReviews: {
+        type: Number,
+        default: 0
     },
     viewCount: {
         type: Number,
-        default: 0,
-        min: [0, "Số lượt xem không thể âm"]
+        default: 0
     },
+    soldCount: {
+        type: Number,
+        default: 0
+    },
+    reviews: [{
+        user: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: true
+        },
+        name: {
+            type: String,
+            required: true
+        },
+        rating: {
+            type: Number,
+            required: true,
+            min: 1,
+            max: 5
+        },
+        comment: {
+            type: String,
+            required: true
+        },
+        createdAt: {
+            type: Date,
+            default: Date.now
+        }
+    }],
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
@@ -151,10 +153,6 @@ const productSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
-    isDeleted: {
-        type: Boolean,
-        default: false,
-    }
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
@@ -163,11 +161,8 @@ const productSchema = new mongoose.Schema({
 
 // Virtual fields
 productSchema.virtual('discountPercentage').get(function() {
-    if (this.salePrice && this.originalPrice) {
-        const discount = ((this.originalPrice - this.salePrice) / this.originalPrice) * 100;
-        return Math.round(discount);
-    }
-    return 0;
+    if (!this.salePrice || !this.originalPrice) return 0;
+    return Math.round(((this.originalPrice - this.salePrice) / this.originalPrice) * 100);
 });
 
 productSchema.virtual('isOutOfStock').get(function() {
@@ -180,10 +175,10 @@ productSchema.virtual('isLowStock').get(function() {
 
 // Methods
 productSchema.methods.updateStock = async function(quantity) {
-    if (this.stock + quantity < 0) {
-        throw new Error('Số lượng sản phẩm không đủ');
-    }
     this.stock += quantity;
+    if (this.stock < 0) {
+        throw new Error('Số lượng tồn kho không đủ');
+    }
     return this.save();
 };
 
@@ -193,25 +188,38 @@ productSchema.methods.incrementViewCount = async function() {
 };
 
 productSchema.methods.updateRating = async function(newRating) {
-    const totalRating = this.ratings.average * this.ratings.count;
-    this.ratings.count += 1;
-    this.ratings.average = (totalRating + newRating) / this.ratings.count;
+    const totalRating = this.rating * this.numReviews;
+    this.numReviews += 1;
+    this.rating = (totalRating + newRating) / this.numReviews;
+    return this.save();
+};
+
+productSchema.methods.addReview = async function(userId, name, rating, comment) {
+    const review = {
+        user: userId,
+        name,
+        rating,
+        comment
+    };
+
+    this.reviews.push(review);
+    this.numReviews = this.reviews.length;
+    this.rating = this.reviews.reduce((acc, item) => item.rating + acc, 0) / this.reviews.length;
+
     return this.save();
 };
 
 // Static methods
-productSchema.statics.findBySKU = function(sku) {
-    return this.findOne({ 
-        sku: sku.toUpperCase(),
-        isActive: true 
-    });
+productSchema.statics.getActiveProducts = function() {
+    return this.find({ isActive: true });
 };
 
-productSchema.statics.findByCategory = function(categoryId) {
-    return this.find({ 
-        category: categoryId, 
-        isActive: true 
-    });
+productSchema.statics.getActiveProductsByCategory = function(categoryId) {
+    return this.find({ categoryId, isActive: true });
+};
+
+productSchema.statics.getActiveProductsByBrand = function(brand) {
+    return this.find({ brand, isActive: true });
 };
 
 productSchema.statics.findBestSellers = function(limit = 10) {
@@ -234,16 +242,55 @@ productSchema.statics.findMostViewed = function(limit = 10) {
 
 // Pre-save middleware
 productSchema.pre('save', async function(next) {
+    // Tạo slug từ tên sản phẩm nếu chưa có
+    if (this.isModified('name') || !this.slug) {
+        this.slug = slugify(this.name, { 
+            lower: true, 
+            strict: true,
+            locale: 'vi'
+        });
+        
+        // Kiểm tra xem slug đã tồn tại chưa
+        const slugExists = await this.constructor.findOne({ 
+            slug: this.slug,
+            _id: { $ne: this._id } 
+        });
+        
+        // Nếu slug đã tồn tại, thêm số ngẫu nhiên vào cuối
+        if (slugExists) {
+            this.slug = `${this.slug}-${Math.floor(Math.random() * 1000)}`;
+        }
+    }
+    
+    // Tạo SKU nếu chưa có
+    if (!this.sku) {
+        this.sku = generateSKU();
+        
+        // Kiểm tra xem SKU đã tồn tại chưa
+        const skuExists = await this.constructor.findOne({ 
+            sku: this.sku,
+            _id: { $ne: this._id } 
+        });
+        
+        // Nếu SKU đã tồn tại, tạo SKU mới
+        if (skuExists) {
+            this.sku = generateSKU();
+        }
+    }
+    
     if (this.isNew) {
         // Tăng productCount trong category
         await Category.findOneAndUpdate(
-            { categoryId: this.category },
+            { categoryId: this.categoryId },
             { $inc: { productCount: 1 } }
         );
     }
-    if (!this.salePrice) {
+    
+    // Chỉ gán originalPrice cho salePrice khi salePrice là undefined hoặc null
+    if (this.salePrice === undefined || this.salePrice === null) {
         this.salePrice = this.originalPrice;
     }
+    
     next();
 });
 
@@ -251,19 +298,23 @@ productSchema.pre('save', async function(next) {
 productSchema.post('remove', async function(doc, next) {
     // Giảm productCount trong category
     await Category.findOneAndUpdate(
-        { categoryId: doc.category },
+        { categoryId: doc.categoryId },
         { $inc: { productCount: -1 } }
     );
     next();
 });
 
 // Compound indexes
-productSchema.index({ name: 'text', description: 'text' });
-productSchema.index({ category: 1, brand: 1 });
-productSchema.index({ isActive: 1, isDeleted: 1 });
-productSchema.index({ price: 1, isActive: 1 });
+productSchema.index({ name: 1 }, { unique: true });
+productSchema.index({ name: 'text', description: 'text', brand: 'text', tags: 'text' });
+productSchema.index({ categoryId: 1 });
+productSchema.index({ brand: 1 });
+productSchema.index({ sku: 1 }, { unique: true });
+productSchema.index({ slug: 1 }, { unique: true });
+productSchema.index({ isActive: 1 });
+productSchema.index({ originalPrice: 1, isActive: 1 });
 productSchema.index({ createdAt: -1, isActive: 1 });
-productSchema.index({ ratings: -1, isActive: 1 });
+productSchema.index({ rating: -1, isActive: 1 });
 productSchema.index({ soldCount: -1, isActive: 1 });
 productSchema.index({ viewCount: -1, isActive: 1 });
 

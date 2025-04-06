@@ -5,6 +5,7 @@ import { Product } from '../models/Product.js';
 import { isAuthenticated, isAdmin } from '../middlewares/auth.js';
 import { getRedisClient } from '../config/redis.js';
 import { logInfo, logError } from '../utils/logger.js';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
 
@@ -322,6 +323,59 @@ router.get('/best-selling-products', async (req, res) => {
             message: 'Error getting best selling products',
             error: error.message
         });
+    }
+});
+
+// Thống kê sản phẩm theo danh mục
+router.get('/products/by-category', async (req, res) => {
+    try {
+        const requestId = generateRequestId();
+        const { categoryId } = req.query;
+
+        const pipeline = [
+            {
+                $match: {
+                    isDeleted: false
+                }
+            },
+            {
+                $group: {
+                    _id: '$categoryId',
+                    totalProducts: { $sum: 1 },
+                    totalStock: { $sum: '$stock' },
+                    totalSold: { $sum: '$soldCount' },
+                    averagePrice: { $avg: '$salePrice' }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'categories',
+                    localField: '_id',
+                    foreignField: 'categoryId',
+                    as: 'category'
+                }
+            },
+            {
+                $unwind: '$category'
+            },
+            {
+                $project: {
+                    _id: 0,
+                    categoryId: '$_id',
+                    categoryName: '$category.name',
+                    totalProducts: 1,
+                    totalStock: 1,
+                    totalSold: 1,
+                    averagePrice: 1
+                }
+            }
+        ];
+
+        const result = await Product.aggregate(pipeline);
+        return sendSuccessResponse(res, 200, 'Product statistics by category retrieved successfully', { statistics: result });
+    } catch (error) {
+        console.error('Error getting product statistics by category:', error);
+        return sendErrorResponse(res, 500, 'Error getting product statistics by category', error);
     }
 });
 

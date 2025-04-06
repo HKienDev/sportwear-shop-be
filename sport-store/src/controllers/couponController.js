@@ -1,6 +1,6 @@
 import Coupon, { COUPON_STATUS, DISCOUNT_TYPE } from "../models/coupon.js";
 import { logInfo, logError } from "../utils/logger.js";
-import { SUCCESS_MESSAGES, ERROR_MESSAGES } from "../config/constants.js";
+import { SUCCESS_MESSAGES, ERROR_MESSAGES } from "../utils/constants.js";
 import { formatVietnamDate } from "../utils/timeUtils.js";
 import { generateCouponCode, validateCoupon, calculateDiscount } from "../utils/couponUtils.js";
 

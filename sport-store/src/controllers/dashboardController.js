@@ -3,6 +3,7 @@ import Product from '../models/product.js';
 import User from '../models/user.js';
 import { logInfo, logError } from '../utils/logger.js';
 import { handleError } from '../utils/helpers.js';
+import { v4 as uuidv4 } from 'uuid';
 
 // Lấy thống kê tổng quan
 export const getStats = async (req, res) => {
@@ -166,5 +167,76 @@ export const getBestSellingProducts = async (req, res) => {
             success: false,
             message: error.message
         });
+    }
+};
+
+// Thống kê sản phẩm theo danh mục
+export const getProductStatsByCategory = async (req, res) => {
+    try {
+        const requestId = req.id || uuidv4();
+        logInfo(`[${requestId}] Bắt đầu xử lý thống kê sản phẩm theo danh mục`);
+
+        const stats = await Product.aggregate([
+            {
+                $match: {
+                    isDeleted: false
+                }
+            },
+            {
+                $group: {
+                    _id: '$categoryId',
+                    totalProducts: { $sum: 1 },
+                    totalStock: { $sum: '$stock' },
+                    totalSold: { $sum: '$soldCount' },
+                    averagePrice: { $avg: '$salePrice' }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'categories',
+                    localField: '_id',
+                    foreignField: 'categoryId',
+                    as: 'category'
+                }
+            },
+            {
+                $unwind: '$category'
+            },
+            {
+                $project: {
+                    _id: 0,
+                    categoryId: '$_id',
+                    categoryName: '$category.name',
+                    totalProducts: 1,
+                    totalStock: 1,
+                    totalSold: 1,
+                    averagePrice: 1
+                }
+            }
+        ]);
+
+        logInfo(`[${requestId}] Thống kê sản phẩm theo danh mục thành công`);
+        res.json({
+            success: true,
+            data: stats
+        });
+    } catch (error) {
+        const requestId = req.id || uuidv4();
+        logError(`[${requestId}] Lỗi khi thống kê sản phẩm theo danh mục: ${error.message}`);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+export const getDashboardStats = async (req, res) => {
+    const requestId = generateRequestId();
+    try {
+        // ... existing code ...
+        const query = {}; // Xóa isDeleted: false
+        // ... existing code ...
+    } catch (error) {
+        // ... existing code ...
     }
 }; 
