@@ -304,9 +304,8 @@ productSchema.post('remove', async function(doc, next) {
     next();
 });
 
-// Compound indexes
-productSchema.index({ name: 1 }, { unique: true });
-productSchema.index({ name: 'text', description: 'text', brand: 'text', tags: 'text' });
+// Indexes
+productSchema.index({ name: 1, description: 'text', brand: 'text', tags: 'text' }, { unique: true });
 productSchema.index({ categoryId: 1 });
 productSchema.index({ brand: 1 });
 productSchema.index({ sku: 1 }, { unique: true });

@@ -1,70 +1,254 @@
-import Coupon, { COUPON_STATUS, DISCOUNT_TYPE } from "../models/coupon.js";
-import { logInfo, logError } from "../utils/logger.js";
+import { Coupon, CouponUsage } from "../models/coupon.js";
+import { DISCOUNT_TYPE, COUPON_STATUS } from "../models/coupon.js";
 import { SUCCESS_MESSAGES, ERROR_MESSAGES } from "../utils/constants.js";
-import { formatVietnamDate } from "../utils/timeUtils.js";
-import { generateCouponCode, validateCoupon, calculateDiscount } from "../utils/couponUtils.js";
+import { handleError } from "../utils/errorHandler.js";
+import { DateUtils } from "../utils/timeUtils.js";
+import { validateCoupon, calculateDiscount } from "../utils/couponUtils.js";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
+import isSameOrBefore from "dayjs/plugin/isSameOrBefore.js";
+import isSameOrAfter from "dayjs/plugin/isSameOrAfter.js";
+import isBetween from "dayjs/plugin/isBetween.js";
+import customParseFormat from "dayjs/plugin/customParseFormat.js";
+import mongoose from "mongoose";
+import { logInfo, logError } from "../utils/logger.js";
+import { generateCouponCode } from "../utils/couponUtils.js";
+
+// Cấu hình dayjs
+dayjs.extend(utc);
+dayjs.extend(timezone);
+dayjs.extend(isSameOrBefore);
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isBetween);
+dayjs.extend(customParseFormat);
+
+// Constants
+const VIETNAM_TIMEZONE = "Asia/Ho_Chi_Minh";
+const MIN_COUPON_DURATION = 1; // 1 hour
+const MAX_COUPON_DURATION = 365; // 365 days
+const SIMPLE_DATE_FORMAT = "YYYY-MM-DD";
 
 // Create a new coupon
 export const createCoupon = async (req, res) => {
-    const requestId = req.id || "unknown";
-
     try {
-        const { type, value, usageLimit, userLimit, startDate, endDate, minimumPurchaseAmount } = req.body;
+        logInfo("=== BẮT ĐẦU TẠO COUPON ===");
+        logInfo("Request Body:", req.body);
 
         // Validate required fields
-        if (!type || !value || !usageLimit || !userLimit || !startDate || !endDate) {
+        const requiredFields = ["type", "value", "usageLimit", "userLimit", "startDate", "endDate"];
+        const missingFields = requiredFields.filter(field => !req.body[field]);
+        
+        logInfo("Kiểm tra các trường bắt buộc:", req.body);
+        
+        if (missingFields.length > 0) {
+            logError("Thiếu các trường bắt buộc:", missingFields);
             return res.status(400).json({
                 success: false,
-                message: "Vui lòng cung cấp đầy đủ thông tin"
+                message: "Thiếu thông tin bắt buộc",
+                errors: missingFields.map(field => ({
+                    field,
+                    message: "Trường này là bắt buộc"
+                }))
             });
         }
+        
+        logInfo("Các trường bắt buộc hợp lệ");
 
-        // Generate coupon code if not provided
-        const code = req.body.code || await generateCouponCode();
+        // Parse and validate dates
+        logInfo("Bắt đầu parse và validate ngày tháng");
+        const { parsedStartDate, parsedEndDate } = parseAndValidateDates(req.body.startDate, req.body.endDate);
+        logInfo("Ngày tháng đã được parse:", { parsedStartDate, parsedEndDate });
+
+        // Validate coupon type and value
+        logInfo("Kiểm tra loại và giá trị coupon:", { type: req.body.type, value: req.body.value });
+        const validationResult = validateCoupon(req.body);
+        if (!validationResult.isValid) {
+            logError("Loại hoặc giá trị coupon không hợp lệ:", validationResult.error);
+            return res.status(400).json({
+                success: false,
+                message: validationResult.error,
+                errors: [
+                    {
+                        field: "type",
+                        message: validationResult.error
+                    }
+                ]
+            });
+        }
+        logInfo("Loại và giá trị coupon hợp lệ");
+
+        // Generate coupon code
+        logInfo("Bắt đầu tạo mã coupon");
+        const code = await generateCouponCode();
+        logInfo("Mã coupon được tạo:", code);
 
         // Create new coupon
+        logInfo("Bắt đầu tạo coupon mới");
         const coupon = new Coupon({
             code,
-            type,
-            value,
-            usageLimit,
-            userLimit,
-            startDate: new Date(startDate),
-            endDate: new Date(endDate),
-            minimumPurchaseAmount: minimumPurchaseAmount || 0,
-            createdBy: req.user._id
+            type: req.body.type,
+            value: req.body.value,
+            usageLimit: req.body.usageLimit,
+            userLimit: req.body.userLimit,
+            startDate: parsedStartDate,
+            endDate: parsedEndDate,
+            minimumPurchaseAmount: req.body.minimumPurchaseAmount || 0,
+            status: "Hoạt động"
         });
 
+        // Save coupon
+        logInfo("Lưu coupon vào database");
         await coupon.save();
+        logInfo("Coupon đã được lưu:", coupon._id);
 
-        // Format dates for response
-        const formattedCoupon = {
-            ...coupon.toObject(),
-            startDate: formatVietnamDate(coupon.startDate),
-            endDate: formatVietnamDate(coupon.endDate),
-            createdAt: formatVietnamDate(coupon.createdAt),
-            updatedAt: formatVietnamDate(coupon.updatedAt)
+        // Format response data
+        logInfo("Format dữ liệu trả về");
+        const responseData = {
+            success: true,
+            message: "Tạo coupon thành công",
+            data: {
+                id: coupon._id,
+                code: coupon.code,
+                type: coupon.type,
+                value: coupon.value,
+                usageLimit: coupon.usageLimit,
+                userLimit: coupon.userLimit,
+                startDate: DateUtils.formatToVietnamDateString(coupon.startDate),
+                endDate: DateUtils.formatToVietnamDateString(coupon.endDate),
+                minimumPurchaseAmount: coupon.minimumPurchaseAmount,
+                status: coupon.status
+            }
         };
 
-        // Loại bỏ trường id nếu có
-        if (formattedCoupon.id) {
-            delete formattedCoupon.id;
-        }
-
-        logInfo(`[${requestId}] Successfully created coupon: ${coupon._id}`);
-        res.status(201).json({
-            success: true,
-            message: SUCCESS_MESSAGES.COUPON_CREATED,
-            data: formattedCoupon,
-        });
+        logInfo("=== HOÀN THÀNH TẠO COUPON ===");
+        return res.status(201).json(responseData);
     } catch (error) {
-        logError(`[${requestId}] Error creating coupon:`, error);
-        res.status(500).json({
-            success: false,
-            message: error.message || ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
-        });
+        logError("Lỗi khi tạo coupon:", error);
+        return handleError(res, error);
     }
 };
+
+// Helper functions
+function validateRequiredFields(data) {
+    const errors = [];
+    for (const [key, value] of Object.entries(data)) {
+        if (!value) {
+            errors.push({ field: key, message: `${key} là bắt buộc` });
+        }
+    }
+    if (errors.length > 0) {
+        throw { status: 400, message: "Vui lòng cung cấp đầy đủ thông tin", errors };
+    }
+}
+
+function parseAndValidateDates(startDate, endDate) {
+    console.log('Parsing dates:', { startDate, endDate });
+    
+    try {
+        // Parse dates using dayjs with timezone
+        const startDayjs = dayjs(startDate).tz(VIETNAM_TIMEZONE);
+        const endDayjs = dayjs(endDate).tz(VIETNAM_TIMEZONE);
+        
+        console.log('Parsed dayjs objects:', {
+            startDayjs: startDayjs.format(),
+            endDayjs: endDayjs.format(),
+            isStartValid: startDayjs.isValid(),
+            isEndValid: endDayjs.isValid()
+        });
+
+        // Validate if dates are valid
+        if (!startDayjs.isValid() || !endDayjs.isValid()) {
+            console.error('Invalid date format:', {
+                startDate,
+                endDate
+            });
+            throw new Error('Invalid date format');
+        }
+
+        // Convert to Date objects with timezone
+        const parsedStartDate = startDayjs.startOf('day').tz(VIETNAM_TIMEZONE).toDate();
+        const parsedEndDate = endDayjs.endOf('day').tz(VIETNAM_TIMEZONE).toDate();
+        
+        console.log('Parsed dates:', { 
+            parsedStartDate: DateUtils.formatToVietnamDateString(parsedStartDate),
+            parsedEndDate: DateUtils.formatToVietnamDateString(parsedEndDate)
+        });
+
+        validateDates(parsedStartDate, parsedEndDate);
+
+        return { parsedStartDate, parsedEndDate };
+    } catch (error) {
+        console.error('Error parsing dates:', error);
+        throw { 
+            status: 400, 
+            message: "Ngày tháng không hợp lệ",
+            errors: [
+                { field: "startDate", message: "Ngày bắt đầu không hợp lệ" },
+                { field: "endDate", message: "Ngày kết thúc không hợp lệ" }
+            ]
+        };
+    }
+}
+
+function validateDates(startDate, endDate) {
+    const now = DateUtils.getCurrentVietnamTime();
+    console.log('Validating dates:', {
+        now: DateUtils.formatToVietnamDateString(now),
+        startDate: DateUtils.formatToVietnamDateString(startDate),
+        endDate: DateUtils.formatToVietnamDateString(endDate)
+    });
+    
+    const startDayjs = dayjs(startDate).tz(VIETNAM_TIMEZONE);
+    const endDayjs = dayjs(endDate).tz(VIETNAM_TIMEZONE);
+    const nowDayjs = dayjs(now).tz(VIETNAM_TIMEZONE);
+    
+    if (startDayjs.isBefore(nowDayjs, 'day')) {
+        throw { 
+            status: 400, 
+            message: "Ngày bắt đầu phải lớn hơn hoặc bằng ngày hiện tại",
+            errors: [
+                { field: "startDate", message: "Ngày bắt đầu phải lớn hơn hoặc bằng ngày hiện tại" }
+            ]
+        };
+    }
+    
+    if (endDayjs.isSameOrBefore(startDayjs, 'day')) {
+        throw { 
+            status: 400, 
+            message: "Ngày kết thúc phải lớn hơn ngày bắt đầu",
+            errors: [
+                { field: "endDate", message: "Ngày kết thúc phải lớn hơn ngày bắt đầu" }
+            ]
+        };
+    }
+}
+
+async function validateOverlappingCoupons(startDate, endDate) {
+    const overlappingCoupons = await Coupon.find({
+        $or: [
+            {
+                startDate: { $lte: endDate },
+                endDate: { $gte: startDate }
+            }
+        ],
+        status: { $ne: COUPON_STATUS.EXPIRED }
+    });
+
+    if (overlappingCoupons.length > 0) {
+        throw { status: 400, message: "Thời gian này đã có coupon khác đang hoạt động" };
+    }
+}
+
+function formatCouponResponse(coupon) {
+    return {
+        ...coupon.toObject(),
+        startDate: DateUtils.formatToVietnamDateString(coupon.startDate),
+        endDate: DateUtils.formatToVietnamDateString(coupon.endDate),
+        createdAt: DateUtils.formatToVietnamDateString(coupon.createdAt),
+        updatedAt: DateUtils.formatToVietnamDateString(coupon.updatedAt)
+    };
+}
 
 // Get all coupons
 export const getAllCoupons = async (req, res) => {
@@ -130,10 +314,10 @@ export const getAllCoupons = async (req, res) => {
         const formattedCoupons = coupons.map(coupon => {
             const formattedCoupon = {
                 ...coupon.toObject(),
-                startDate: formatVietnamDate(coupon.startDate),
-                endDate: formatVietnamDate(coupon.endDate),
-                createdAt: formatVietnamDate(coupon.createdAt),
-                updatedAt: formatVietnamDate(coupon.updatedAt)
+                startDate: DateUtils.formatToVietnamDateString(coupon.startDate),
+                endDate: DateUtils.formatToVietnamDateString(coupon.endDate),
+                createdAt: DateUtils.formatToVietnamDateString(coupon.createdAt),
+                updatedAt: DateUtils.formatToVietnamDateString(coupon.updatedAt)
             };
             
             // Loại bỏ trường id nếu có
@@ -181,7 +365,55 @@ export const getCouponById = async (req, res) => {
     const requestId = req.id || "unknown";
 
     try {
-        const coupon = await Coupon.findById(req.params.id)
+        const { id } = req.params;
+
+        // Kiểm tra xem id có phải là một ObjectId hợp lệ không
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            // Nếu không phải là ObjectId hợp lệ, thử tìm kiếm theo code
+            const coupon = await Coupon.findOne({ code: id })
+                .populate("createdBy", "name email")
+                .populate("updatedBy", "name email");
+
+            if (!coupon) {
+                return res.status(404).json({
+                    success: false,
+                    message: ERROR_MESSAGES.COUPON_NOT_FOUND,
+                });
+            }
+
+            // Format dates in response
+            const formattedCoupon = {
+                ...coupon.toObject(),
+                startDate: DateUtils.formatToVietnamDateString(coupon.startDate),
+                endDate: DateUtils.formatToVietnamDateString(coupon.endDate),
+                createdAt: DateUtils.formatToVietnamDateString(coupon.createdAt),
+                updatedAt: DateUtils.formatToVietnamDateString(coupon.updatedAt)
+            };
+            
+            // Loại bỏ trường id nếu có
+            if (formattedCoupon.id) {
+                delete formattedCoupon.id;
+            }
+            
+            // Loại bỏ trường id trong createdBy và updatedBy nếu có
+            if (formattedCoupon.createdBy && formattedCoupon.createdBy.id) {
+                delete formattedCoupon.createdBy.id;
+            }
+            
+            if (formattedCoupon.updatedBy && formattedCoupon.updatedBy.id) {
+                delete formattedCoupon.updatedBy.id;
+            }
+
+            logInfo(`[${requestId}] Successfully retrieved coupon by code: ${id}`);
+            res.json({
+                success: true,
+                message: SUCCESS_MESSAGES.COUPON_RETRIEVED,
+                data: formattedCoupon,
+            });
+            return;
+        }
+
+        const coupon = await Coupon.findById(id)
             .populate("createdBy", "name email")
             .populate("updatedBy", "name email");
 
@@ -195,10 +427,10 @@ export const getCouponById = async (req, res) => {
         // Format dates in response
         const formattedCoupon = {
             ...coupon.toObject(),
-            startDate: formatVietnamDate(coupon.startDate),
-            endDate: formatVietnamDate(coupon.endDate),
-            createdAt: formatVietnamDate(coupon.createdAt),
-            updatedAt: formatVietnamDate(coupon.updatedAt)
+            startDate: DateUtils.formatToVietnamDateString(coupon.startDate),
+            endDate: DateUtils.formatToVietnamDateString(coupon.endDate),
+            createdAt: DateUtils.formatToVietnamDateString(coupon.createdAt),
+            updatedAt: DateUtils.formatToVietnamDateString(coupon.updatedAt)
         };
         
         // Loại bỏ trường id nếu có
@@ -236,20 +468,18 @@ export const updateCoupon = async (req, res) => {
 
     try {
         const { id } = req.params;
-        const {
-            type,
-            value,
-            usageLimit,
-            userLimit,
-            startDate,
-            endDate,
-            minimumPurchaseAmount,
-            status
-        } = req.body;
+        const updateData = req.body;
 
-        // Tìm coupon hiện tại
+        // Kiểm tra xem id có phải là một ObjectId hợp lệ không
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.INVALID_COUPON_ID,
+            });
+        }
+
+        // Kiểm tra xem coupon có tồn tại không
         const existingCoupon = await Coupon.findById(id);
-        
         if (!existingCoupon) {
             return res.status(404).json({
                 success: false,
@@ -257,83 +487,50 @@ export const updateCoupon = async (req, res) => {
             });
         }
 
-        // Kiểm tra validation ngày tháng
-        if (startDate && endDate) {
-            const newStartDate = new Date(startDate);
-            const newEndDate = new Date(endDate);
-            
-            if (newEndDate <= newStartDate) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Ngày kết thúc phải lớn hơn ngày bắt đầu"
-                });
-            }
-        } else if (endDate && !startDate) {
-            // Nếu chỉ cập nhật endDate, so sánh với startDate hiện tại
-            const newEndDate = new Date(endDate);
-            const currentStartDate = new Date(existingCoupon.startDate);
-            
-            if (newEndDate <= currentStartDate) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Ngày kết thúc phải lớn hơn ngày bắt đầu"
-                });
-            }
-        } else if (startDate && !endDate) {
-            // Nếu chỉ cập nhật startDate, so sánh với endDate hiện tại
-            const newStartDate = new Date(startDate);
-            const currentEndDate = new Date(existingCoupon.endDate);
-            
-            if (currentEndDate <= newStartDate) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Ngày kết thúc phải lớn hơn ngày bắt đầu"
-                });
-            }
+        // Xử lý ngày tháng nếu có
+        if (updateData.startDate) {
+            updateData.startDate = dayjs(updateData.startDate).toISOString();
+        }
+        if (updateData.endDate) {
+            updateData.endDate = dayjs(updateData.endDate).toISOString();
         }
 
-        const updateData = {
-            type: type || existingCoupon.type,
-            value: value !== undefined ? value : existingCoupon.value,
-            usageLimit: usageLimit !== undefined ? usageLimit : existingCoupon.usageLimit,
-            userLimit: userLimit !== undefined ? userLimit : existingCoupon.userLimit,
-            startDate: startDate ? new Date(startDate) : existingCoupon.startDate,
-            endDate: endDate ? new Date(endDate) : existingCoupon.endDate,
-            minimumPurchaseAmount: minimumPurchaseAmount !== undefined ? minimumPurchaseAmount : existingCoupon.minimumPurchaseAmount,
-            status: status || existingCoupon.status,
-            updatedBy: req.user._id
-        };
+        // Thêm thông tin người cập nhật
+        updateData.updatedBy = req.user._id;
+        updateData.updatedAt = dayjs().toISOString();
 
-        const coupon = await Coupon.findByIdAndUpdate(
+        const updatedCoupon = await Coupon.findByIdAndUpdate(
             id,
-            updateData,
+            { $set: updateData },
             { new: true, runValidators: true }
-        );
+        )
+            .populate("createdBy", "name email")
+            .populate("updatedBy", "name email");
 
         // Format dates in response
         const formattedCoupon = {
-            ...coupon.toObject(),
-            startDate: formatVietnamDate(coupon.startDate),
-            endDate: formatVietnamDate(coupon.endDate),
-            createdAt: formatVietnamDate(coupon.createdAt),
-            updatedAt: formatVietnamDate(coupon.updatedAt)
+            ...updatedCoupon.toObject(),
+            startDate: DateUtils.formatToVietnamDateString(updatedCoupon.startDate),
+            endDate: DateUtils.formatToVietnamDateString(updatedCoupon.endDate),
+            createdAt: DateUtils.formatToVietnamDateString(updatedCoupon.createdAt),
+            updatedAt: DateUtils.formatToVietnamDateString(updatedCoupon.updatedAt)
         };
-        
+
         // Loại bỏ trường id nếu có
         if (formattedCoupon.id) {
             delete formattedCoupon.id;
         }
-        
+
         // Loại bỏ trường id trong createdBy và updatedBy nếu có
         if (formattedCoupon.createdBy && formattedCoupon.createdBy.id) {
             delete formattedCoupon.createdBy.id;
         }
-        
+
         if (formattedCoupon.updatedBy && formattedCoupon.updatedBy.id) {
             delete formattedCoupon.updatedBy.id;
         }
 
-        logInfo(`[${requestId}] Successfully updated coupon: ${coupon._id}`);
+        logInfo(`[${requestId}] Successfully updated coupon: ${updatedCoupon._id}`);
         res.json({
             success: true,
             message: SUCCESS_MESSAGES.COUPON_UPDATED,
@@ -343,7 +540,7 @@ export const updateCoupon = async (req, res) => {
         logError(`[${requestId}] Error updating coupon:`, error);
         res.status(500).json({
             success: false,
-            message: error.message || ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+            message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
         });
     }
 };
@@ -353,19 +550,53 @@ export const deleteCoupon = async (req, res) => {
     const requestId = req.id || "unknown";
 
     try {
-        const coupon = await Coupon.findByIdAndDelete(req.params.id);
+        const { id } = req.params;
 
-        if (!coupon) {
+        // Kiểm tra xem id có phải là một ObjectId hợp lệ không
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.INVALID_COUPON_ID,
+            });
+        }
+
+        const deletedCoupon = await Coupon.findByIdAndDelete(id);
+
+        if (!deletedCoupon) {
             return res.status(404).json({
                 success: false,
                 message: ERROR_MESSAGES.COUPON_NOT_FOUND,
             });
         }
 
-        logInfo(`[${requestId}] Successfully deleted coupon: ${coupon._id}`);
+        // Format dates in response
+        const formattedCoupon = {
+            ...deletedCoupon.toObject(),
+            startDate: DateUtils.formatToVietnamDateString(deletedCoupon.startDate),
+            endDate: DateUtils.formatToVietnamDateString(deletedCoupon.endDate),
+            createdAt: DateUtils.formatToVietnamDateString(deletedCoupon.createdAt),
+            updatedAt: DateUtils.formatToVietnamDateString(deletedCoupon.updatedAt)
+        };
+
+        // Loại bỏ trường id nếu có
+        if (formattedCoupon.id) {
+            delete formattedCoupon.id;
+        }
+
+        // Loại bỏ trường id trong createdBy và updatedBy nếu có
+        if (formattedCoupon.createdBy && formattedCoupon.createdBy.id) {
+            delete formattedCoupon.createdBy.id;
+        }
+
+        if (formattedCoupon.updatedBy && formattedCoupon.updatedBy.id) {
+            delete formattedCoupon.updatedBy.id;
+        }
+
+        logInfo(`[${requestId}] Successfully deleted coupon: ${deletedCoupon._id}`);
         res.json({
             success: true,
             message: SUCCESS_MESSAGES.COUPON_DELETED,
+            data: formattedCoupon,
         });
     } catch (error) {
         logError(`[${requestId}] Error deleting coupon:`, error);
@@ -379,47 +610,52 @@ export const deleteCoupon = async (req, res) => {
 // Apply coupon
 export const applyCoupon = async (req, res) => {
     try {
+        console.log('=== BẮT ĐẦU ÁP DỤNG COUPON ===');
         const { code, userId, totalAmount } = req.body;
+        console.log('Request Body:', { code, userId, totalAmount });
 
         if (!code || !userId || !totalAmount) {
+            console.log('Thiếu thông tin bắt buộc');
             return res.status(400).json({
                 success: false,
                 message: "Vui lòng cung cấp đầy đủ thông tin"
             });
         }
 
+        console.log('Tìm kiếm coupon theo code:', code);
         const coupon = await Coupon.findByCode(code);
 
         if (!coupon) {
+            console.log('Không tìm thấy coupon');
             return res.status(404).json({
                 success: false,
                 message: "Mã giảm giá không hợp lệ hoặc đã hết hạn"
             });
         }
 
-        if (!coupon.isAvailable) {
+        console.log('Kiểm tra tính khả dụng của coupon');
+        const validationResult = validateCoupon(coupon);
+        if (!validationResult.isValid) {
+            console.log('Coupon không khả dụng:', validationResult.error);
             return res.status(400).json({
                 success: false,
-                message: "Mã giảm giá không còn khả dụng"
+                message: validationResult.error
             });
         }
 
         if (totalAmount < coupon.minimumPurchaseAmount) {
+            console.log('Tổng tiền không đủ:', { totalAmount, minimumPurchaseAmount: coupon.minimumPurchaseAmount });
             return res.status(400).json({
                 success: false,
                 message: `Đơn hàng phải có giá trị tối thiểu ${coupon.minimumPurchaseAmount.toLocaleString('vi-VN')} VNĐ`
             });
         }
 
-        let discountAmount = 0;
-        if (coupon.type === DISCOUNT_TYPE.PERCENTAGE) {
-            discountAmount = (totalAmount * coupon.value) / 100;
-        } else {
-            discountAmount = coupon.value;
-        }
+        console.log('Tính toán giảm giá');
+        const { discountAmount, finalAmount } = calculateDiscount(coupon, totalAmount);
+        console.log('Kết quả tính toán:', { discountAmount, finalAmount });
 
-        const finalAmount = totalAmount - discountAmount;
-
+        console.log('=== HOÀN THÀNH ÁP DỤNG COUPON ===');
         res.status(200).json({
             success: true,
             data: {
@@ -433,6 +669,7 @@ export const applyCoupon = async (req, res) => {
             }
         });
     } catch (error) {
+        console.error('Lỗi khi áp dụng coupon:', error);
         res.status(500).json({
             success: false,
             message: error.message
@@ -512,10 +749,10 @@ export const pauseCoupon = async (req, res) => {
         // Format dates in response
         const formattedCoupon = {
             ...coupon.toObject(),
-            startDate: formatVietnamDate(coupon.startDate),
-            endDate: formatVietnamDate(coupon.endDate),
-            createdAt: formatVietnamDate(coupon.createdAt),
-            updatedAt: formatVietnamDate(coupon.updatedAt)
+            startDate: DateUtils.formatToVietnamDateString(coupon.startDate),
+            endDate: DateUtils.formatToVietnamDateString(coupon.endDate),
+            createdAt: DateUtils.formatToVietnamDateString(coupon.createdAt),
+            updatedAt: DateUtils.formatToVietnamDateString(coupon.updatedAt)
         };
         
         // Loại bỏ trường id nếu có
@@ -568,10 +805,10 @@ export const activateCoupon = async (req, res) => {
         // Format dates in response
         const formattedCoupon = {
             ...coupon.toObject(),
-            startDate: formatVietnamDate(coupon.startDate),
-            endDate: formatVietnamDate(coupon.endDate),
-            createdAt: formatVietnamDate(coupon.createdAt),
-            updatedAt: formatVietnamDate(coupon.updatedAt)
+            startDate: DateUtils.formatToVietnamDateString(coupon.startDate),
+            endDate: DateUtils.formatToVietnamDateString(coupon.endDate),
+            createdAt: DateUtils.formatToVietnamDateString(coupon.createdAt),
+            updatedAt: DateUtils.formatToVietnamDateString(coupon.updatedAt)
         };
         
         // Loại bỏ trường id nếu có
@@ -596,6 +833,307 @@ export const activateCoupon = async (req, res) => {
         });
     } catch (error) {
         logError(`[${requestId}] Error activating coupon:`, error);
+        res.status(500).json({
+            success: false,
+            message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+        });
+    }
+};
+
+// Get coupon by code
+export const getCouponByCode = async (req, res) => {
+    const requestId = req.id || "unknown";
+
+    try {
+        const { code } = req.params;
+
+        const coupon = await Coupon.findOne({ code })
+            .populate("createdBy", "name email")
+            .populate("updatedBy", "name email");
+
+        if (!coupon) {
+            return res.status(404).json({
+                success: false,
+                message: ERROR_MESSAGES.COUPON_NOT_FOUND,
+            });
+        }
+
+        // Check if coupon is expired based on Vietnam time
+        if (isExpiredInVietnam(coupon.endDate) && coupon.status !== COUPON_STATUS.EXPIRED) {
+            coupon.status = COUPON_STATUS.EXPIRED;
+            await coupon.save();
+        }
+
+        // Format dates for response
+        const formattedCoupon = {
+            ...coupon.toObject(),
+            startDate: DateUtils.formatToVietnamDateString(coupon.startDate),
+            endDate: DateUtils.formatToVietnamDateString(coupon.endDate),
+            createdAt: DateUtils.formatToVietnamDateString(coupon.createdAt),
+            updatedAt: DateUtils.formatToVietnamDateString(coupon.updatedAt)
+        };
+
+        // Loại bỏ trường id nếu có
+        if (formattedCoupon.id) {
+            delete formattedCoupon.id;
+        }
+
+        logInfo(`[${requestId}] Successfully retrieved coupon by code: ${code}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.COUPON_RETRIEVED,
+            data: formattedCoupon,
+        });
+    } catch (error) {
+        logError(`[${requestId}] Error retrieving coupon by code:`, error);
+        res.status(500).json({
+            success: false,
+            message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+        });
+    }
+};
+
+// Validate coupon
+export const validateCouponCode = async (req, res) => {
+    const requestId = req.id || "unknown";
+
+    try {
+        const { code } = req.body;
+        const userId = req.user._id;
+
+        // Kiểm tra xem code có tồn tại không
+        if (!code) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.COUPON_CODE_REQUIRED,
+            });
+        }
+
+        // Tìm coupon theo code
+        const coupon = await Coupon.findOne({ code });
+
+        if (!coupon) {
+            return res.status(404).json({
+                success: false,
+                message: ERROR_MESSAGES.COUPON_NOT_FOUND,
+            });
+        }
+
+        // Kiểm tra trạng thái coupon
+        if (coupon.status !== COUPON_STATUS.ACTIVE) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.COUPON_INACTIVE,
+            });
+        }
+
+        // Kiểm tra ngày hiệu lực
+        const now = DateUtils.getCurrentVietnamTime();
+        if (DateUtils.compareVietnamDates(now, coupon.startDate) < 0) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.COUPON_NOT_STARTED,
+            });
+        }
+
+        if (DateUtils.compareVietnamDates(now, coupon.endDate) > 0) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.COUPON_EXPIRED,
+            });
+        }
+
+        // Kiểm tra số lần sử dụng
+        if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.COUPON_USAGE_LIMIT_REACHED,
+            });
+        }
+
+        // Kiểm tra số lần sử dụng của user
+        if (coupon.userLimit) {
+            const userUsageCount = await CouponUsage.countDocuments({
+                coupon: coupon._id,
+                user: userId,
+            });
+
+            if (userUsageCount >= coupon.userLimit) {
+                return res.status(400).json({
+                    success: false,
+                    message: ERROR_MESSAGES.COUPON_USER_LIMIT_REACHED,
+                });
+            }
+        }
+
+        // Format dates in response
+        const formattedCoupon = {
+            ...coupon.toObject(),
+            startDate: DateUtils.formatToVietnamDateString(coupon.startDate),
+            endDate: DateUtils.formatToVietnamDateString(coupon.endDate),
+            createdAt: DateUtils.formatToVietnamDateString(coupon.createdAt),
+            updatedAt: DateUtils.formatToVietnamDateString(coupon.updatedAt)
+        };
+
+        // Loại bỏ trường id nếu có
+        if (formattedCoupon.id) {
+            delete formattedCoupon.id;
+        }
+
+        // Loại bỏ trường id trong createdBy và updatedBy nếu có
+        if (formattedCoupon.createdBy && formattedCoupon.createdBy.id) {
+            delete formattedCoupon.createdBy.id;
+        }
+
+        if (formattedCoupon.updatedBy && formattedCoupon.updatedBy.id) {
+            delete formattedCoupon.updatedBy.id;
+        }
+
+        logInfo(`[${requestId}] Successfully validated coupon: ${coupon._id}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.COUPON_VALID,
+            data: formattedCoupon,
+        });
+    } catch (error) {
+        logError(`[${requestId}] Error validating coupon:`, error);
+        res.status(500).json({
+            success: false,
+            message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+        });
+    }
+};
+
+// Use coupon
+export const useCoupon = async (req, res) => {
+    const requestId = req.id || "unknown";
+
+    try {
+        const { code } = req.body;
+        const userId = req.user._id;
+
+        // Kiểm tra xem code có tồn tại không
+        if (!code) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.COUPON_CODE_REQUIRED,
+            });
+        }
+
+        // Tìm coupon theo code
+        const coupon = await Coupon.findOne({ code });
+
+        if (!coupon) {
+            return res.status(404).json({
+                success: false,
+                message: ERROR_MESSAGES.COUPON_NOT_FOUND,
+            });
+        }
+
+        // Kiểm tra trạng thái coupon
+        if (coupon.status !== COUPON_STATUS.ACTIVE) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.COUPON_INACTIVE,
+            });
+        }
+
+        // Kiểm tra ngày hiệu lực
+        const now = DateUtils.getCurrentVietnamTime();
+        if (DateUtils.compareVietnamDates(now, coupon.startDate) < 0) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.COUPON_NOT_STARTED,
+            });
+        }
+
+        if (DateUtils.compareVietnamDates(now, coupon.endDate) > 0) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.COUPON_EXPIRED,
+            });
+        }
+
+        // Kiểm tra số lần sử dụng
+        if (coupon.usageLimit && coupon.usageCount >= coupon.usageLimit) {
+            return res.status(400).json({
+                success: false,
+                message: ERROR_MESSAGES.COUPON_USAGE_LIMIT_REACHED,
+            });
+        }
+
+        // Kiểm tra số lần sử dụng của user
+        if (coupon.userLimit) {
+            const userUsageCount = await CouponUsage.countDocuments({
+                coupon: coupon._id,
+                user: userId,
+            });
+
+            if (userUsageCount >= coupon.userLimit) {
+                return res.status(400).json({
+                    success: false,
+                    message: ERROR_MESSAGES.COUPON_USER_LIMIT_REACHED,
+                });
+            }
+        }
+
+        // Tạo bản ghi sử dụng coupon
+        const couponUsage = new CouponUsage({
+            coupon: coupon._id,
+            user: userId,
+            usedAt: DateUtils.getCurrentVietnamTime(),
+        });
+
+        await couponUsage.save();
+
+        // Cập nhật số lần sử dụng của coupon
+        coupon.usageCount += 1;
+        await coupon.save();
+
+        // Format dates in response
+        const formattedCoupon = {
+            ...coupon.toObject(),
+            startDate: DateUtils.formatToVietnamDateString(coupon.startDate),
+            endDate: DateUtils.formatToVietnamDateString(coupon.endDate),
+            createdAt: DateUtils.formatToVietnamDateString(coupon.createdAt),
+            updatedAt: DateUtils.formatToVietnamDateString(coupon.updatedAt)
+        };
+
+        // Format dates in couponUsage
+        const formattedCouponUsage = {
+            ...couponUsage.toObject(),
+            usedAt: DateUtils.formatToVietnamDateString(couponUsage.usedAt),
+            createdAt: DateUtils.formatToVietnamDateString(couponUsage.createdAt),
+            updatedAt: DateUtils.formatToVietnamDateString(couponUsage.updatedAt)
+        };
+
+        // Loại bỏ trường id nếu có
+        if (formattedCoupon.id) {
+            delete formattedCoupon.id;
+        }
+        if (formattedCouponUsage.id) {
+            delete formattedCouponUsage.id;
+        }
+
+        // Loại bỏ trường id trong createdBy và updatedBy nếu có
+        if (formattedCoupon.createdBy && formattedCoupon.createdBy.id) {
+            delete formattedCoupon.createdBy.id;
+        }
+        if (formattedCoupon.updatedBy && formattedCoupon.updatedBy.id) {
+            delete formattedCoupon.updatedBy.id;
+        }
+
+        logInfo(`[${requestId}] Successfully used coupon: ${coupon._id}`);
+        res.json({
+            success: true,
+            message: SUCCESS_MESSAGES.COUPON_USED,
+            data: {
+                coupon: formattedCoupon,
+                usage: formattedCouponUsage,
+            },
+        });
+    } catch (error) {
+        logError(`[${requestId}] Error using coupon:`, error);
         res.status(500).json({
             success: false,
             message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,

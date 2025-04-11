@@ -9,7 +9,7 @@ import { logInfo, logError } from "../utils/logger.js";
 import env from "../config/env.js";
 import { ERROR_MESSAGES, SUCCESS_MESSAGES, ORDER_STATUS, PAYMENT_METHODS, SHIPPING_METHODS, SHIPPING_FEES } from "../utils/constants.js";
 import { handleError } from "../utils/helpers.js";
-import Coupon from "../models/coupon.js";
+import { Coupon, CouponUsage } from "../models/coupon.js";
 
 const stripeInstance = stripe(env.STRIPE_SECRET_KEY);
 
@@ -153,6 +153,11 @@ export const createOrder = async (req, res) => {
 
         // Tính phí vận chuyển
         const shippingFee = SHIPPING_FEES[shippingMethod];
+        
+        // Lưu subtotal gốc (chưa bao gồm phí vận chuyển) để tính giảm giá
+        const productSubtotal = subtotal;
+        
+        // Cộng phí vận chuyển vào subtotal
         subtotal += shippingFee;
 
         // Xử lý mã giảm giá nếu có
@@ -200,7 +205,11 @@ export const createOrder = async (req, res) => {
             }
 
             // Kiểm tra số lần sử dụng của user
-            const userUsageCount = coupon.userUsageCount.get(userId) || 0;
+            const userUsageCount = await CouponUsage.countDocuments({
+                coupon: coupon._id,
+                user: userId
+            });
+            
             if (userUsageCount >= coupon.userLimit) {
                 return res.status(400).json({
                     success: false,
@@ -208,47 +217,53 @@ export const createOrder = async (req, res) => {
                 });
             }
 
-            // Kiểm tra giá trị đơn hàng tối thiểu
-            if (subtotal < coupon.minimumPurchaseAmount) {
+            // Kiểm tra giá trị đơn hàng tối thiểu (chỉ tính theo giá sản phẩm, chưa bao gồm phí vận chuyển)
+            if (productSubtotal < coupon.minimumPurchaseAmount) {
                 return res.status(400).json({
                     success: false,
                     message: `Đơn hàng cần tối thiểu ${coupon.minimumPurchaseAmount.toLocaleString('vi-VN')}đ để áp dụng mã giảm giá này`
                 });
             }
 
-            // Tính giá trị giảm giá
+            // Tính giá trị giảm giá (chỉ áp dụng cho giá sản phẩm, không áp dụng cho phí vận chuyển)
             if (coupon.type === "percentage") {
-                discountAmount = (subtotal * coupon.value) / 100;
+                discountAmount = (productSubtotal * coupon.value) / 100;
             } else if (coupon.type === "fixed") {
                 discountAmount = coupon.value;
             }
 
             try {
-                // Cập nhật usageCount, userUsageCount và giảm usageLimit
+                // Cập nhật usageCount
                 await Coupon.findByIdAndUpdate(coupon._id, {
-                    $inc: { 
-                        usageCount: 1,
-                        usageLimit: -1,
-                        [`userUsageCount.${userId}`]: 1
-                    }
+                    $inc: { usageCount: 1 }
                 });
+                
+                // Lưu thông tin sử dụng coupon
+                const couponUsage = new CouponUsage({
+                    coupon: coupon._id,
+                    user: userId,
+                    order: null, // Sẽ cập nhật sau khi tạo order
+                    usedAt: new Date()
+                });
+                
+                await couponUsage.save();
+                
+                // Lưu ID của CouponUsage để cập nhật sau
+                appliedCoupon = {
+                    ...coupon.toObject(),
+                    usageId: couponUsage._id
+                };
             } catch (error) {
                 return res.status(400).json({
                     success: false,
                     message: error.message
                 });
             }
-
-            appliedCoupon = {
-                code: coupon.code,
-                type: coupon.type,
-                value: coupon.value,
-                discountAmount: discountAmount
-            };
         }
 
         // Tính tổng tiền cuối cùng
-        const total = subtotal - discountAmount;
+        // Tổng tiền = (Giá sản phẩm - Giảm giá) + Phí vận chuyển
+        const total = (productSubtotal - discountAmount) + shippingFee;
 
         // Tìm user theo số điện thoại nếu có
         let orderUser = userId;
@@ -336,6 +351,13 @@ export const createOrder = async (req, res) => {
         });
 
         const savedOrder = await order.save();
+
+        // Cập nhật CouponUsage với order ID nếu có
+        if (appliedCoupon && appliedCoupon.usageId) {
+            await CouponUsage.findByIdAndUpdate(appliedCoupon.usageId, {
+                order: savedOrder._id
+            });
+        }
 
         // Update product stock
         for (const item of orderItems) {
@@ -492,9 +514,17 @@ export const getOrderById = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const order = await Order.findOne({ shortId: req.params.id })
-            .populate('user', 'email username')
-            .populate('items.product', 'name price image');
+        // Kiểm tra xem id có phải là ObjectId hợp lệ không
+        const isObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
+        
+        // Tìm kiếm đơn hàng bằng _id hoặc shortId
+        const order = isObjectId 
+            ? await Order.findById(req.params.id)
+                .populate('user', 'email username')
+                .populate('items.product', 'name price image')
+            : await Order.findOne({ shortId: req.params.id })
+                .populate('user', 'email username')
+                .populate('items.product', 'name price image');
 
         if (!order) {
             logError(`[${requestId}] Order not found: ${req.params.id}`);
@@ -532,7 +562,14 @@ export const updateOrderStatus = async (req, res) => {
             });
         }
 
-        const order = await Order.findOne({ shortId: orderId });
+        // Kiểm tra xem id có phải là ObjectId hợp lệ không
+        const isObjectId = mongoose.Types.ObjectId.isValid(orderId);
+        
+        // Tìm kiếm đơn hàng bằng _id hoặc shortId
+        const order = isObjectId 
+            ? await Order.findById(orderId)
+            : await Order.findOne({ shortId: orderId });
+
         if (!order) {
             logError(`[${requestId}] Order not found: ${orderId}`);
             return res.status(404).json({
@@ -678,7 +715,14 @@ export const deleteOrder = async (req, res) => {
     try {
         const orderId = req.params.id;
 
-        const order = await Order.findOne({ shortId: orderId });
+        // Kiểm tra xem id có phải là ObjectId hợp lệ không
+        const isObjectId = mongoose.Types.ObjectId.isValid(orderId);
+        
+        // Tìm kiếm đơn hàng bằng _id hoặc shortId
+        const order = isObjectId 
+            ? await Order.findById(orderId)
+            : await Order.findOne({ shortId: orderId });
+
         if (!order) {
             logError(`[${requestId}] Order not found: ${orderId}`);
             return res.status(404).json({
