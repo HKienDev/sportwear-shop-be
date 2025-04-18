@@ -28,5 +28,6 @@ router.get("/:id", verifyAdmin, orderController.getOrderById);
 router.put("/:id/status", verifyAdmin, validateRequest(updateOrderSchema), orderController.updateOrderStatus);
 router.put("/:id/payment", verifyAdmin, validateRequest(updateOrderSchema), orderController.updateOrderPayment);
 router.delete("/:id", verifyAdmin, orderController.deleteOrder);
+router.delete("/bulk-delete", verifyAdmin, orderController.bulkDeleteOrders);
 
 export default router;

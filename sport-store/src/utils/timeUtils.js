@@ -18,7 +18,7 @@ dayjs.extend(isLeapYear);
 
 // Constants
 export const VIETNAM_TIMEZONE = "Asia/Ho_Chi_Minh";
-export const VIETNAM_DATE_FORMAT = "DD/MM/YYYY";
+export const VIETNAM_DATE_FORMAT = "DD/MM/YYYY HH:mm";
 export const ISO_DATE_FORMAT = "YYYY-MM-DD";
 export const SIMPLE_DATE_FORMAT = "YYYY-MM-DD";
 

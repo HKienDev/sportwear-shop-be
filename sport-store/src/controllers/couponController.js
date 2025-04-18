@@ -201,17 +201,6 @@ function validateDates(startDate, endDate) {
     
     const startDayjs = dayjs(startDate).tz(VIETNAM_TIMEZONE);
     const endDayjs = dayjs(endDate).tz(VIETNAM_TIMEZONE);
-    const nowDayjs = dayjs(now).tz(VIETNAM_TIMEZONE);
-    
-    if (startDayjs.isBefore(nowDayjs, 'day')) {
-        throw { 
-            status: 400, 
-            message: "Ngày bắt đầu phải lớn hơn hoặc bằng ngày hiện tại",
-            errors: [
-                { field: "startDate", message: "Ngày bắt đầu phải lớn hơn hoặc bằng ngày hiện tại" }
-            ]
-        };
-    }
     
     if (endDayjs.isSameOrBefore(startDayjs, 'day')) {
         throw { 

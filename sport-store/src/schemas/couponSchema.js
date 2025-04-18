@@ -29,9 +29,9 @@ export const createCouponSchema = z.object({
 }).refine((data) => {
   const startDate = new Date(data.startDate);
   const endDate = new Date(data.endDate);
-  return startDate < endDate;
+  return startDate <= endDate;
 }, {
-  message: 'Ngày kết thúc phải sau ngày bắt đầu',
+  message: 'Ngày kết thúc phải sau hoặc bằng ngày bắt đầu',
   path: ['endDate']
 });
 

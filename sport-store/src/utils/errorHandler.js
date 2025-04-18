@@ -1,3 +1,5 @@
+import { logError } from './logger.js';
+
 export const handleError = (error, requestId = 'unknown') => {
     logError(`[${requestId}] Error: ${error.message}`);
     logError(`[${requestId}] Stack trace: ${error.stack}`);

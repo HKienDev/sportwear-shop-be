@@ -954,3 +954,66 @@ export const getAdminOrders = async (req, res) => {
         });
     }
 };
+
+export const bulkDeleteOrders = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { orderIds } = req.body;
+
+        if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+            logError(`[${requestId}] Invalid orderIds: ${JSON.stringify(orderIds)}`);
+            return res.status(400).json({
+                success: false,
+                message: "Danh sách đơn hàng không hợp lệ"
+            });
+        }
+
+        // Tìm tất cả đơn hàng cần xóa
+        const orders = await Order.find({
+            $or: [
+                { _id: { $in: orderIds } },
+                { shortId: { $in: orderIds } }
+            ]
+        });
+
+        if (orders.length === 0) {
+            logError(`[${requestId}] No orders found to delete`);
+            return res.status(404).json({
+                success: false,
+                message: "Không tìm thấy đơn hàng nào để xóa"
+            });
+        }
+
+        // Khôi phục số lượng sản phẩm cho các đơn hàng đang chờ xác nhận
+        for (const order of orders) {
+            if (order.status === ORDER_STATUS.PENDING) {
+                for (const item of order.items) {
+                    await Product.findByIdAndUpdate(item.product, {
+                        $inc: { stock: item.quantity }
+                    });
+                }
+            }
+        }
+
+        // Xóa tất cả đơn hàng
+        await Order.deleteMany({
+            $or: [
+                { _id: { $in: orderIds } },
+                { shortId: { $in: orderIds } }
+            ]
+        });
+
+        logInfo(`[${requestId}] Successfully deleted ${orders.length} orders`);
+        res.json({
+            success: true,
+            message: `Đã xóa thành công ${orders.length} đơn hàng`
+        });
+    } catch (error) {
+        logError(`[${requestId}] Error deleting orders: ${error.message}`);
+        res.status(500).json({
+            success: false,
+            message: "Có lỗi xảy ra khi xóa đơn hàng"
+        });
+    }
+};
