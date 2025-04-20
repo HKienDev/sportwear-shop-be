@@ -1,5 +1,5 @@
 import { DateUtils } from "./timeUtils.js";
-import { CouponUsage, Coupon } from "../models/coupon.js";
+import { Coupon } from "../models/coupon.js";
 
 /**
  * Generate a unique coupon code

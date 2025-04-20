@@ -9,7 +9,7 @@ import { logInfo, logError } from "../utils/logger.js";
 import env from "../config/env.js";
 import { ERROR_MESSAGES, SUCCESS_MESSAGES, ORDER_STATUS, PAYMENT_METHODS, SHIPPING_METHODS, SHIPPING_FEES } from "../utils/constants.js";
 import { handleError } from "../utils/helpers.js";
-import { Coupon, CouponUsage } from "../models/coupon.js";
+import { Coupon } from "../models/coupon.js";
 
 const stripeInstance = stripe(env.STRIPE_SECRET_KEY);
 
@@ -197,18 +197,9 @@ export const createOrder = async (req, res) => {
             }
 
             // Kiểm tra số lần sử dụng
-            if (coupon.usageCount >= coupon.usageLimit) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Mã giảm giá đã hết lượt sử dụng"
-                });
-            }
-
-            // Kiểm tra số lần sử dụng của user
-            const userUsageCount = await CouponUsage.countDocuments({
-                coupon: coupon._id,
-                user: userId
-            });
+            const userUsageCount = coupon.usedBy.filter(usage => 
+                usage.user.toString() === userId.toString()
+            ).length;
             
             if (userUsageCount >= coupon.userLimit) {
                 return res.status(400).json({
@@ -233,20 +224,16 @@ export const createOrder = async (req, res) => {
             }
 
             try {
-                // Cập nhật usageCount
+                // Cập nhật coupon với thông tin sử dụng mới
                 await Coupon.findByIdAndUpdate(coupon._id, {
-                    $inc: { usageCount: 1 }
+                    $inc: { usageCount: 1 },
+                    $push: {
+                        usedBy: {
+                            user: userId,
+                            usedAt: new Date()
+                        }
+                    }
                 });
-                
-                // Lưu thông tin sử dụng coupon
-                const couponUsage = new CouponUsage({
-                    coupon: coupon._id,
-                    user: userId,
-                    order: null, // Sẽ cập nhật sau khi tạo order
-                    usedAt: new Date()
-                });
-                
-                await couponUsage.save();
                 
                 // Lưu ID của CouponUsage để cập nhật sau
                 appliedCoupon = {
@@ -351,13 +338,6 @@ export const createOrder = async (req, res) => {
         });
 
         const savedOrder = await order.save();
-
-        // Cập nhật CouponUsage với order ID nếu có
-        if (appliedCoupon && appliedCoupon.usageId) {
-            await CouponUsage.findByIdAndUpdate(appliedCoupon.usageId, {
-                order: savedOrder._id
-            });
-        }
 
         // Update product stock
         for (const item of orderItems) {

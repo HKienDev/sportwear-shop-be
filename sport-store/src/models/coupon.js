@@ -17,49 +17,6 @@ export const DISCOUNT_TYPE = {
     FIXED_AMOUNT: "fixed"
 };
 
-// Schema cho CouponUsage
-const couponUsageSchema = new mongoose.Schema(
-    {
-        coupon: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Coupon",
-            required: true,
-        },
-        user: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
-            required: true,
-        },
-        usedAt: {
-            type: Date,
-            default: () => DateUtils.getCurrentVietnamTime(),
-            required: true,
-        },
-    },
-    {
-        timestamps: true,
-        toJSON: {
-            transform: function (doc, ret) {
-                // Chuyển đổi các trường ngày tháng sang ISO string
-                if (ret.usedAt) {
-                    ret.usedAt = DateUtils.formatToVietnamDateString(ret.usedAt);
-                }
-                if (ret.createdAt) {
-                    ret.createdAt = DateUtils.formatToVietnamDateString(ret.createdAt);
-                }
-                if (ret.updatedAt) {
-                    ret.updatedAt = DateUtils.formatToVietnamDateString(ret.updatedAt);
-                }
-                return ret;
-            },
-        },
-    }
-);
-
-// Indexes cho CouponUsage
-couponUsageSchema.index({ coupon: 1, user: 1 }, { unique: true });
-couponUsageSchema.index({ usedAt: 1 });
-
 // Schema cho Coupon
 const couponSchema = new mongoose.Schema(
     {
@@ -112,6 +69,17 @@ const couponSchema = new mongoose.Schema(
             type: Number,
             default: 0
         },
+        // Thêm trường để theo dõi người dùng đã sử dụng
+        usedBy: [{
+            user: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User"
+            },
+            usedAt: {
+                type: Date,
+                default: () => DateUtils.getCurrentVietnamTime()
+            }
+        }],
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User"
@@ -161,18 +129,16 @@ couponSchema.methods.incrementUsage = async function(userId) {
     }
 
     // Kiểm tra số lần sử dụng của user
-    const userUsageCount = await CouponUsage.countDocuments({
-        coupon: this._id,
-        user: userId
-    });
+    const userUsageCount = this.usedBy.filter(usage => 
+        usage.user.toString() === userId.toString()
+    ).length;
 
     if (userUsageCount >= this.userLimit) {
         throw new Error('Bạn đã sử dụng hết số lần cho phép');
     }
 
-    // Tạo bản ghi sử dụng coupon
-    await CouponUsage.create({
-        coupon: this._id,
+    // Thêm người dùng vào danh sách đã sử dụng
+    this.usedBy.push({
         user: userId,
         usedAt: DateUtils.getCurrentVietnamTime()
     });
@@ -196,8 +162,8 @@ couponSchema.statics.findByCode = function(code) {
 // Indexes
 couponSchema.index({ status: 1 });
 couponSchema.index({ startDate: 1, endDate: 1 });
+couponSchema.index({ "usedBy.user": 1 });
 
 // Models
 export const Coupon = mongoose.model("Coupon", couponSchema);
-export const CouponUsage = mongoose.model("CouponUsage", couponUsageSchema);
 export default Coupon; 
