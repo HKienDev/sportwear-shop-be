@@ -841,7 +841,8 @@ export const getCouponByCode = async (req, res) => {
         }
 
         // Check if coupon is expired based on Vietnam time
-        if (isExpiredInVietnam(coupon.endDate) && coupon.status !== COUPON_STATUS.EXPIRED) {
+        const now = DateUtils.getCurrentVietnamTime();
+        if (DateUtils.compareVietnamDates(now, coupon.endDate) > 0 && coupon.status !== COUPON_STATUS.EXPIRED) {
             coupon.status = COUPON_STATUS.EXPIRED;
             await coupon.save();
         }

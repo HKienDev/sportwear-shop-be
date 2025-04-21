@@ -7,7 +7,8 @@ import {
     deleteProduct,
     updateProductStatus,
     getAdminProducts,
-    updateSizeStatus
+    updateSizeStatus,
+    getProductsByCategory
 } from '../controllers/productController.js';
 import { verifyUser, verifyAdmin } from '../middlewares/authMiddleware.js';
 import { upload } from '../middlewares/uploadMiddleware.js';
@@ -41,6 +42,8 @@ router.get("/test", (req, res) => {
 // Product routes - Public
 router.get("/", getProducts);
 router.get("/search", validateRequest(searchProductSchema), getProducts);
+router.get("/sku/:sku", getProductBySku);
+router.get("/category/:categoryId", getProductsByCategory);
 
 // Admin routes (require admin role)
 router.get("/admin", verifyUser, verifyAdmin, getAdminProducts);

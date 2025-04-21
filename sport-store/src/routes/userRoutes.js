@@ -15,6 +15,9 @@ router.get("/test", (req, res) => {
     res.json({ message: SUCCESS_MESSAGES.ROUTE_WORKING });
 });
 
+// Route kiểm tra số điện thoại
+router.get("/check-phone/:phone", userController.getUserByPhone);
+
 // Protected routes (require authentication)
 router.get("/profile", verifyUser, userController.getUserProfile);
 router.put("/profile", verifyUser, validateRequest(updateProfileSchema), userController.updateProfile);

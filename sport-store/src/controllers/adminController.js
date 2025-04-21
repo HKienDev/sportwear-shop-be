@@ -56,9 +56,21 @@ export const getUserByPhone = async (req, res, next) => {
   try {
     const user = await User.findOne({ phone: req.params.phone }).select('-password');
     if (!user) {
-      return res.status(404).json({ message: ERROR_MESSAGES.NOT_FOUND_ERROR });
+      return res.status(404).json({
+        success: false,
+        message: ERROR_MESSAGES.NOT_FOUND_ERROR,
+        data: {
+          exists: false
+        }
+      });
     }
-    res.status(200).json(user);
+    res.status(200).json({
+      success: true,
+      data: {
+        exists: true,
+        user
+      }
+    });
   } catch (error) {
     next(error);
   }

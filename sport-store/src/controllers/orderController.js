@@ -235,10 +235,10 @@ export const createOrder = async (req, res) => {
                     }
                 });
                 
-                // Lưu ID của CouponUsage để cập nhật sau
+                // Lưu thông tin coupon đã áp dụng
                 appliedCoupon = {
                     ...coupon.toObject(),
-                    usageId: couponUsage._id
+                    discountAmount
                 };
             } catch (error) {
                 return res.status(400).json({

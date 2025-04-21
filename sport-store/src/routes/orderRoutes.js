@@ -24,10 +24,11 @@ router.put("/my-orders/:id/cancel", verifyUser, orderController.cancelOrder);
 // Protected routes (Admin only)
 router.get("/admin", verifyAdmin, orderController.getAdminOrders);
 router.get("/", verifyAdmin, orderController.getAllOrders);
-router.get("/:id", verifyAdmin, orderController.getOrderById);
+router.post("/create", verifyAdmin, validateRequest(createOrderSchema), orderController.createOrder);
+router.delete("/bulk-delete", verifyAdmin, orderController.bulkDeleteOrders);
 router.put("/:id/status", verifyAdmin, validateRequest(updateOrderSchema), orderController.updateOrderStatus);
 router.put("/:id/payment", verifyAdmin, validateRequest(updateOrderSchema), orderController.updateOrderPayment);
+router.get("/:id", verifyAdmin, orderController.getOrderById);
 router.delete("/:id", verifyAdmin, orderController.deleteOrder);
-router.delete("/bulk-delete", verifyAdmin, orderController.bulkDeleteOrders);
 
 export default router;
