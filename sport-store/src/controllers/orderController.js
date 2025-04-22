@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
-import User from "../models/user.js";
-import Order from "../models/order.js";
-import Product from "../models/product.js";
+import User from '../models/User.js';
+import Order from '../models/Order.js';
+import Product from '../models/Product.js';
 import stripe from "stripe";
 import getExchangeRate from "../utils/exchangeRate.js";
 import { nanoid } from "nanoid";

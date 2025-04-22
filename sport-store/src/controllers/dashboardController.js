@@ -1,140 +1,307 @@
-import Order from '../models/order.js';
-import Product from '../models/product.js';
-import User from '../models/user.js';
+import Order from "../models/Order.js";
+import Product from "../models/Product.js";
+import User from "../models/User.js";
+import { getRedisClient } from '../config/redis.js';
 import { logInfo, logError } from '../utils/logger.js';
 import { handleError } from '../utils/helpers.js';
 import { v4 as uuidv4 } from 'uuid';
 
-// Lấy thống kê tổng quan
+// Get Dashboard Stats
 export const getStats = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
+        logInfo(`[${requestId}] Fetching dashboard stats`);
+
+        // Kiểm tra cache
+        const redis = getRedisClient();
+        if (redis) {
+            const cacheKey = 'dashboard_stats';
+            const cachedData = await redis.get(cacheKey);
+            
+            if (cachedData) {
+                logInfo(`[${requestId}] Returning cached dashboard stats`);
+                return res.json({
+                    success: true,
+                    data: JSON.parse(cachedData),
+                    message: 'Dashboard stats retrieved from cache'
+                });
+            }
+        }
+
+        // Tối ưu query với Promise.all và lean()
         const [totalOrders, totalRevenue, totalCustomers, totalProducts] = await Promise.all([
             Order.countDocuments(),
             Order.aggregate([
-                { $match: { status: 'completed' } },
-                { $group: { _id: null, total: { $sum: '$total' } } }
-            ]),
-            User.countDocuments({ role: 'user' }),
+                { 
+                    $match: { status: 'completed' } 
+                },
+                { 
+                    $group: { 
+                        _id: null, 
+                        total: { $sum: "$totalAmount" } 
+                    } 
+                }
+            ]).lean(),
+            User.countDocuments({ role: 'customer' }),
             Product.countDocuments()
         ]);
+
+        const data = {
+            totalOrders,
+            totalRevenue: totalRevenue[0]?.total || 0,
+            totalCustomers,
+            totalProducts,
+            lastUpdated: new Date()
+        };
+
+        // Cache kết quả (5 phút)
+        if (redis) {
+            const cacheKey = 'dashboard_stats';
+            await redis.set(cacheKey, JSON.stringify(data), 'EX', 300);
+        }
 
         logInfo(`[${requestId}] Successfully fetched dashboard stats`);
         res.json({
             success: true,
-            data: {
-                totalOrders: totalOrders || 0,
-                totalRevenue: totalRevenue[0]?.total || 0,
-                totalCustomers: totalCustomers || 0,
-                totalProducts: totalProducts || 0
-            }
+            data,
+            message: 'Dashboard stats retrieved successfully'
         });
     } catch (error) {
-        logError(`[${requestId}] Error:: ${error.message}`);
+        logError(`[${requestId}] Error getting dashboard stats: ${error.message}`);
         logError(`Stack trace: ${error.stack}`);
-        res.status(500).json({
+        
+        res.status(500).json({ 
             success: false,
-            message: error.message
+            message: 'Error getting dashboard stats',
+            error: error.message
         });
     }
 };
 
-// Lấy doanh thu
+// Get Revenue Data
 export const getRevenue = async (req, res) => {
     const requestId = req.id || 'unknown';
+    const { months } = req.query;
     
     try {
+        logInfo(`[${requestId}] Fetching revenue data for last ${months} months`);
+
+        // Kiểm tra cache
+        const redis = getRedisClient();
+        if (redis) {
+            const cacheKey = `revenue_data:${months}`;
+            const cachedData = await redis.get(cacheKey);
+            
+            if (cachedData) {
+                logInfo(`[${requestId}] Returning cached revenue data`);
+                return res.json({
+                    success: true,
+                    data: JSON.parse(cachedData),
+                    message: 'Revenue data retrieved from cache'
+                });
+            }
+        }
+
+        // Tối ưu query với lean()
         const revenue = await Order.aggregate([
-            { $match: { status: 'completed' } },
+            {
+                $match: { 
+                    status: 'completed',
+                    createdAt: { 
+                        $gte: new Date(new Date().setMonth(new Date().getMonth() - months)) 
+                    }
+                }
+            },
             {
                 $group: {
                     _id: {
-                        year: { $year: '$createdAt' },
-                        month: { $month: '$createdAt' }
+                        year: { $year: "$createdAt" },
+                        month: { $month: "$createdAt" }
                     },
-                    revenue: { $sum: '$total' }
+                    revenue: { $sum: "$totalAmount" },
+                    orderCount: { $sum: 1 }
                 }
             },
-            { $sort: { '_id.year': -1, '_id.month': -1 } },
-            { $limit: 12 },
             {
                 $project: {
                     _id: 0,
                     month: {
                         $concat: [
-                            { $toString: '$_id.year' },
-                            '-',
-                            { $toString: '$_id.month' }
+                            { $toString: "$_id.month" },
+                            "/",
+                            { $toString: "$_id.year" }
                         ]
                     },
-                    revenue: 1
+                    revenue: 1,
+                    orderCount: 1
                 }
-            }
-        ]);
+            },
+            { $sort: { "_id.year": 1, "_id.month": 1 } }
+        ]).lean();
+        
+        const data = {
+            revenue,
+            lastUpdated: new Date(),
+            months
+        };
+
+        // Cache kết quả (5 phút)
+        if (redis) {
+            const cacheKey = `revenue_data:${months}`;
+            await redis.set(cacheKey, JSON.stringify(data), 'EX', 300);
+        }
 
         logInfo(`[${requestId}] Successfully fetched revenue data`);
         res.json({
             success: true,
-            data: revenue
+            data,
+            message: 'Revenue data retrieved successfully'
         });
     } catch (error) {
-        logError(`[${requestId}] Error:: ${error.message}`);
+        logError(`[${requestId}] Error getting revenue data: ${error.message}`);
         logError(`Stack trace: ${error.stack}`);
-        res.status(500).json({
+        
+        res.status(500).json({ 
             success: false,
-            message: error.message
+            message: 'Error getting revenue data',
+            error: error.message
         });
     }
 };
 
-// Lấy đơn hàng gần đây
+// Get Recent Orders
 export const getRecentOrders = async (req, res) => {
     const requestId = req.id || 'unknown';
-    
+    const { page, limit } = req.query;
+    const skip = (page - 1) * limit;
+
     try {
+        logInfo(`[${requestId}] Fetching recent orders - Page: ${page}, Limit: ${limit}`);
+
+        // Kiểm tra cache
+        const redis = getRedisClient();
+        if (redis) {
+            const cacheKey = `recent_orders:${page}:${limit}`;
+            const cachedData = await redis.get(cacheKey);
+            
+            if (cachedData) {
+                logInfo(`[${requestId}] Returning cached recent orders`);
+                return res.json({
+                    success: true,
+                    data: JSON.parse(cachedData),
+                    message: 'Recent orders retrieved from cache'
+                });
+            }
+        }
+
+        // Tối ưu query với lean() và select()
         const orders = await Order.find()
             .sort({ createdAt: -1 })
-            .limit(5)
-            .populate('user', 'username email');
+            .skip(skip)
+            .limit(limit)
+            .populate('user', 'name email')
+            .select('orderNumber user totalAmount status createdAt')
+            .lean();
 
-        logInfo(`[${requestId}] Successfully fetched recent orders`);
+        // Format dữ liệu
+        const formattedOrders = orders.map(order => ({
+            _id: order._id,
+            orderNumber: order.orderNumber,
+            customerName: order.user?.name || 'Unknown',
+            customerEmail: order.user?.email || 'Unknown',
+            total: order.totalAmount,
+            status: order.status,
+            createdAt: order.createdAt
+        }));
+
+        // Lấy tổng số orders cho pagination
+        const totalOrders = await Order.countDocuments();
+
+        const data = {
+            orders: formattedOrders,
+            pagination: {
+                currentPage: page,
+                totalPages: Math.ceil(totalOrders / limit),
+                totalOrders,
+                hasMore: skip + limit < totalOrders
+            }
+        };
+
+        // Cache kết quả (5 phút)
+        if (redis) {
+            const cacheKey = `recent_orders:${page}:${limit}`;
+            await redis.set(cacheKey, JSON.stringify(data), 'EX', 300);
+        }
+
+        logInfo(`[${requestId}] Successfully fetched ${formattedOrders.length} recent orders`);
         res.json({
             success: true,
-            data: orders.map(order => ({
-                _id: order._id,
-                orderNumber: order.orderNumber,
-                customerName: order.user?.username || 'Unknown User',
-                total: order.total,
-                status: order.status,
-                createdAt: order.createdAt
-            }))
+            data,
+            message: 'Recent orders retrieved successfully'
         });
     } catch (error) {
-        logError(`[${requestId}] Error:: ${error.message}`);
+        logError(`[${requestId}] Error getting recent orders: ${error.message}`);
         logError(`Stack trace: ${error.stack}`);
-        res.status(500).json({
+        
+        res.status(500).json({ 
             success: false,
-            message: error.message
+            message: 'Error getting recent orders',
+            error: error.message
         });
     }
 };
 
-// Lấy sản phẩm bán chạy
+// Get Best Selling Products
 export const getBestSellingProducts = async (req, res) => {
     const requestId = req.id || 'unknown';
+    const { limit, days } = req.query;
     
     try {
-        const products = await Order.aggregate([
-            { $unwind: '$items' },
+        logInfo(`[${requestId}] Fetching best selling products - Limit: ${limit}, Days: ${days}`);
+
+        // Kiểm tra cache
+        const redis = getRedisClient();
+        if (redis) {
+            const cacheKey = `best_selling_products:${limit}:${days}`;
+            const cachedData = await redis.get(cacheKey);
+            
+            if (cachedData) {
+                logInfo(`[${requestId}] Returning cached best selling products`);
+                return res.json({
+                    success: true,
+                    data: JSON.parse(cachedData),
+                    message: 'Best selling products retrieved from cache'
+                });
+            }
+        }
+
+        // Tối ưu query với lean()
+        const bestSelling = await Order.aggregate([
+            {
+                $match: {
+                    status: 'completed',
+                    createdAt: {
+                        $gte: new Date(new Date().setDate(new Date().getDate() - days))
+                    }
+                }
+            },
+            {
+                $unwind: '$items'
+            },
             {
                 $group: {
                     _id: '$items.product',
-                    totalSales: { $sum: '$items.quantity' }
+                    totalSales: { $sum: '$items.quantity' },
+                    totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }
                 }
             },
-            { $sort: { totalSales: -1 } },
-            { $limit: 5 },
+            {
+                $sort: { totalSales: -1 }
+            },
+            {
+                $limit: limit
+            },
             {
                 $lookup: {
                     from: 'products',
@@ -143,29 +310,47 @@ export const getBestSellingProducts = async (req, res) => {
                     as: 'product'
                 }
             },
-            { $unwind: '$product' },
+            {
+                $unwind: '$product'
+            },
             {
                 $project: {
-                    _id: '$product._id',
+                    _id: 1,
                     name: '$product.name',
                     category: '$product.category',
                     totalSales: 1,
+                    totalRevenue: 1,
                     image: '$product.images.0'
                 }
             }
-        ]);
+        ]).lean();
 
-        logInfo(`[${requestId}] Successfully fetched best selling products`);
+        const data = {
+            products: bestSelling,
+            lastUpdated: new Date(),
+            days
+        };
+
+        // Cache kết quả (5 phút)
+        if (redis) {
+            const cacheKey = `best_selling_products:${limit}:${days}`;
+            await redis.set(cacheKey, JSON.stringify(data), 'EX', 300);
+        }
+
+        logInfo(`[${requestId}] Successfully fetched ${bestSelling.length} best selling products`);
         res.json({
             success: true,
-            data: products
+            data,
+            message: 'Best selling products retrieved successfully'
         });
     } catch (error) {
-        logError(`[${requestId}] Error:: ${error.message}`);
+        logError(`[${requestId}] Error getting best selling products: ${error.message}`);
         logError(`Stack trace: ${error.stack}`);
-        res.status(500).json({
+        
+        res.status(500).json({ 
             success: false,
-            message: error.message
+            message: 'Error getting best selling products',
+            error: error.message
         });
     }
 };
