@@ -57,8 +57,8 @@ const bestSellingValidation = {
   limit: {
     type: 'number',
     min: 1,
-    max: 20,
-    default: 5
+    max: 6,
+    default: 6
   },
   days: {
     type: 'number',

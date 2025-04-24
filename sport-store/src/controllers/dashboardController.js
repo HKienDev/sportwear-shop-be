@@ -6,6 +6,20 @@ import { logInfo, logError } from '../utils/logger.js';
 import { handleError } from '../utils/helpers.js';
 import { v4 as uuidv4 } from 'uuid';
 
+// Hàm xóa cache dashboard
+export const clearDashboardCache = async () => {
+    try {
+        const redis = getRedisClient();
+        if (redis) {
+            const cacheKey = 'dashboard_stats';
+            await redis.del(cacheKey);
+            logInfo('Dashboard cache cleared successfully');
+        }
+    } catch (error) {
+        logError('Error clearing dashboard cache:', error);
+    }
+};
+
 // Get Dashboard Stats
 export const getStats = async (req, res) => {
     const requestId = req.id || 'unknown';
@@ -36,6 +50,7 @@ export const getStats = async (req, res) => {
 
         // Tối ưu query với Promise.all
         const [
+            pendingOrders, 
             confirmedOrders, 
             deliveredOrders, 
             cancelledOrders, 
@@ -53,6 +68,8 @@ export const getStats = async (req, res) => {
             lastMonthCustomers,
             lastMonthProducts
         ] = await Promise.all([
+            // Đếm số đơn hàng đang chờ xác nhận
+            Order.countDocuments({ status: 'pending' }),
             // Đếm số đơn hàng đã xác nhận
             Order.countDocuments({ status: 'confirmed' }),
             // Đếm số đơn hàng đã giao
@@ -76,9 +93,10 @@ export const getStats = async (req, res) => {
             // Đếm tổng số sản phẩm
             Product.countDocuments(),
             
-            // Đơn hàng tháng này
+            // Đơn hàng tháng này (tính từ pending trừ cancelled)
             Order.countDocuments({ 
                 $or: [
+                    { status: 'pending', createdAt: { $gte: firstDayOfThisMonth } },
                     { status: 'confirmed', createdAt: { $gte: firstDayOfThisMonth } },
                     { status: 'delivered', createdAt: { $gte: firstDayOfThisMonth } }
                 ]
@@ -108,9 +126,10 @@ export const getStats = async (req, res) => {
                 createdAt: { $gte: firstDayOfThisMonth }
             }),
             
-            // Đơn hàng tháng trước
+            // Đơn hàng tháng trước (tính từ pending trừ cancelled)
             Order.countDocuments({ 
                 $or: [
+                    { status: 'pending', createdAt: { $gte: firstDayOfLastMonth, $lt: firstDayOfThisMonth } },
                     { status: 'confirmed', createdAt: { $gte: firstDayOfLastMonth, $lt: firstDayOfThisMonth } },
                     { status: 'delivered', createdAt: { $gte: firstDayOfLastMonth, $lt: firstDayOfThisMonth } }
                 ]
@@ -156,7 +175,7 @@ export const getStats = async (req, res) => {
         const productGrowth = calculateGrowth(thisMonthProducts, lastMonthProducts);
 
         const data = {
-            totalOrders: confirmedOrders + deliveredOrders - cancelledOrders, // Tổng đơn hàng = Đơn xác nhận + Đơn đã giao - Đơn hủy
+            totalOrders: pendingOrders + confirmedOrders + deliveredOrders - cancelledOrders, // Tổng đơn hàng = Đơn pending + Đơn confirmed + Đơn delivered - Đơn cancelled
             totalRevenue: totalRevenue[0]?.total || 0,
             totalCustomers,
             totalProducts,
@@ -664,7 +683,7 @@ export const getRecentOrders = async (req, res) => {
 // Get Best Selling Products
 export const getBestSellingProducts = async (req, res) => {
     const requestId = req.id || 'unknown';
-    const { limit = 5, days = 30 } = req.query;
+    const { limit = 6, days = 30 } = req.query;
     
     try {
         logInfo(`[${requestId}] Fetching best selling products for last ${days} days`);
@@ -677,64 +696,93 @@ export const getBestSellingProducts = async (req, res) => {
             
             if (cachedData) {
                 logInfo(`[${requestId}] Returning cached best selling products`);
-                return res.json({
-                    success: true,
-                    data: JSON.parse(cachedData),
-                    message: 'Best selling products retrieved from cache'
-                });
+                return res.json(JSON.parse(cachedData));
             }
         }
 
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - parseInt(days));
 
-        // Tối ưu query
-        const products = await Order.aggregate([
-            {
-                $match: {
-                    status: 'completed',
-                    createdAt: { $gte: startDate }
-                }
-            },
-            {
-                $unwind: '$items'
-            },
-            {
-                $group: {
-                    _id: '$items.product',
-                    totalSold: { $sum: '$items.quantity' },
-                    totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }
-                }
-            },
-            {
-                $sort: { totalSold: -1 }
-            },
-            {
-                $limit: parseInt(limit)
-            }
-        ]).exec();
-
-        // Lấy thông tin sản phẩm
-        const productIds = products.map(p => p._id);
-        const productDetails = await Product.find({ _id: { $in: productIds } })
-            .select('name image')
+        // Lấy tất cả sản phẩm trước
+        const allProducts = await Product.find()
+            .select('name mainImage categoryId soldCount salePrice brand sku')
+            .populate('categoryId', 'name')
             .lean();
 
-        // Kết hợp thông tin
-        const bestSellingProducts = products.map(product => {
-            const details = productDetails.find(p => p._id.toString() === product._id.toString());
+        // Lấy sản phẩm bán chạy từ đơn hàng đã giao và trừ đi đơn hàng đã hủy
+        const [deliveredProducts, cancelledProducts] = await Promise.all([
+            // Đếm số lượng bán từ đơn hàng đã giao
+            Order.aggregate([
+                {
+                    $match: {
+                        status: 'delivered',
+                        createdAt: { $gte: startDate }
+                    }
+                },
+                {
+                    $unwind: '$items'
+                },
+                {
+                    $group: {
+                        _id: '$items.product',
+                        totalSold: { $sum: '$items.quantity' },
+                        totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }
+                    }
+                }
+            ]).exec(),
+            // Đếm số lượng bán từ đơn hàng đã hủy để trừ đi
+            Order.aggregate([
+                {
+                    $match: {
+                        status: 'cancelled',
+                        createdAt: { $gte: startDate }
+                    }
+                },
+                {
+                    $unwind: '$items'
+                },
+                {
+                    $group: {
+                        _id: '$items.product',
+                        totalCancelled: { $sum: '$items.quantity' }
+                    }
+                }
+            ]).exec()
+        ]);
+
+        // Kết hợp thông tin từ cả hai nguồn và format theo interface DashboardData
+        const bestSellingProducts = allProducts.map(product => {
+            const deliveredStats = deliveredProducts.find(
+                p => p._id.toString() === product._id.toString()
+            ) || { totalSold: 0, totalRevenue: 0 };
+
+            const cancelledStats = cancelledProducts.find(
+                p => p._id.toString() === product._id.toString()
+            ) || { totalCancelled: 0 };
+
+            // Tính tổng số lượng bán = Đơn đã giao - Đơn đã hủy
+            const totalSold = (deliveredStats.totalSold || 0) - (cancelledStats.totalCancelled || 0);
+
             return {
-                ...product,
-                name: details?.name || 'Unknown Product',
-                image: details?.image || ''
+                _id: product._id.toString(),
+                name: product.name,
+                image: product.mainImage,
+                category: product.categoryId?.name || 'Unknown Category',
+                sku: product.sku || '',
+                totalSales: totalSold
             };
         });
 
+        // Sắp xếp theo số lượng bán và giới hạn kết quả
+        bestSellingProducts.sort((a, b) => b.totalSales - a.totalSales);
+        const limitedProducts = bestSellingProducts.slice(0, parseInt(limit));
+
         const data = {
-            products: bestSellingProducts,
-            lastUpdated: new Date(),
-            limit: parseInt(limit),
-            days: parseInt(days)
+            success: true,
+            data: {
+                products: limitedProducts
+            },
+            message: 'Best selling products retrieved successfully'
         };
 
         // Cache kết quả (5 phút)
@@ -744,11 +792,7 @@ export const getBestSellingProducts = async (req, res) => {
         }
 
         logInfo(`[${requestId}] Successfully fetched best selling products`);
-        res.json({
-            success: true,
-            data,
-            message: 'Best selling products retrieved successfully'
-        });
+        res.json(data);
     } catch (error) {
         logError(`[${requestId}] Error getting best selling products: ${error.message}`);
         logError(`Stack trace: ${error.stack}`);
