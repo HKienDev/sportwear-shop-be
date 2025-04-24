@@ -34,26 +34,13 @@ const SHIPPING_FEES = {
 };
 
 // Helper functions
-const generateOrderId = () => {
-    // Lấy ngày giờ hiện tại theo múi giờ Việt Nam (UTC+7)
-    const now = new Date();
-    const vietnamTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
-    
-    // Format ngày tháng năm: DDMMYY
-    const day = String(vietnamTime.getUTCDate()).padStart(2, '0');
-    const month = String(vietnamTime.getUTCMonth() + 1).padStart(2, '0');
-    const year = String(vietnamTime.getUTCFullYear()).slice(-2);
-    const dateStr = `${day}${month}${year}`;
-    
-    // Tạo chuỗi ngẫu nhiên 5 ký tự (số và chữ in hoa)
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let randomStr = '';
-    for (let i = 0; i < 5; i++) {
-        randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    
-    // Kết hợp thành mã đơn hàng: VJUSPORTORDER-YYYYYY-XXXXX
-    return `VJUSPORTORDER-${dateStr}-${randomStr}`;
+const generateShortId = () => {
+    const date = new Date();
+    const year = date.getFullYear().toString().slice(-2); // 2 số cuối của năm
+    const month = (date.getMonth() + 1).toString().padStart(2, '0'); // Tháng (01-12)
+    const day = date.getDate().toString().padStart(2, '0'); // Ngày (01-31)
+    const random = Math.random().toString(36).substring(2, 6).toUpperCase(); // 4 ký tự ngẫu nhiên
+    return `${year}${month}${day}${random}`; // Format: YYMMDDXXXX
 };
 
 // Schema
@@ -61,7 +48,7 @@ const orderSchema = new mongoose.Schema({
     shortId: {
         type: String,
         unique: true,
-        default: generateOrderId,
+        default: generateShortId,
         required: [true, "Mã đơn hàng là bắt buộc"],
         trim: true
     },

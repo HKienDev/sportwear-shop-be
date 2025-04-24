@@ -1,5 +1,5 @@
 import express from 'express';
-import { getStats, getRevenue, getRecentOrders, getBestSellingProducts } from '../controllers/dashboardController.js';
+import { getStats, getRevenue, getRecentOrders, getBestSellingProducts, clearCache } from '../controllers/dashboardController.js';
 import { verifyAccessTokenMiddleware } from '../middlewares/authMiddleware.js';
 import { isAdmin } from '../middlewares/roleMiddleware.js';
 import { validateQueryParams } from '../middlewares/validationMiddleware.js';
@@ -11,25 +11,45 @@ router.use(verifyAccessTokenMiddleware, isAdmin);
 
 // Validation schemas
 const revenueValidation = {
-  months: {
+  period: {
+    type: 'string',
+    default: 'month',
+    required: true
+  },
+  limit: {
     type: 'number',
     min: 1,
-    max: 12,
-    default: 6
+    max: 365,
+    default: 12
   }
 };
 
 const recentOrdersValidation = {
   page: {
-    type: 'number',
-    min: 1,
-    default: 1
+    in: ['query'],
+    optional: true,
+    isInt: true,
+    toInt: true,
+    errorMessage: 'Page must be an integer',
+    custom: {
+      options: (value) => value > 0
+    },
+    customSanitizer: {
+      options: (value) => value || 1
+    }
   },
   limit: {
-    type: 'number',
-    min: 1,
-    max: 50,
-    default: 5
+    in: ['query'],
+    optional: true,
+    isInt: true,
+    toInt: true,
+    errorMessage: 'Limit must be an integer',
+    custom: {
+      options: (value) => value > 0
+    },
+    customSanitizer: {
+      options: (value) => value || 2
+    }
   }
 };
 
@@ -53,6 +73,7 @@ router.get('/stats', getStats);
 
 // Lấy doanh thu
 router.get('/revenue', validateQueryParams(revenueValidation), getRevenue);
+router.post('/revenue/clear-cache', clearCache);
 
 // Lấy đơn hàng gần đây
 router.get('/recent-orders', validateQueryParams(recentOrdersValidation), getRecentOrders);

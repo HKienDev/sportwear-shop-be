@@ -10,6 +10,7 @@ import env from "../config/env.js";
 import { ERROR_MESSAGES, SUCCESS_MESSAGES, ORDER_STATUS, PAYMENT_METHODS, SHIPPING_METHODS, SHIPPING_FEES } from "../utils/constants.js";
 import { handleError } from "../utils/helpers.js";
 import { Coupon } from "../models/coupon.js";
+import { getRedisClient } from '../config/redis.js';
 
 const stripeInstance = stripe(env.STRIPE_SECRET_KEY);
 
@@ -55,6 +56,82 @@ const calculateOrderTotal = (items, shippingFee) => {
         return total + (price * quantity);
     }, 0);
     return subtotal + shippingFee;
+};
+
+// Helper function để xóa cache
+const clearDashboardCache = async (requestId) => {
+    try {
+        const redis = getRedisClient();
+        if (redis) {
+            // Xóa tất cả các key liên quan đến dashboard
+            const dashboardKeys = await redis.keys('dashboard_*');
+            if (dashboardKeys.length > 0) {
+                await redis.del(dashboardKeys);
+                logInfo(`[${requestId}] Dashboard cache cleared: ${dashboardKeys.join(', ')}`);
+            }
+
+            // Xóa tất cả các key liên quan đến revenue
+            const revenueKeys = await redis.keys('revenue_*');
+            if (revenueKeys.length > 0) {
+                await redis.del(revenueKeys);
+                logInfo(`[${requestId}] Revenue cache cleared: ${revenueKeys.join(', ')}`);
+            }
+
+            // Xóa tất cả các key liên quan đến recent orders
+            const orderKeys = await redis.keys('recent_orders_*');
+            if (orderKeys.length > 0) {
+                await redis.del(orderKeys);
+                logInfo(`[${requestId}] Orders cache cleared: ${orderKeys.join(', ')}`);
+            }
+        }
+    } catch (error) {
+        logError(`[${requestId}] Error clearing cache: ${error.message}`);
+    }
+};
+
+// Hàm xóa cache
+const clearOrderCache = async (requestId) => {
+  try {
+    const redis = getRedisClient();
+    if (redis) {
+      // Xóa cache recent orders
+      const keys = await redis.keys('recent_orders:*');
+      if (keys.length > 0) {
+        await redis.del(keys);
+        logInfo(`[${requestId}] Cleared ${keys.length} recent orders cache keys`);
+      }
+
+      // Xóa cache dashboard stats
+      const dashboardKeys = await redis.keys('dashboard_stats:*');
+      if (dashboardKeys.length > 0) {
+        await redis.del(dashboardKeys);
+        logInfo(`[${requestId}] Cleared ${dashboardKeys.length} dashboard stats cache keys`);
+      }
+
+      // Xóa cache revenue
+      const revenueKeys = await redis.keys('revenue_data:*');
+      if (revenueKeys.length > 0) {
+        await redis.del(revenueKeys);
+        logInfo(`[${requestId}] Cleared ${revenueKeys.length} revenue cache keys`);
+      }
+
+      // Xóa cache best selling products
+      const productKeys = await redis.keys('best_selling_products:*');
+      if (productKeys.length > 0) {
+        await redis.del(productKeys);
+        logInfo(`[${requestId}] Cleared ${productKeys.length} best selling products cache keys`);
+      }
+
+      // Xóa tất cả các key liên quan đến dashboard
+      const allDashboardKeys = await redis.keys('dashboard:*');
+      if (allDashboardKeys.length > 0) {
+        await redis.del(allDashboardKeys);
+        logInfo(`[${requestId}] Cleared ${allDashboardKeys.length} dashboard cache keys`);
+      }
+    }
+  } catch (error) {
+    logError(`[${requestId}] Error clearing cache: ${error.message}`);
+  }
 };
 
 // Controllers
@@ -346,6 +423,9 @@ export const createOrder = async (req, res) => {
             });
         }
 
+        // Xóa cache sau khi tạo đơn hàng mới
+        await clearDashboardCache(requestId);
+
         logInfo(`[${requestId}] Successfully created order: ${savedOrder._id}`);
         res.status(201).json({
             success: true,
@@ -456,6 +536,9 @@ export const cancelOrder = async (req, res) => {
 
         order.status = ORDER_STATUS.CANCELLED;
         await order.save();
+
+        // Xóa cache sau khi hủy đơn hàng
+        await clearDashboardCache(requestId);
 
         logInfo(`[${requestId}] Successfully cancelled order: ${order._id}`);
         res.json({
@@ -637,6 +720,9 @@ export const updateOrderStatus = async (req, res) => {
         
         await order.save();
 
+        // Xóa cache sau khi cập nhật trạng thái đơn hàng
+        await clearDashboardCache(requestId);
+
         logInfo(`[${requestId}] Successfully updated order status: ${order._id}`);
         res.json({
             success: true,
@@ -676,6 +762,9 @@ export const updateOrderPayment = async (req, res) => {
         order.paymentMethod = paymentMethod;
         order.paymentStatus = paymentStatus;
         await order.save();
+
+        // Xóa cache sau khi cập nhật trạng thái thanh toán
+        await clearDashboardCache(requestId);
 
         logInfo(`[${requestId}] Successfully updated order payment: ${order._id}`);
         res.json({
@@ -721,6 +810,9 @@ export const deleteOrder = async (req, res) => {
         }
 
         await order.deleteOne();
+
+        // Xóa cache sau khi xóa đơn hàng
+        await clearOrderCache(requestId);
 
         logInfo(`[${requestId}] Successfully deleted order: ${orderId}`);
         res.json({
@@ -983,6 +1075,9 @@ export const bulkDeleteOrders = async (req, res) => {
                 { shortId: { $in: orderIds } }
             ]
         });
+
+        // Xóa cache sau khi xóa đơn hàng
+        await clearOrderCache(requestId);
 
         logInfo(`[${requestId}] Successfully deleted ${orders.length} orders`);
         res.json({

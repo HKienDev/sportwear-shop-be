@@ -176,18 +176,28 @@ export const getRevenue = async (req, res) => {
         tomorrow.setDate(tomorrow.getDate() + 1);
 
         // Get orders for the time period
-        const orders = await Order.find({
-            status: 'delivered',
-            'statusHistory': {
-                $elemMatch: {
-                    'status': 'delivered',
-                    'updatedAt': {
-                        $gte: startDate,
-                        $lt: timeRange === TIME_RANGES.DAY ? tomorrow : new Date(today.getTime() + 24 * 60 * 60 * 1000)
+        const orders = await Order.aggregate([
+            {
+                $match: {
+                    status: 'delivered',
+                    'statusHistory': {
+                        $elemMatch: {
+                            'status': 'delivered',
+                            'updatedAt': {
+                                $gte: startDate,
+                                $lt: timeRange === TIME_RANGES.DAY ? tomorrow : new Date(today.getTime() + 24 * 60 * 60 * 1000)
+                            }
+                        }
                     }
                 }
+            },
+            {
+                $sort: { 'statusHistory.updatedAt': 1 }
             }
-        }).sort({ 'statusHistory.updatedAt': 1 });
+        ]).exec();
+
+        // Convert to plain JavaScript objects
+        const plainOrders = orders.map(order => order.toObject ? order.toObject() : order);
 
         logInfo(`[${requestId}] Found ${orders.length} orders for the period`);
 
@@ -242,6 +252,152 @@ export const getRevenue = async (req, res) => {
                 period,
                 ...data
             }))
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
+};
+
+export const getBestSellingProducts = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { limit = 5, days = 30 } = req.query;
+        
+        logInfo(`[${requestId}] Fetching best selling products for the last ${days} days`);
+
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - parseInt(days));
+        startDate.setHours(7, 0, 0, 0);
+
+        const products = await Order.aggregate([
+            {
+                $match: {
+                    status: 'delivered',
+                    'statusHistory': {
+                        $elemMatch: {
+                            'status': 'delivered',
+                            'updatedAt': { $gte: startDate }
+                        }
+                    }
+                }
+            },
+            {
+                $unwind: '$items'
+            },
+            {
+                $group: {
+                    _id: '$items.product',
+                    totalSold: { $sum: '$items.quantity' },
+                    totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } }
+                }
+            },
+            {
+                $sort: { totalSold: -1 }
+            },
+            {
+                $limit: parseInt(limit)
+            }
+        ]).exec();
+
+        // Convert to plain JavaScript objects
+        const plainProducts = products.map(product => product.toObject ? product.toObject() : product);
+
+        // Get product details
+        const productIds = plainProducts.map(p => p._id);
+        const productDetails = await Product.find({ _id: { $in: productIds } })
+            .select('name image')
+            .lean();
+
+        // Merge product details with stats
+        const bestSellingProducts = plainProducts.map(product => {
+            const details = productDetails.find(p => p._id.toString() === product._id.toString());
+            return {
+                ...product,
+                name: details?.name || 'Unknown Product',
+                image: details?.image || ''
+            };
+        });
+
+        logInfo(`[${requestId}] Successfully fetched best selling products`);
+        res.json({
+            success: true,
+            data: {
+                products: bestSellingProducts,
+                lastUpdated: new Date().toISOString(),
+                limit: parseInt(limit),
+                days: parseInt(days)
+            }
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
+};
+
+export const getRevenueStats = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { period = 'day' } = req.query;
+        
+        logInfo(`[${requestId}] Fetching revenue stats for period: ${period}`);
+
+        const startDate = new Date();
+        startDate.setHours(7, 0, 0, 0);
+
+        switch (period) {
+            case 'day':
+                startDate.setDate(startDate.getDate() - 6);
+                break;
+            case 'week':
+                startDate.setDate(startDate.getDate() - 7);
+                break;
+            case 'month':
+                startDate.setMonth(startDate.getMonth() - 6);
+                break;
+            default:
+                startDate.setDate(startDate.getDate() - 6);
+        }
+
+        const stats = await Order.aggregate([
+            {
+                $match: {
+                    status: 'delivered',
+                    'statusHistory': {
+                        $elemMatch: {
+                            'status': 'delivered',
+                            'updatedAt': { $gte: startDate }
+                        }
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        $dateToString: {
+                            format: period === 'day' ? '%Y-%m-%d' : period === 'week' ? '%Y-%U' : '%Y-%m',
+                            date: { $arrayElemAt: ['$statusHistory.updatedAt', -1] },
+                            timezone: TIMEZONE
+                        }
+                    },
+                    total: { $sum: '$totalPrice' },
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $sort: { _id: 1 }
+            }
+        ]).exec();
+
+        // Convert to plain JavaScript objects
+        const plainStats = stats.map(stat => stat.toObject ? stat.toObject() : stat);
+
+        logInfo(`[${requestId}] Successfully fetched revenue stats`);
+        res.json({
+            success: true,
+            data: plainStats
         });
     } catch (error) {
         const errorResponse = handleError(error, requestId);
