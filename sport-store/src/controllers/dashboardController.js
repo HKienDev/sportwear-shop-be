@@ -1,5 +1,5 @@
 import Order from "../models/Order.js";
-import Product from "../models/Product.js";
+import Product from "../models/product.js";
 import User from "../models/User.js";
 import { getRedisClient } from '../config/redis.js';
 import { logInfo, logError } from '../utils/logger.js';

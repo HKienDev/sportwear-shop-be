@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Product from '../models/Product.js';
+import Product from '../models/product.js';
 import Category from "../models/Category.js";
 import { logInfo, logError, logWarn } from "../utils/logger.js";
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from "../utils/constants.js";

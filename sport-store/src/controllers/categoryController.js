@@ -3,7 +3,7 @@ import Category from "../models/Category.js";
 import { logInfo, logError } from "../utils/logger.js";
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from "../utils/constants.js";
 import { handleError } from "../utils/helpers.js";
-import Product from '../models/Product.js';
+import Product from '../models/product.js';
 import cloudinary from "../config/cloudinary.js";
 import User from '../models/User.js';
 
