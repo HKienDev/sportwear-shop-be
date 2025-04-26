@@ -1,4 +1,3 @@
-
 import mongoose from 'mongoose';
 
 const cartItemSchema = new mongoose.Schema({
@@ -8,6 +7,7 @@ const cartItemSchema = new mongoose.Schema({
     slug: { type: String, required: true },
     brand: { type: String, required: true },
     mainImage: { type: String, required: true },
+    originalPrice: { type: Number, required: true },
     salePrice: { type: Number, required: true }
   },
   quantity: { type: Number, required: true, min: 1 },

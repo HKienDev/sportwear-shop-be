@@ -76,6 +76,7 @@ export const addToCart = async (req, res) => {
           slug: product.slug,
           brand: product.brand,
           mainImage: product.mainImage,
+          originalPrice: product.originalPrice,
           salePrice: product.salePrice
         },
         quantity,
