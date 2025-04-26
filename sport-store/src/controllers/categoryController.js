@@ -5,7 +5,7 @@ import { ERROR_MESSAGES, SUCCESS_MESSAGES } from "../utils/constants.js";
 import { handleError } from "../utils/helpers.js";
 import Product from '../models/product.js';
 import cloudinary from "../config/cloudinary.js";
-import User from '../models/User.js';
+import User from '../models/user.js';
 
 // Controllers
 export const getAllCategories = async (req, res) => {
