@@ -442,16 +442,20 @@ export const getMyOrders = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const orders = await Order.find({ user: req.user._id })
-            .sort({ createdAt: -1 })
-            .populate('items.productId', 'name price image');
+        const userId = req.user._id;
+        logInfo(`[${requestId}] Fetching orders for user: ${userId}`);
 
-        logInfo(`[${requestId}] Successfully retrieved orders for user: ${req.user._id}`);
+        const orders = await Order.find({ user: userId })
+            .populate('items.product')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        logInfo(`[${requestId}] Successfully fetched ${orders.length} orders for user: ${userId}`);
         res.json({
             success: true,
-            message: SUCCESS_MESSAGES.ORDERS_RETRIEVED,
             data: orders
         });
+
     } catch (error) {
         const errorResponse = handleError(error, requestId);
         res.status(500).json(errorResponse);
@@ -462,25 +466,29 @@ export const getMyOrderById = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const order = await Order.findOne({
-            _id: req.params.id,
-            user: req.user._id
-        }).populate('items.productId', 'name price image');
+        const { id } = req.params;
+        const userId = req.user._id;
+
+        logInfo(`[${requestId}] Fetching order ${id} for user: ${userId}`);
+
+        const order = await Order.findOne({ _id: id, user: userId })
+            .populate('items.product')
+            .lean();
 
         if (!order) {
-            logError(`[${requestId}] Order not found: ${req.params.id}`);
+            logError(`[${requestId}] Order not found: ${id}`);
             return res.status(404).json({
                 success: false,
-                message: ERROR_MESSAGES.ORDER_NOT_FOUND
+                message: "Không tìm thấy đơn hàng"
             });
         }
 
-        logInfo(`[${requestId}] Successfully retrieved order: ${order._id}`);
+        logInfo(`[${requestId}] Successfully fetched order: ${id}`);
         res.json({
             success: true,
-            message: SUCCESS_MESSAGES.ORDER_RETRIEVED,
             data: order
         });
+
     } catch (error) {
         const errorResponse = handleError(error, requestId);
         res.status(500).json(errorResponse);
@@ -556,15 +564,18 @@ export const getAllOrders = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const orders = await Order.find()
+        const { userId } = req.query;
+        const query = userId ? { user: userId } : {};
+
+        const orders = await Order.find(query)
             .sort({ createdAt: -1 })
             .populate('user', 'email username')
-            .populate('items.productId', 'name price image');
+            .populate('items.product', 'name price image')
+            .lean();
 
         logInfo(`[${requestId}] Successfully retrieved all orders`);
         res.json({
             success: true,
-            message: SUCCESS_MESSAGES.ORDERS_RETRIEVED,
             data: orders
         });
     } catch (error) {

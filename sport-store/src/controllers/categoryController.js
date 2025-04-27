@@ -81,22 +81,22 @@ export const getCategoryById = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { id } = req.params;
+        const { categoryId } = req.params;
         
         // Tìm category bằng categoryId trước
-        let category = await Category.findOne({ categoryId: id });
+        let category = await Category.findOne({ categoryId });
         
         // Nếu không tìm thấy bằng categoryId, thử tìm bằng _id
         if (!category) {
             try {
-                category = await Category.findById(id);
+                category = await Category.findById(categoryId);
             } catch (error) {
                 // Bỏ qua lỗi CastError khi id không phải là ObjectId hợp lệ
             }
         }
         
         if (!category) {
-            logError(`[${requestId}] Category not found with id: ${id}`);
+            logError(`[${requestId}] Category not found with id: ${categoryId}`);
             return res.status(404).json({
                 success: false,
                 message: "Không tìm thấy danh mục"
@@ -251,18 +251,18 @@ export const updateCategory = async (req, res) => {
     
     try {
         const { name, description, slug, image, isActive } = req.body;
-        const id = req.params.id;
+        const { categoryId } = req.params;
 
-        logInfo(`[${requestId}] Updating category with ID: ${id}`);
+        logInfo(`[${requestId}] Updating category with ID: ${categoryId}`);
         logInfo(`[${requestId}] Update data:`, { name, description, slug, image, isActive });
 
         // Tìm category bằng categoryId trước
-        let category = await Category.findOne({ categoryId: id });
+        let category = await Category.findOne({ categoryId });
         if (!category) {
             logInfo(`[${requestId}] Category not found by categoryId, trying _id`);
             // Nếu không tìm thấy bằng categoryId, thử tìm bằng _id
             try {
-                category = await Category.findById(id);
+                category = await Category.findById(categoryId);
             } catch (error) {
                 // Bỏ qua lỗi CastError khi id không phải là ObjectId hợp lệ
                 if (error.name !== 'CastError') {
@@ -272,7 +272,7 @@ export const updateCategory = async (req, res) => {
         }
         
         if (!category) {
-            logError(`[${requestId}] Category not found: ${id}`);
+            logError(`[${requestId}] Category not found: ${categoryId}`);
             return res.status(404).json({
                 success: false,
                 message: ERROR_MESSAGES.CATEGORY_NOT_FOUND
@@ -331,11 +331,17 @@ export const updateCategory = async (req, res) => {
 };
 
 export const deleteCategory = async (req, res) => {
+    const requestId = req.id || 'unknown';
     try {
-        const { id } = req.params;
+        const { categoryId } = req.params;
         
         // Kiểm tra xem danh mục có tồn tại không
-        const category = await Category.findById(id);
+        let category = await Category.findOne({ categoryId });
+        if (!category) {
+            try {
+                category = await Category.findById(categoryId);
+            } catch (error) {}
+        }
         if (!category) {
             return res.status(404).json({
                 success: false,
@@ -344,7 +350,7 @@ export const deleteCategory = async (req, res) => {
         }
 
         // Kiểm tra xem danh mục có sản phẩm không
-        const hasProducts = await Product.exists({ categoryId: id });
+        const hasProducts = await Product.exists({ categoryId: categoryId });
         if (hasProducts) {
             return res.status(400).json({
                 success: false,
@@ -359,7 +365,7 @@ export const deleteCategory = async (req, res) => {
         }
 
         // Xóa danh mục khỏi database
-        await Category.findByIdAndDelete(id);
+        await Category.findByIdAndDelete(category._id);
 
         res.json({
             success: true,

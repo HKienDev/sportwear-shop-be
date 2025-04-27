@@ -15,27 +15,29 @@ export const getAllUsers = async (req, res, next) => {
 // Lấy thông tin chi tiết của một user
 export const getUserById = async (req, res, next) => {
   try {
-    console.log('Searching for user with ID:', req.params.id);
+    const customId = req.params.customId;
+    console.log('Searching for user with customId:', customId);
     
-    // Kiểm tra xem ID có phải là ObjectId hợp lệ không
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      console.log('Invalid ObjectId format:', req.params.id);
+    if (!customId) {
+      console.log('Custom ID is missing');
       return res.status(400).json({ 
         success: false,
-        message: "ID không hợp lệ!",
-        path: `/api/users/${req.params.id}`
+        message: "ID không tồn tại.",
+        path: req.url
       });
     }
-    
-    // Thử tìm user bằng ID
-    const user = await User.findById(req.params.id).select('-password');
+
+    // Tìm user dựa vào customId (VJUSPORTUSER-XXXXX)
+    const user = await User.findOne({ 
+      customId: customId
+    }).select('-password');
     
     if (!user) {
-      console.log('User not found by ID:', req.params.id);
+      console.log('User not found with customId:', customId);
       return res.status(404).json({ 
         success: false,
         message: ERROR_MESSAGES.NOT_FOUND_ERROR,
-        path: `/api/users/${req.params.id}`
+        path: req.url
       });
     }
     
@@ -43,7 +45,7 @@ export const getUserById = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: user,
-      path: `/api/users/${req.params.id}`
+      path: req.url
     });
   } catch (error) {
     console.error('Error in getUserById:', error);
@@ -101,13 +103,43 @@ export const updateUser = async (req, res, next) => {
 // Xóa user
 export const deleteUser = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
-    if (!user) {
-      return res.status(404).json({ message: ERROR_MESSAGES.NOT_FOUND_ERROR });
+    const customId = req.params.customId;
+    
+    console.log('Deleting user with customId:', customId);
+    
+    if (!customId) {
+      console.log('Custom ID is missing');
+      return res.status(400).json({ 
+        success: false,
+        message: "ID không tồn tại.",
+        path: req.url
+      });
     }
+
+    // Tìm user dựa vào customId (VJUSPORTUSER-XXXXX)
+    const user = await User.findOne({ 
+      customId: customId
+    });
+
+    if (!user) {
+      console.log('User not found with customId:', customId);
+      return res.status(404).json({ 
+        success: false,
+        message: ERROR_MESSAGES.NOT_FOUND_ERROR,
+        path: req.url
+      });
+    }
+
     await user.deleteOne();
-    res.status(200).json({ message: 'Xóa user thành công' });
+    
+    console.log('User deleted successfully:', customId);
+    res.status(200).json({ 
+      success: true,
+      message: 'Xóa user thành công',
+      path: req.url
+    });
   } catch (error) {
+    console.error('Error in deleteUser:', error);
     next(error);
   }
 };
@@ -162,18 +194,45 @@ export const updateUserTotalSpent = async (req, res, next) => {
 // Reset mật khẩu user
 export const resetUserPassword = async (req, res, next) => {
   try {
-    const { newPassword } = req.body;
-    const user = await User.findById(req.params.userId);
+    const { password } = req.body;
+    const customId = req.params.customId;
     
-    if (!user) {
-      return res.status(404).json({ message: ERROR_MESSAGES.NOT_FOUND_ERROR });
+    console.log('Resetting password for user with customId:', customId);
+    
+    if (!customId) {
+      console.log('Custom ID is missing');
+      return res.status(400).json({ 
+        success: false,
+        message: "ID không tồn tại.",
+        path: req.url
+      });
     }
 
-    user.password = newPassword;
+    // Tìm user dựa vào customId (VJUSPORTUSER-XXXXX)
+    const user = await User.findOne({ 
+      customId: customId
+    });
+    
+    if (!user) {
+      console.log('User not found with customId:', customId);
+      return res.status(404).json({ 
+        success: false,
+        message: ERROR_MESSAGES.NOT_FOUND_ERROR,
+        path: req.url
+      });
+    }
+
+    user.password = password;
     await user.save();
     
-    res.status(200).json({ message: 'Reset mật khẩu thành công' });
+    console.log('Password reset successful for user:', user._id);
+    res.status(200).json({ 
+      success: true,
+      message: 'Reset mật khẩu thành công',
+      path: req.url
+    });
   } catch (error) {
+    console.error('Error in resetUserPassword:', error);
     next(error);
   }
 }; 

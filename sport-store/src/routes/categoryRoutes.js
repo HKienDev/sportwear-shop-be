@@ -20,11 +20,11 @@ router.get("/test", (req, res) => {
 router.get("/", categoryController.getAllCategories);
 router.get("/search", validateRequest(searchCategorySchema), categoryController.searchCategories);
 router.get("/admin", verifyAdmin, categoryController.getAllCategories);
-router.get("/:id", categoryController.getCategoryById);
+router.get("/:categoryId", categoryController.getCategoryById);
 
 // Protected routes (Admin only)
 router.post("/", verifyAdmin, validateRequest(createCategorySchema), categoryController.createCategory);
-router.put("/:id", verifyAdmin, validateRequest(updateCategorySchema), categoryController.updateCategory);
-router.delete("/:id", verifyAdmin, categoryController.deleteCategory);
+router.put("/:categoryId", verifyAdmin, validateRequest(updateCategorySchema), categoryController.updateCategory);
+router.delete("/:categoryId", verifyAdmin, categoryController.deleteCategory);
 
 export default router;

@@ -55,15 +55,15 @@ router.use(verifyUser, verifyAdmin);
 
 // Routes quản lý user
 router.get('/users', getAllUsers);
-router.get('/users/:id', validateObjectId, getUserById);
+router.get('/users/:customId', getUserById);
 router.post('/users', validateRequest(createUserSchema), updateUser);
-router.put('/users/:id', validateObjectId, validateRequest(updateUserSchema), updateUser);
-router.delete('/users/:id', validateObjectId, deleteUser);
-router.patch('/users/:id/toggle-status', validateObjectId, toggleUserStatus);
+router.put('/users/:customId', validateRequest(updateUserSchema), updateUser);
+router.delete('/users/:customId', deleteUser);
+router.patch('/users/:customId/toggle-status', toggleUserStatus);
 router.get('/users/phone/:phone', getUserByPhone);
-router.put('/users/batch-update', updateAllUsersOrderCount);
-router.put('/users/:userId/update-spent', validateObjectId, updateUserTotalSpent);
-router.put('/users/:userId/reset-password', validateObjectId, validateRequest(resetUserPasswordSchema), resetUserPassword);
+router.put('/users/update-order-count', updateAllUsersOrderCount);
+router.put('/users/:customId/update-spent', updateUserTotalSpent);
+router.put('/users/:customId/reset-password', validateRequest(resetUserPasswordSchema), resetUserPassword);
 
 // Routes thống kê
 router.get('/stats', getStats);

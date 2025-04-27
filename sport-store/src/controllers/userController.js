@@ -71,10 +71,37 @@ export const getUserById = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const user = await User.findById(req.params.id).select('-password');
+        let userId = req.params.id;
+        
+        // Nếu ID có định dạng VJUSPORTUSER-, tìm user dựa trên 8 ký tự đầu của _id
+        if (userId.startsWith('VJUSPORTUSER-')) {
+            const shortId = userId.replace('VJUSPORTUSER-', '');
+            const user = await User.findOne({
+                _id: { $regex: `^${shortId}` }
+            }).select('-password');
+            
+            if (!user) {
+                logError(`[${requestId}] User not found with short ID: ${shortId}`);
+                return res.status(404).json({
+                    success: false,
+                    message: ERROR_MESSAGES.USER_NOT_FOUND
+                });
+            }
+
+            logInfo(`[${requestId}] Successfully retrieved user with short ID: ${shortId}`);
+            res.json({
+                success: true,
+                message: SUCCESS_MESSAGES.USER_RETRIEVED,
+                data: formatUserResponse(user)
+            });
+            return;
+        }
+
+        // Nếu là MongoDB ID thông thường
+        const user = await User.findById(userId).select('-password');
         
         if (!user) {
-            logError(`[${requestId}] User not found: ${req.params.id}`);
+            logError(`[${requestId}] User not found: ${userId}`);
             return res.status(404).json({
                 success: false,
                 message: ERROR_MESSAGES.USER_NOT_FOUND
