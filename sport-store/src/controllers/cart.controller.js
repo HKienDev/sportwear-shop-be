@@ -155,4 +155,33 @@ export const removeFromCart = async (req, res) => {
     const errorResponse = handleError(error, req.requestId);
     return sendErrorResponse(res, errorResponse.statusCode, errorResponse.message, error, req.requestId);
   }
+};
+
+// Xóa toàn bộ giỏ hàng
+export const clearCart = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Tìm và xóa giỏ hàng của user
+    const cart = await Cart.findOneAndDelete({ userId });
+
+    if (!cart) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy giỏ hàng"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Đã xóa giỏ hàng thành công"
+    });
+
+  } catch (error) {
+    console.error("Lỗi khi xóa giỏ hàng:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server khi xóa giỏ hàng"
+    });
+  }
 }; 
