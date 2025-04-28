@@ -569,6 +569,36 @@ export const updateOrderStatus = async (req, res) => {
         const currentStatus = order.status;
         const newStatus = status;
 
+        // Nếu trạng thái mới giống với trạng thái hiện tại, cho phép cập nhật
+        if (currentStatus === newStatus) {
+            // Cho phép cập nhật nếu có ghi chú mới
+            if (note) {
+                // Thêm vào lịch sử trạng thái với ghi chú mới
+                order.statusHistory.push({
+                    status: newStatus,
+                    updatedAt: new Date(),
+                    updatedBy: userId,
+                    note: note
+                });
+                
+                await order.save();
+                
+                logInfo(`[${requestId}] Successfully updated order note: ${order._id}`);
+                return res.json({
+                    success: true,
+                    message: SUCCESS_MESSAGES.ORDER_STATUS_UPDATED,
+                    data: order
+                });
+            }
+            
+            // Nếu không có ghi chú mới, trả về lỗi
+            logError(`[${requestId}] Attempted to update order with same status without note: ${order._id}`);
+            return res.status(400).json({
+                success: false,
+                message: `Không thể cập nhật đơn hàng với cùng trạng thái "${currentStatus}" mà không có ghi chú mới`
+            });
+        }
+
         // Kiểm tra xem có thể chuyển từ trạng thái hiện tại sang trạng thái mới không
         const validTransitions = {
             [ORDER_STATUS.PENDING]: [ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED],
@@ -578,7 +608,12 @@ export const updateOrderStatus = async (req, res) => {
             [ORDER_STATUS.CANCELLED]: [] // Không thể chuyển từ CANCELLED sang trạng thái khác
         };
 
-        if (!validTransitions[currentStatus].includes(newStatus)) {
+        // Cho phép hủy đơn từ bất kỳ trạng thái nào (trừ DELIVERED và CANCELLED)
+        if (newStatus === ORDER_STATUS.CANCELLED && 
+            currentStatus !== ORDER_STATUS.DELIVERED && 
+            currentStatus !== ORDER_STATUS.CANCELLED) {
+            // Cho phép hủy đơn
+        } else if (!validTransitions[currentStatus].includes(newStatus)) {
             logError(`[${requestId}] Invalid status transition from ${currentStatus} to ${newStatus}`);
             return res.status(400).json({
                 success: false,

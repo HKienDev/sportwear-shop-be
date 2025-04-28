@@ -36,11 +36,19 @@ const SHIPPING_FEES = {
 // Helper functions
 const generateShortId = () => {
     const date = new Date();
-    const year = date.getFullYear().toString().slice(-2); // 2 số cuối của năm
-    const month = (date.getMonth() + 1).toString().padStart(2, '0'); // Tháng (01-12)
-    const day = date.getDate().toString().padStart(2, '0'); // Ngày (01-31)
-    const random = Math.random().toString(36).substring(2, 6).toUpperCase(); // 4 ký tự ngẫu nhiên
-    return `${year}${month}${day}${random}`; // Format: YYMMDDXXXX
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear().toString();
+    const timestamp = `${day}${month}${year}`; // Format: DDMMYYYY
+    
+    // Tạo chuỗi ngẫu nhiên 5 ký tự bao gồm chữ hoa, chữ thường và số
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let randomStr = '';
+    for (let i = 0; i < 5; i++) {
+        randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    
+    return `VJUSPORT-ORDER-${timestamp}-${randomStr}`;
 };
 
 // Schema
