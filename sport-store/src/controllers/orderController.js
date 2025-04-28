@@ -588,30 +588,23 @@ export const getOrderById = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        // Kiểm tra xem id có phải là ObjectId hợp lệ không
-        const isObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
-        
-        // Tìm kiếm đơn hàng bằng _id hoặc shortId
-        const order = isObjectId 
-            ? await Order.findById(req.params.id)
-                .populate('user', 'email username')
-                .populate('items.product', 'name price image')
-            : await Order.findOne({ shortId: req.params.id })
-                .populate('user', 'email username')
-                .populate('items.product', 'name price image');
+        const { id } = req.params;
+        const order = await Order.findById(id)
+            .populate('user', 'username email fullname phone customId')
+            .populate('items.product', 'name price mainImage')
+            .lean();
 
         if (!order) {
-            logError(`[${requestId}] Order not found: ${req.params.id}`);
+            logError(`[${requestId}] Order not found: ${id}`);
             return res.status(404).json({
                 success: false,
                 message: ERROR_MESSAGES.ORDER_NOT_FOUND
             });
         }
 
-        logInfo(`[${requestId}] Successfully retrieved order: ${order._id}`);
+        logInfo(`[${requestId}] Successfully retrieved order: ${id}`);
         res.json({
             success: true,
-            message: SUCCESS_MESSAGES.ORDER_RETRIEVED,
             data: order
         });
     } catch (error) {
