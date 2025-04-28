@@ -232,7 +232,7 @@ export const createOrder = async (req, res) => {
         const shippingFee = SHIPPING_FEES[shippingMethod];
         
         // Lưu subtotal gốc (chưa bao gồm phí vận chuyển) để tính giảm giá
-        const productSubtotal = subtotal;
+        const productSubtotal = subtotal - shippingFee;
         
         // Cộng phí vận chuyển vào subtotal
         subtotal += shippingFee;
