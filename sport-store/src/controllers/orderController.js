@@ -11,6 +11,7 @@ import { ERROR_MESSAGES, SUCCESS_MESSAGES, ORDER_STATUS, PAYMENT_METHODS, SHIPPI
 import { handleError } from "../utils/helpers.js";
 import { Coupon } from "../models/coupon.js";
 import { getRedisClient } from '../config/redis.js';
+import { sendEmail } from "../utils/sendEmail.js";
 
 const stripeInstance = stripe(env.STRIPE_SECRET_KEY);
 
@@ -345,6 +346,25 @@ export const createOrder = async (req, res) => {
 
         // Xóa cache sau khi tạo đơn hàng mới
         await clearDashboardCache(requestId);
+
+        // Gửi email xác nhận đơn hàng
+        try {
+            // Lấy thông tin người dùng
+            const user = await User.findById(userId);
+            if (user && user.email) {
+                // Gửi email xác nhận đơn hàng
+                await sendEmail({
+                    to: user.email,
+                    template: 'newOrder',
+                    data: savedOrder,
+                    requestId
+                });
+                logInfo(`[${requestId}] Order confirmation email sent to ${user.email}`);
+            }
+        } catch (emailError) {
+            logError(`[${requestId}] Error sending order confirmation email: ${emailError.message}`);
+            // Không dừng quá trình xử lý đơn hàng nếu gửi email thất bại
+        }
 
         logInfo(`[${requestId}] Successfully created order: ${savedOrder._id}`);
         res.status(201).json({

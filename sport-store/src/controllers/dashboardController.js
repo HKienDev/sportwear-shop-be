@@ -7,16 +7,38 @@ import { handleError } from '../utils/helpers.js';
 import { v4 as uuidv4 } from 'uuid';
 
 // Hàm xóa cache dashboard
-export const clearDashboardCache = async () => {
+export const clearDashboardCache = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
     try {
+        logInfo(`[${requestId}] Clearing dashboard cache`);
+        
         const redis = getRedisClient();
-        if (redis) {
-            const cacheKey = 'dashboard_stats';
-            await redis.del(cacheKey);
-            logInfo('Dashboard cache cleared successfully');
+        if (!redis) {
+            logInfo(`[${requestId}] Redis client not available`);
+            return res.json({
+                success: true,
+                message: 'Redis client not available',
+                clearedKeys: 0
+            });
         }
+
+        const cacheKey = 'dashboard_stats';
+        await redis.del(cacheKey);
+        logInfo(`[${requestId}] Dashboard cache cleared successfully`);
+        
+        res.json({
+            success: true,
+            message: 'Dashboard cache cleared successfully',
+            clearedKeys: 1
+        });
     } catch (error) {
-        logError('Error clearing dashboard cache:', error);
+        logError(`[${requestId}] Error clearing dashboard cache: ${error.message}`);
+        res.status(500).json({
+            success: false,
+            message: 'Error clearing dashboard cache',
+            error: error.message
+        });
     }
 };
 
@@ -175,7 +197,7 @@ export const getStats = async (req, res) => {
         const productGrowth = calculateGrowth(thisMonthProducts, lastMonthProducts);
 
         const data = {
-            totalOrders: pendingOrders + confirmedOrders + deliveredOrders - cancelledOrders, // Tổng đơn hàng = Đơn pending + Đơn confirmed + Đơn delivered - Đơn cancelled
+            totalOrders: pendingOrders + confirmedOrders + deliveredOrders + cancelledOrders, // Tổng đơn hàng = Tất cả các đơn hàng, không phân biệt trạng thái
             totalRevenue: totalRevenue[0]?.total || 0,
             totalCustomers,
             totalProducts,

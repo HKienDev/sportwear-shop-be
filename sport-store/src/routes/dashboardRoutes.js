@@ -1,5 +1,5 @@
 import express from 'express';
-import { getStats, getRevenue, getRecentOrders, getBestSellingProducts, clearCache } from '../controllers/dashboardController.js';
+import { getStats, getRevenue, getRecentOrders, getBestSellingProducts, clearCache, clearDashboardCache } from '../controllers/dashboardController.js';
 import { verifyAccessTokenMiddleware } from '../middlewares/authMiddleware.js';
 import { isAdmin } from '../middlewares/roleMiddleware.js';
 import { validateQueryParams } from '../middlewares/validationMiddleware.js';
@@ -70,6 +70,7 @@ const bestSellingValidation = {
 
 // Lấy thống kê tổng quan
 router.get('/stats', getStats);
+router.post('/stats/clear-cache', clearDashboardCache);
 
 // Lấy doanh thu
 router.get('/revenue', validateQueryParams(revenueValidation), getRevenue);
