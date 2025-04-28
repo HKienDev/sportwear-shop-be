@@ -213,30 +213,39 @@ export const createOrder = async (req, res) => {
                 });
             }
 
-            // Sử dụng salePrice nếu có, ngược lại dùng originalPrice
-            const price = product.salePrice > 0 ? product.salePrice : product.originalPrice;
-            subtotal += price * item.quantity;
+            // Tính subtotal dựa trên originalPrice
+            subtotal += product.originalPrice * item.quantity;
+            
+            // Tính directDiscount nếu có salePrice
+            const itemDirectDiscount = product.salePrice > 0 ? 
+                (product.originalPrice - product.salePrice) * item.quantity : 0;
+            
+            // Lưu giá thực tế phải trả (salePrice hoặc originalPrice)
+            const actualPrice = product.salePrice > 0 ? product.salePrice : product.originalPrice;
 
             orderItems.push({
                 product: product._id,
                 quantity: item.quantity,
-                price: price,
+                price: actualPrice, // Giá thực tế phải trả
                 name: product.name,
                 sku: product.sku,
                 color: item.color,
-                size: item.size
+                size: item.size,
+                originalPrice: product.originalPrice,
+                salePrice: product.salePrice,
+                directDiscount: itemDirectDiscount
             });
         }
 
+        // Tính tổng directDiscount từ tất cả các items
+        const totalDirectDiscount = orderItems.reduce((total, item) => total + (item.directDiscount || 0), 0);
+        
         // Tính phí vận chuyển
         const shippingFee = SHIPPING_FEES[shippingMethod];
         
-        // Lưu subtotal gốc (chưa bao gồm phí vận chuyển) để tính giảm giá
-        const productSubtotal = subtotal - shippingFee;
+        // Lưu subtotal gốc để tính giảm giá
+        const productSubtotal = subtotal;
         
-        // Cộng phí vận chuyển vào subtotal
-        subtotal += shippingFee;
-
         // Xử lý mã giảm giá nếu có
         let discountAmount = 0;
         let appliedCoupon = null;
@@ -293,125 +302,36 @@ export const createOrder = async (req, res) => {
                 });
             }
 
-            // Tính giá trị giảm giá (chỉ áp dụng cho giá sản phẩm, không áp dụng cho phí vận chuyển)
+            // Tính giá trị giảm giá (chỉ áp dụng cho giá sản phẩm sau khi trừ directDiscount)
+            const priceAfterDirectDiscount = productSubtotal - totalDirectDiscount;
             if (coupon.type === "percentage") {
-                discountAmount = (productSubtotal * coupon.value) / 100;
+                discountAmount = Math.floor((priceAfterDirectDiscount * coupon.value) / 100);
             } else if (coupon.type === "fixed") {
-                discountAmount = coupon.value;
+                discountAmount = Math.min(coupon.value, priceAfterDirectDiscount);
             }
 
-            try {
-                // Cập nhật coupon với thông tin sử dụng mới
-                await Coupon.findByIdAndUpdate(coupon._id, {
-                    $inc: { usageCount: 1 },
-                    $push: {
-                        usedBy: {
-                            user: userId,
-                            usedAt: new Date()
-                        }
-                    }
-                });
-                
-                // Lưu thông tin coupon đã áp dụng
-                appliedCoupon = {
-                    ...coupon.toObject(),
-                    discountAmount
-                };
-            } catch (error) {
-                return res.status(400).json({
-                    success: false,
-                    message: error.message
-                });
-            }
+            appliedCoupon = coupon;
         }
 
-        // Tính tổng tiền cuối cùng
-        // Tổng tiền = (Giá sản phẩm - Giảm giá) + Phí vận chuyển
-        const total = (productSubtotal - discountAmount) + shippingFee;
+        // Tính tổng tiền cuối cùng (bao gồm phí vận chuyển)
+        const totalPrice = productSubtotal - totalDirectDiscount - discountAmount + shippingFee;
 
-        // Tìm user theo số điện thoại nếu có
-        let orderUser = userId;
-        if (shippingAddress.phone) {
-            const userByPhone = await User.findOne({ phone: shippingAddress.phone });
-            if (userByPhone) {
-                orderUser = userByPhone._id;
-            }
-        }
-
-        // Tạo mã đơn hàng duy nhất
-        let shortId;
-        let isUnique = false;
-        let attempts = 0;
-        const maxAttempts = 10;
-
-        // Lấy ngày giờ hiện tại theo múi giờ Việt Nam (UTC+7)
-        const now = new Date();
-        const vietnamTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
-        
-        // Format ngày tháng năm: DDMMYY
-        const day = String(vietnamTime.getUTCDate()).padStart(2, '0');
-        const month = String(vietnamTime.getUTCMonth() + 1).padStart(2, '0');
-        const year = String(vietnamTime.getUTCFullYear()).slice(-2);
-        const dateStr = `${day}${month}${year}`;
-
-        while (!isUnique && attempts < maxAttempts) {
-            // Tạo chuỗi ngẫu nhiên 5 ký tự (số và chữ in hoa)
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-            let randomStr = '';
-            for (let i = 0; i < 5; i++) {
-                randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
-            }
-            
-            // Kết hợp thành mã đơn hàng: VJUSPORTORDER-YYYYYY-XXXXX
-            shortId = `VJUSPORTORDER-${dateStr}-${randomStr}`;
-            
-            const existingOrder = await Order.findOne({ shortId });
-            if (!existingOrder) {
-                isUnique = true;
-            }
-            attempts++;
-        }
-
-        if (!isUnique) {
-            logError(`[${requestId}] Failed to generate unique order ID after ${maxAttempts} attempts`);
-            return res.status(500).json({
-                success: false,
-                message: "Không thể tạo mã đơn hàng duy nhất. Vui lòng thử lại sau."
-            });
-        }
-
-        // Create order
+        // Tạo order mới
         const order = new Order({
-            user: orderUser,
-            shortId: shortId,
+            user: userId,
             items: orderItems,
-            totalPrice: total,
-            shippingAddress: {
-                fullName: shippingAddress.fullName,
-                phone: shippingAddress.phone,
-                address: {
-                    province: {
-                        name: shippingAddress.address.province.name,
-                        code: shippingAddress.address.province.code
-                    },
-                    district: {
-                        name: shippingAddress.address.district.name,
-                        code: shippingAddress.address.district.code
-                    },
-                    ward: {
-                        name: shippingAddress.address.ward.name,
-                        code: shippingAddress.address.ward.code
-                    },
-                    street: shippingAddress.address.street || ''
-                }
-            },
-            paymentMethod,
+            subtotal: productSubtotal, // Tổng tiền hàng gốc
+            directDiscount: totalDirectDiscount, // Giảm giá trực tiếp
+            couponDiscount: discountAmount, // Giảm giá từ mã
+            shippingFee: shippingFee, // Phí vận chuyển
+            totalPrice: totalPrice, // Tổng tiền thanh toán
+            shippingAddress: shippingAddress,
+            paymentMethod: paymentMethod,
             shippingMethod: {
                 method: shippingMethod,
                 fee: shippingFee
             },
-            status: ORDER_STATUS.PENDING,
-            coupon: appliedCoupon
+            coupon: appliedCoupon ? appliedCoupon._id : null
         });
 
         const savedOrder = await order.save();
@@ -841,7 +761,7 @@ export const stripeWebhook = async (req, res) => {
         try {
             event = stripeInstance.webhooks.constructEvent(req.body, sig, endpointSecret);
         } catch (err) {
-            logError(`[${requestId}] Webhook signature verification failed:`, err);
+            logError(`[${requestId}] Webhook signature verification failed: ${err.message}`);
             return res.status(400).send(`Webhook Error: ${err.message}`);
         }
 
@@ -868,231 +788,5 @@ export const stripeWebhook = async (req, res) => {
     } catch (error) {
         const errorResponse = handleError(error, requestId);
         res.status(500).json(errorResponse);
-    }
-};
-
-export const getOrdersByPhone = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
-    try {
-        const { phone } = req.params;
-
-        logInfo(`[${requestId}] Fetching orders by phone: ${phone}`);
-
-        try {
-            validatePhone(phone);
-        } catch (error) {
-            logError(`[${requestId}] Invalid phone number: ${phone}`);
-            return res.status(400).json({
-                success: false,
-                message: error.message
-            });
-        }
-
-        const orders = await Order.find({ 'shippingAddress.phone': phone })
-            .sort({ createdAt: -1 })
-            .lean();
-
-        logInfo(`[${requestId}] Successfully fetched ${orders.length} orders for phone: ${phone}`);
-        res.json({
-            success: true,
-            data: orders
-        });
-
-    } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
-    }
-};
-
-export const getRecentOrders = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
-    try {
-        const limit = parseInt(req.query.limit) || 5;
-
-        logInfo(`[${requestId}] Fetching ${limit} recent orders`);
-        
-        const orders = await Order.find()
-            .sort({ createdAt: -1 })
-            .limit(limit)
-            .lean();
-
-        logInfo(`[${requestId}] Successfully fetched ${orders.length} recent orders`);
-        res.json({
-            success: true,
-            data: orders
-        });
-
-    } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
-    }
-};
-
-export const getStats = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
-    try {
-        logInfo(`[${requestId}] Fetching order statistics`);
-        
-        const [
-            totalOrders,
-            totalRevenue,
-            pendingOrders,
-            completedOrders,
-            cancelledOrders
-        ] = await Promise.all([
-            Order.countDocuments(),
-            Order.aggregate([
-                { $match: { status: ORDER_STATUS.COMPLETED } },
-                { $group: { _id: null, total: { $sum: "$totalPrice" } } }
-            ]),
-            Order.countDocuments({ status: ORDER_STATUS.PENDING }),
-            Order.countDocuments({ status: ORDER_STATUS.COMPLETED }),
-            Order.countDocuments({ status: ORDER_STATUS.CANCELLED })
-        ]);
-
-        const stats = {
-            totalOrders,
-            totalRevenue: totalRevenue[0]?.total || 0,
-            pendingOrders,
-            completedOrders,
-            cancelledOrders,
-            completionRate: totalOrders ? (completedOrders / totalOrders) * 100 : 0
-        };
-
-        logInfo(`[${requestId}] Successfully fetched order statistics`);
-        res.json({
-            success: true,
-            data: stats
-        });
-
-    } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
-    }
-};
-
-export const getAdminOrders = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
-    try {
-        const { page = 1, limit = 10, status, search } = req.query;
-        const skip = (parseInt(page) - 1) * parseInt(limit);
-
-        // Xây dựng query
-        const query = {};
-        if (status) {
-            query.status = status;
-        }
-        if (search) {
-            query.$or = [
-                { orderNumber: { $regex: search, $options: 'i' } },
-                { customerName: { $regex: search, $options: 'i' } },
-                { email: { $regex: search, $options: 'i' } }
-            ];
-        }
-
-        // Lấy tổng số đơn hàng
-        const totalOrders = await Order.countDocuments(query);
-
-        // Lấy danh sách đơn hàng với phân trang
-        const orders = await Order.find(query)
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(parseInt(limit))
-            .populate('user', 'name email')
-            .lean();
-
-        // Tính toán thông tin phân trang
-        const totalPages = Math.ceil(totalOrders / parseInt(limit));
-        const hasMore = parseInt(page) < totalPages;
-
-        logInfo(`[${requestId}] Successfully fetched admin orders`);
-        res.json({
-            success: true,
-            data: {
-                orders,
-                pagination: {
-                    currentPage: parseInt(page),
-                    totalPages,
-                    totalOrders,
-                    hasMore
-                }
-            }
-        });
-    } catch (error) {
-        logError(`[${requestId}] Error fetching admin orders: ${error.message}`);
-        res.status(500).json({
-            success: false,
-            message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR
-        });
-    }
-};
-
-export const bulkDeleteOrders = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
-    try {
-        const { orderIds } = req.body;
-
-        if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
-            logError(`[${requestId}] Invalid orderIds: ${JSON.stringify(orderIds)}`);
-            return res.status(400).json({
-                success: false,
-                message: "Danh sách đơn hàng không hợp lệ"
-            });
-        }
-
-        // Tìm tất cả đơn hàng cần xóa
-        const orders = await Order.find({
-            $or: [
-                { _id: { $in: orderIds } },
-                { shortId: { $in: orderIds } }
-            ]
-        });
-
-        if (orders.length === 0) {
-            logError(`[${requestId}] No orders found to delete`);
-            return res.status(404).json({
-                success: false,
-                message: "Không tìm thấy đơn hàng nào để xóa"
-            });
-        }
-
-        // Khôi phục số lượng sản phẩm cho các đơn hàng đang chờ xác nhận
-        for (const order of orders) {
-            if (order.status === ORDER_STATUS.PENDING) {
-                for (const item of order.items) {
-                    await Product.findByIdAndUpdate(item.product, {
-                        $inc: { stock: item.quantity }
-                    });
-                }
-            }
-        }
-
-        // Xóa tất cả đơn hàng
-        await Order.deleteMany({
-            $or: [
-                { _id: { $in: orderIds } },
-                { shortId: { $in: orderIds } }
-            ]
-        });
-
-        // Xóa cache sau khi xóa đơn hàng
-        await clearOrderCache(requestId);
-
-        logInfo(`[${requestId}] Successfully deleted ${orders.length} orders`);
-        res.json({
-            success: true,
-            message: `Đã xóa thành công ${orders.length} đơn hàng`
-        });
-    } catch (error) {
-        logError(`[${requestId}] Error deleting orders: ${error.message}`);
-        res.status(500).json({
-            success: false,
-            message: "Có lỗi xảy ra khi xóa đơn hàng"
-        });
     }
 };

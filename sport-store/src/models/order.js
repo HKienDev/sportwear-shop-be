@@ -84,10 +84,31 @@ const orderSchema = new mongoose.Schema({
             trim: true
         }
     }],
+    subtotal: {
+        type: Number,
+        required: [true, "Tổng tiền hàng là bắt buộc"],
+        min: [0, "Tổng tiền hàng không thể âm"]
+    },
+    directDiscount: {
+        type: Number,
+        default: 0,
+        min: [0, "Giảm giá trực tiếp không thể âm"]
+    },
+    couponDiscount: {
+        type: Number,
+        default: 0,
+        min: [0, "Giảm giá từ mã giảm giá không thể âm"]
+    },
+    shippingFee: {
+        type: Number,
+        required: [true, "Phí vận chuyển là bắt buộc"],
+        default: 0,
+        min: [0, "Phí vận chuyển không thể âm"]
+    },
     totalPrice: {
         type: Number,
-        required: [true, "Tổng giá trị đơn hàng là bắt buộc"],
-        min: [0, "Tổng giá trị đơn hàng không thể âm"]
+        required: [true, "Tổng tiền thanh toán là bắt buộc"],
+        min: [0, "Tổng tiền thanh toán không thể âm"]
     },
     paymentMethod: {
         type: String,
@@ -179,12 +200,6 @@ const orderSchema = new mongoose.Schema({
             type: String,
             trim: true
         }
-    },
-    shippingFee: {
-        type: Number,
-        required: [true, "Phí vận chuyển là bắt buộc"],
-        default: 0,
-        min: [0, "Phí vận chuyển không thể âm"]
     },
     status: {
         type: String,
