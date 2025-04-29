@@ -400,15 +400,39 @@ export const getMyOrders = async (req, res) => {
         const userId = req.user._id;
         logInfo(`[${requestId}] Fetching orders for user: ${userId}`);
 
+        // Lấy tham số phân trang từ query
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        // Đếm tổng số đơn hàng
+        const totalOrders = await Order.countDocuments({ user: userId });
+
+        // Lấy danh sách đơn hàng với phân trang
         const orders = await Order.find({ user: userId })
             .populate('items.product')
             .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
             .lean();
+
+        // Tính toán thông tin phân trang
+        const totalPages = Math.ceil(totalOrders / limit);
+        const hasNextPage = page < totalPages;
+        const hasPrevPage = page > 1;
 
         logInfo(`[${requestId}] Successfully fetched ${orders.length} orders for user: ${userId}`);
         res.json({
             success: true,
-            data: orders
+            data: orders,
+            pagination: {
+                total: totalOrders,
+                page,
+                limit,
+                totalPages,
+                hasNextPage,
+                hasPrevPage
+            }
         });
 
     } catch (error) {
