@@ -712,18 +712,19 @@ export const getBestSellingProducts = async (req, res) => {
 
         // Kiểm tra cache
         const redis = getRedisClient();
+        const cacheKey = `best_selling_products:${limit}:${days}`;
+
+        // Luôn xóa cache cũ để đảm bảo dữ liệu mới nhất
         if (redis) {
-            const cacheKey = `best_selling_products:${limit}:${days}`;
-            const cachedData = await redis.get(cacheKey);
-            
-            if (cachedData) {
-                logInfo(`[${requestId}] Returning cached best selling products`);
-                return res.json(JSON.parse(cachedData));
-            }
+            await redis.del(cacheKey);
+            logInfo(`[${requestId}] Cleared cache for best selling products`);
         }
 
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - parseInt(days));
+        const currentPeriodStart = new Date();
+        currentPeriodStart.setDate(currentPeriodStart.getDate() - parseInt(days));
+
+        const previousPeriodStart = new Date(currentPeriodStart);
+        previousPeriodStart.setDate(previousPeriodStart.getDate() - parseInt(days));
 
         // Lấy tất cả sản phẩm trước
         const allProducts = await Product.find()
@@ -731,14 +732,14 @@ export const getBestSellingProducts = async (req, res) => {
             .populate('categoryId', 'name')
             .lean();
 
-        // Lấy sản phẩm bán chạy từ đơn hàng đã giao và trừ đi đơn hàng đã hủy
-        const [deliveredProducts, cancelledProducts] = await Promise.all([
-            // Đếm số lượng bán từ đơn hàng đã giao
+        // Lấy dữ liệu cho kỳ hiện tại và kỳ trước
+        const [currentDelivered, currentCancelled, previousDelivered, previousCancelled] = await Promise.all([
+            // Kỳ hiện tại - đơn đã giao
             Order.aggregate([
                 {
                     $match: {
                         status: 'delivered',
-                        createdAt: { $gte: startDate }
+                        createdAt: { $gte: currentPeriodStart }
                     }
                 },
                 {
@@ -752,12 +753,48 @@ export const getBestSellingProducts = async (req, res) => {
                     }
                 }
             ]).exec(),
-            // Đếm số lượng bán từ đơn hàng đã hủy để trừ đi
+            // Kỳ hiện tại - đơn đã hủy
             Order.aggregate([
                 {
                     $match: {
                         status: 'cancelled',
-                        createdAt: { $gte: startDate }
+                        createdAt: { $gte: currentPeriodStart }
+                    }
+                },
+                {
+                    $unwind: '$items'
+                },
+                {
+                    $group: {
+                        _id: '$items.product',
+                        totalCancelled: { $sum: '$items.quantity' }
+                    }
+                }
+            ]).exec(),
+            // Kỳ trước - đơn đã giao
+            Order.aggregate([
+                {
+                    $match: {
+                        status: 'delivered',
+                        createdAt: { $gte: previousPeriodStart, $lt: currentPeriodStart }
+                    }
+                },
+                {
+                    $unwind: '$items'
+                },
+                {
+                    $group: {
+                        _id: '$items.product',
+                        totalSold: { $sum: '$items.quantity' }
+                    }
+                }
+            ]).exec(),
+            // Kỳ trước - đơn đã hủy
+            Order.aggregate([
+                {
+                    $match: {
+                        status: 'cancelled',
+                        createdAt: { $gte: previousPeriodStart, $lt: currentPeriodStart }
                     }
                 },
                 {
@@ -772,18 +809,45 @@ export const getBestSellingProducts = async (req, res) => {
             ]).exec()
         ]);
 
-        // Kết hợp thông tin từ cả hai nguồn và format theo interface DashboardData
-        const bestSellingProducts = allProducts.map(product => {
-            const deliveredStats = deliveredProducts.find(
-                p => p._id.toString() === product._id.toString()
-            ) || { totalSold: 0, totalRevenue: 0 };
+        // Log dữ liệu để debug
+        logInfo(`[${requestId}] Current delivered data: ${JSON.stringify(currentDelivered)}`);
+        logInfo(`[${requestId}] Current cancelled data: ${JSON.stringify(currentCancelled)}`);
 
-            const cancelledStats = cancelledProducts.find(
+        // Tính % tăng trưởng
+        const calculateGrowth = (current, previous) => {
+            if (previous === 0) return current > 0 ? 100 : 0;
+            return ((current - previous) / previous) * 100;
+        };
+
+        const bestSellingProducts = allProducts.map(product => {
+            // Tính số lượng bán kỳ hiện tại
+            const currentDeliveredStats = currentDelivered.find(
+                p => p._id.toString() === product._id.toString()
+            ) || { totalSold: 0 };
+            const currentCancelledStats = currentCancelled.find(
                 p => p._id.toString() === product._id.toString()
             ) || { totalCancelled: 0 };
+            const currentTotalSold = (currentDeliveredStats.totalSold || 0) - (currentCancelledStats.totalCancelled || 0);
 
-            // Tính tổng số lượng bán = Đơn đã giao - Đơn đã hủy
-            const totalSold = (deliveredStats.totalSold || 0) - (cancelledStats.totalCancelled || 0);
+            // Tính số lượng bán kỳ trước
+            const previousDeliveredStats = previousDelivered.find(
+                p => p._id.toString() === product._id.toString()
+            ) || { totalSold: 0 };
+            const previousCancelledStats = previousCancelled.find(
+                p => p._id.toString() === product._id.toString()
+            ) || { totalCancelled: 0 };
+            const previousTotalSold = (previousDeliveredStats.totalSold || 0) - (previousCancelledStats.totalCancelled || 0);
+
+            // Log chi tiết cho từng sản phẩm
+            logInfo(`[${requestId}] Product ${product.name} stats:
+                Current delivered: ${currentDeliveredStats.totalSold || 0}
+                Current cancelled: ${currentCancelledStats.totalCancelled || 0}
+                Current total: ${currentTotalSold}
+                Previous total: ${previousTotalSold}
+            `);
+
+            // Tính % tăng trưởng
+            const growthRate = calculateGrowth(currentTotalSold, previousTotalSold);
 
             return {
                 _id: product._id.toString(),
@@ -791,7 +855,8 @@ export const getBestSellingProducts = async (req, res) => {
                 image: product.mainImage,
                 category: product.categoryId?.name || 'Unknown Category',
                 sku: product.sku || '',
-                totalSales: totalSold
+                totalSales: currentTotalSold,
+                growthRate: Math.round(growthRate * 100) / 100 // Làm tròn đến 2 chữ số thập phân
             };
         });
 
@@ -807,10 +872,10 @@ export const getBestSellingProducts = async (req, res) => {
             message: 'Best selling products retrieved successfully'
         };
 
-        // Cache kết quả (5 phút)
+        // Cache kết quả (1 phút)
         if (redis) {
-            const cacheKey = `best_selling_products:${limit}:${days}`;
-            await redis.set(cacheKey, JSON.stringify(data), 'EX', 300);
+            await redis.set(cacheKey, JSON.stringify(data), 'EX', 60); // Giảm thời gian cache xuống 1 phút
+            logInfo(`[${requestId}] Cached best selling products data for 1 minute`);
         }
 
         logInfo(`[${requestId}] Successfully fetched best selling products`);
