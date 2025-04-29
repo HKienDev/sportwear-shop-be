@@ -352,11 +352,26 @@ export const createOrder = async (req, res) => {
             // Lấy thông tin người dùng
             const user = await User.findById(userId);
             if (user && user.email) {
+                // Populate đơn hàng với thông tin sản phẩm
+                const populatedOrder = await Order.findById(savedOrder._id)
+                    .populate('items.product', 'name price mainImage')
+                    .lean();
+
+                // Chuyển đổi dữ liệu để đảm bảo các trường được populate hiển thị đúng
+                const orderData = {
+                    ...populatedOrder,
+                    items: populatedOrder.items.map(item => ({
+                        ...item,
+                        name: item.name || (item.product && item.product.name) || 'Sản phẩm không xác định',
+                        price: item.price || 0
+                    }))
+                };
+
                 // Gửi email xác nhận đơn hàng
                 await sendEmail({
                     to: user.email,
                     template: 'newOrder',
-                    data: savedOrder,
+                    data: orderData,
                     requestId
                 });
                 logInfo(`[${requestId}] Order confirmation email sent to ${user.email}`);
