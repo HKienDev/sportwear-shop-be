@@ -24,6 +24,7 @@ router.put("/my-orders/:id/cancel", verifyUser, orderController.cancelOrder);
 // Protected routes (Admin only)
 router.get("/admin", verifyAdmin, orderController.getAllOrders);
 router.get("/all", verifyAdmin, orderController.getAllOrders);
+router.get("/", verifyAdmin, orderController.getAllOrders);
 router.post("/create", verifyAdmin, validateRequest(createOrderSchema), orderController.createOrder);
 router.put("/:id/status", verifyAdmin, validateRequest(updateOrderSchema), orderController.updateOrderStatus);
 router.put("/:id/payment", verifyAdmin, validateRequest(updateOrderSchema), orderController.updateOrderPayment);
