@@ -1,37 +1,6 @@
 import mongoose from "mongoose";
 import { nanoid } from "nanoid";
-
-// Constants
-const ORDER_STATUS = {
-    PENDING: "pending",
-    CONFIRMED: "confirmed",
-    SHIPPED: "shipped",
-    DELIVERED: "delivered",
-    CANCELLED: "cancelled"
-};
-
-const PAYMENT_METHODS = {
-    COD: "COD",
-    STRIPE: "Stripe"
-};
-
-const PAYMENT_STATUS = {
-    PENDING: "pending",
-    PAID: "paid",
-    FAILED: "failed"
-};
-
-const SHIPPING_METHODS = {
-    STANDARD: "standard",
-    EXPRESS: "express",
-    SAME_DAY: "same_day"
-};
-
-const SHIPPING_FEES = {
-    [SHIPPING_METHODS.STANDARD]: 30000,
-    [SHIPPING_METHODS.EXPRESS]: 45000,
-    [SHIPPING_METHODS.SAME_DAY]: 60000
-};
+import { ORDER_STATUS, PAYMENT_METHODS, PAYMENT_STATUS, SHIPPING_METHODS, SHIPPING_FEES } from '../utils/constants.js';
 
 // Helper functions
 const generateShortId = () => {
@@ -130,9 +99,7 @@ const orderSchema = new mongoose.Schema({
     },
     paymentIntentId: {
         type: String,
-        required: function() {
-            return this.paymentMethod === PAYMENT_METHODS.STRIPE;
-        },
+        required: false,
         trim: true
     },
     shippingAddress: {
@@ -250,8 +217,7 @@ const orderSchema = new mongoose.Schema({
         },
         note: {
             type: String,
-            trim: true,
-            maxlength: [500, "Ghi chú không được vượt quá 500 ký tự"]
+            trim: true
         }
     }],
     isTotalSpentUpdated: {
@@ -263,6 +229,18 @@ const orderSchema = new mongoose.Schema({
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
+});
+
+// Middleware trước khi lưu
+orderSchema.pre('save', function(next) {
+    if (this.isNew) {
+        this.statusHistory = [{
+            status: this.status,
+            updatedBy: this.user,
+            note: 'Đơn hàng được tạo'
+        }];
+    }
+    next();
 });
 
 // Virtual fields
@@ -283,26 +261,22 @@ orderSchema.virtual('isDelivered').get(function() {
 });
 
 // Methods
-orderSchema.methods.addStatusHistory = async function(status, updatedBy, note = '') {
+orderSchema.methods.updateStatus = function(newStatus, updatedBy, note = '') {
+    this.status = newStatus;
     this.statusHistory.push({
-        status,
+        status: newStatus,
         updatedBy,
         note
     });
-    this.status = status;
-    if (status === ORDER_STATUS.CANCELLED) {
+
+    if (newStatus === ORDER_STATUS.CANCELLED) {
         this.cancelledAt = new Date();
         this.cancelledBy = updatedBy;
     }
-    return this.save();
 };
 
-orderSchema.methods.updatePaymentStatus = async function(status, paymentIntentId = null) {
-    this.paymentStatus = status;
-    if (paymentIntentId) {
-        this.paymentIntentId = paymentIntentId;
-    }
-    return this.save();
+orderSchema.methods.isPaymentMethodStripe = function() {
+    return this.paymentMethod === PAYMENT_METHODS.STRIPE;
 };
 
 // Static methods
@@ -324,5 +298,6 @@ orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
 orderSchema.index({ shortId: 1, user: 1 });
 
-const Order = mongoose.model("Order", orderSchema);
+// Kiểm tra model đã tồn tại chưa trước khi định nghĩa
+const Order = mongoose.models.Order || mongoose.model("Order", orderSchema);
 export default Order;

@@ -1,6 +1,6 @@
-import Order from "../models/Order.js";
+import Order from "../models/order.js";
 import Product from "../models/product.js";
-import User from "../models/User.js";
+import User from "../models/user.js";
 import { getRedisClient } from '../config/redis.js';
 import { logInfo, logError } from '../utils/logger.js';
 import { handleError } from '../utils/helpers.js';

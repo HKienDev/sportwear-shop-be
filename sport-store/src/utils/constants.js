@@ -156,6 +156,14 @@ export const ORDER_STATUS = {
     CANCELLED: "cancelled" // Đã hủy
 };
 
+export const PAYMENT_STATUS = {
+    PENDING: 'pending',
+    PROCESSING: 'processing',
+    PAID: 'paid',
+    FAILED: 'failed',
+    CANCELED: 'canceled'
+};
+
 export const PAYMENT_METHODS = {
     COD: "COD",
     STRIPE: "Stripe"

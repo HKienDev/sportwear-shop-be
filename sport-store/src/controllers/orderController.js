@@ -1,13 +1,13 @@
 import mongoose from "mongoose";
-import User from '../models/User.js';
-import Order from '../models/Order.js';
+import User from '../models/user.js';
+import Order from '../models/order.js';
 import Product from '../models/product.js';
 import stripe from "stripe";
 import getExchangeRate from "../utils/exchangeRate.js";
 import { nanoid } from "nanoid";
 import { logInfo, logError } from "../utils/logger.js";
 import env from "../config/env.js";
-import { ERROR_MESSAGES, SUCCESS_MESSAGES, ORDER_STATUS, PAYMENT_METHODS, SHIPPING_METHODS, SHIPPING_FEES } from "../utils/constants.js";
+import { ERROR_MESSAGES, SUCCESS_MESSAGES, ORDER_STATUS, PAYMENT_METHODS, SHIPPING_METHODS, SHIPPING_FEES, PAYMENT_STATUS } from "../utils/constants.js";
 import { handleError } from "../utils/helpers.js";
 import { Coupon } from "../models/coupon.js";
 import { getRedisClient } from '../config/redis.js';
@@ -175,12 +175,20 @@ export const createOrder = async (req, res) => {
             });
         }
 
+        // Validate payment method
+        if (!Object.values(PAYMENT_METHODS).includes(paymentMethod)) {
+            logError(`[${requestId}] Invalid payment method: ${paymentMethod}`);
+            return res.status(400).json({
+                success: false,
+                message: "Phương thức thanh toán không hợp lệ"
+            });
+        }
+
         // Calculate total and validate stock
         let subtotal = 0;
         const orderItems = [];
 
         for (const item of items) {
-            // Tìm sản phẩm theo SKU
             const product = await Product.findOne({ sku: item.sku });
             
             if (!product) {
@@ -206,190 +214,190 @@ export const createOrder = async (req, res) => {
                 });
             }
 
-            if (product.stock < item.quantity) {
-                logError(`[${requestId}] Insufficient stock for product: ${product.name}`);
+            // Validate quantity
+            if (item.quantity > product.quantity) {
                 return res.status(400).json({
                     success: false,
-                    message: ERROR_MESSAGES.INSUFFICIENT_STOCK
+                    message: `Sản phẩm ${product.name} chỉ còn ${product.quantity} sản phẩm`
                 });
             }
 
-            // Tính subtotal dựa trên originalPrice
-            subtotal += product.originalPrice * item.quantity;
-            
-            // Tính directDiscount nếu có salePrice
-            const itemDirectDiscount = product.salePrice > 0 ? 
-                (product.originalPrice - product.salePrice) * item.quantity : 0;
-            
-            // Lưu giá thực tế phải trả (salePrice hoặc originalPrice)
-            const actualPrice = product.salePrice > 0 ? product.salePrice : product.originalPrice;
+            const price = Number(product.price) || 0;
+            const quantity = Number(item.quantity) || 0;
+            const itemTotal = price * quantity;
+            subtotal += itemTotal;
 
             orderItems.push({
                 product: product._id,
-                quantity: item.quantity,
-                price: actualPrice, // Giá thực tế phải trả
-                name: product.name,
                 sku: product.sku,
-                color: item.color,
-                size: item.size,
-                originalPrice: product.originalPrice,
-                salePrice: product.salePrice,
-                directDiscount: itemDirectDiscount
+                name: product.name,
+                price: price,
+                quantity: quantity,
+                color: item.color || 'Mặc định',
+                size: item.size || 'Mặc định',
+                image: product.images && product.images.length > 0 ? product.images[0] : null,
+                total: itemTotal
             });
         }
 
-        // Tính tổng directDiscount từ tất cả các items
-        const totalDirectDiscount = orderItems.reduce((total, item) => total + (item.directDiscount || 0), 0);
-        
-        // Tính phí vận chuyển
-        const shippingFee = SHIPPING_FEES[shippingMethod];
-        
-        // Lưu subtotal gốc để tính giảm giá
-        const productSubtotal = subtotal;
-        
-        // Xử lý mã giảm giá nếu có
-        let discountAmount = 0;
+        // Apply shipping fee
+        const shippingFee = SHIPPING_FEES[shippingMethod] || 0;
+        let totalPrice = Number(subtotal) + Number(shippingFee);
+
+        // Apply coupon if provided
+        let couponDiscount = 0;
         let appliedCoupon = null;
+
         if (couponCode) {
             const coupon = await Coupon.findOne({ code: couponCode });
             
             if (!coupon) {
-                return res.status(400).json({
+                return res.status(404).json({
                     success: false,
-                    message: "Mã giảm giá không tồn tại"
+                    message: ERROR_MESSAGES.COUPON_NOT_FOUND
                 });
             }
 
-            // Kiểm tra trạng thái coupon
-            if (coupon.status !== "Hoạt động") {
+            if (!coupon.isValid()) {
                 return res.status(400).json({
                     success: false,
-                    message: "Mã giảm giá không còn hoạt động"
+                    message: ERROR_MESSAGES.COUPON_EXPIRED
                 });
             }
 
-            // Kiểm tra thời hạn sử dụng
-            const now = new Date();
-            if (now < coupon.startDate) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Mã giảm giá sẽ có hiệu lực từ ${new Date(coupon.startDate).toLocaleString('vi-VN')}`
-                });
-            }
-            if (now > coupon.endDate) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Mã giảm giá đã hết hạn từ ${new Date(coupon.endDate).toLocaleString('vi-VN')}`
-                });
-            }
-
-            // Kiểm tra số lần sử dụng
-            const userUsageCount = coupon.usedBy.filter(usage => 
-                usage.user.toString() === userId.toString()
-            ).length;
-            
-            if (userUsageCount >= coupon.userLimit) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Bạn đã sử dụng hết lượt cho mã giảm giá này"
-                });
-            }
-
-            // Kiểm tra giá trị đơn hàng tối thiểu (chỉ tính theo giá sản phẩm, chưa bao gồm phí vận chuyển)
-            if (productSubtotal < coupon.minimumPurchaseAmount) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Đơn hàng cần tối thiểu ${coupon.minimumPurchaseAmount.toLocaleString('vi-VN')}đ để áp dụng mã giảm giá này`
-                });
-            }
-
-            // Tính giá trị giảm giá (chỉ áp dụng cho giá sản phẩm sau khi trừ directDiscount)
-            const priceAfterDirectDiscount = productSubtotal - totalDirectDiscount;
-            if (coupon.type === "percentage") {
-                discountAmount = Math.floor((priceAfterDirectDiscount * coupon.value) / 100);
-            } else if (coupon.type === "fixed") {
-                discountAmount = Math.min(coupon.value, priceAfterDirectDiscount);
-            }
-
-            appliedCoupon = coupon;
+            couponDiscount = Number(coupon.calculateDiscount(subtotal)) || 0;
+            totalPrice = Number(totalPrice) - Number(couponDiscount);
+            appliedCoupon = {
+                code: coupon.code,
+                discount: couponDiscount
+            };
         }
 
-        // Tính tổng tiền cuối cùng (bao gồm phí vận chuyển)
-        const totalPrice = productSubtotal - totalDirectDiscount - discountAmount + shippingFee;
-
-        // Tạo order mới
+        // Create order with initial status
+        const initialStatus = paymentMethod === PAYMENT_METHODS.STRIPE ? ORDER_STATUS.PENDING_PAYMENT : ORDER_STATUS.PROCESSING;
+        
         const order = new Order({
             user: userId,
             items: orderItems,
-            subtotal: productSubtotal, // Tổng tiền hàng gốc
-            directDiscount: totalDirectDiscount, // Giảm giá trực tiếp
-            couponDiscount: discountAmount, // Giảm giá từ mã
-            shippingFee: shippingFee, // Phí vận chuyển
-            totalPrice: totalPrice, // Tổng tiền thanh toán
-            shippingAddress: shippingAddress,
-            paymentMethod: paymentMethod,
+            shippingAddress,
             shippingMethod: {
                 method: shippingMethod,
-                fee: shippingFee
+                fee: shippingFee,
+                expectedDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+                courier: 'VJU Express',
+                trackingId: nanoid(10).toUpperCase()
             },
-            coupon: appliedCoupon ? appliedCoupon._id : null
+            shippingFee,
+            subtotal,
+            totalPrice,
+            paymentMethod,
+            coupon: appliedCoupon,
+            status: initialStatus,
+            paymentStatus: paymentMethod === PAYMENT_METHODS.STRIPE ? PAYMENT_STATUS.PENDING : PAYMENT_STATUS.PAID,
+            payment: {
+                amount: totalPrice,
+                currency: 'vnd',
+                status: paymentMethod === PAYMENT_METHODS.STRIPE ? 'pending' : 'completed',
+                method: paymentMethod,
+                updatedAt: new Date()
+            }
         });
 
-        const savedOrder = await order.save();
+        // Thêm lịch sử trạng thái
+        order.statusHistory = [{
+            status: initialStatus,
+            updatedBy: userId,
+            note: 'Đơn hàng được tạo',
+            updatedAt: new Date()
+        }];
 
-        // Update product stock
-        for (const item of orderItems) {
-            await Product.findByIdAndUpdate(item.product, {
-                $inc: { stock: -item.quantity }
+        // Thêm timeout cho việc lưu đơn hàng
+        const saveOrderWithTimeout = async () => {
+            return Promise.race([
+                order.save(),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout saving order')), 5000)
+                )
+            ]);
+        };
+
+        try {
+            const savedOrder = await saveOrderWithTimeout();
+            // Clear cache
+            await clearOrderCache(requestId);
+
+            // Nếu thanh toán qua Stripe, trả về orderId để client tạo payment intent
+            if (paymentMethod === PAYMENT_METHODS.STRIPE) {
+                return res.status(200).json({
+                    success: true,
+                    message: SUCCESS_MESSAGES.ORDER_CREATED,
+                    data: {
+                        orderId: savedOrder._id,
+                        requiresPayment: true,
+                        amount: totalPrice
+                    }
+                });
+            }
+
+            // Nếu thanh toán COD, cập nhật stock và gửi email
+            const updateStockPromises = orderItems.map(item => 
+                Product.findOneAndUpdate(
+                    { sku: item.sku },
+                    { $inc: { quantity: -item.quantity } }
+                ).exec()
+            );
+
+            try {
+                await Promise.race([
+                    Promise.all(updateStockPromises),
+                    new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Timeout updating stock')), 5000)
+                    )
+                ]);
+            } catch (stockError) {
+                logError(`[${requestId}] Error updating stock: ${stockError.message}`);
+            }
+
+            // Gửi email xác nhận đơn hàng
+            try {
+                const sendEmailPromise = sendEmail({
+                    to: req.user.email,
+                    subject: 'Xác nhận đơn hàng',
+                    template: 'order-confirmation',
+                    context: {
+                        order: savedOrder,
+                        user: req.user
+                    }
+                });
+
+                await Promise.race([
+                    sendEmailPromise,
+                    new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Timeout sending email')), 5000)
+                    )
+                ]);
+            } catch (emailError) {
+                logError(`[${requestId}] Error sending order confirmation email: ${emailError.message}`);
+            }
+
+            res.status(200).json({
+                success: true,
+                message: SUCCESS_MESSAGES.ORDER_CREATED,
+                data: {
+                    orderId: savedOrder._id,
+                    requiresPayment: false
+                }
+            });
+        } catch (error) {
+            logError(`[${requestId}] Error saving order: ${error.message}`);
+            return res.status(500).json({
+                success: false,
+                message: 'Có lỗi xảy ra khi tạo đơn hàng, vui lòng thử lại'
             });
         }
-
-        // Xóa cache sau khi tạo đơn hàng mới
-        await clearDashboardCache(requestId);
-
-        // Gửi email xác nhận đơn hàng
-        try {
-            // Lấy thông tin người dùng
-            const user = await User.findById(userId);
-            if (user && user.email) {
-                // Populate đơn hàng với thông tin sản phẩm
-                const populatedOrder = await Order.findById(savedOrder._id)
-                    .populate('items.product', 'name price mainImage')
-                    .lean();
-
-                // Chuyển đổi dữ liệu để đảm bảo các trường được populate hiển thị đúng
-                const orderData = {
-                    ...populatedOrder,
-                    items: populatedOrder.items.map(item => ({
-                        ...item,
-                        name: item.name || (item.product && item.product.name) || 'Sản phẩm không xác định',
-                        price: item.price || 0
-                    }))
-                };
-
-                // Gửi email xác nhận đơn hàng
-                await sendEmail({
-                    to: user.email,
-                    template: 'newOrder',
-                    data: orderData,
-                    requestId
-                });
-                logInfo(`[${requestId}] Order confirmation email sent to ${user.email}`);
-            }
-        } catch (emailError) {
-            logError(`[${requestId}] Error sending order confirmation email: ${emailError.message}`);
-            // Không dừng quá trình xử lý đơn hàng nếu gửi email thất bại
-        }
-
-        logInfo(`[${requestId}] Successfully created order: ${savedOrder._id}`);
-        res.status(201).json({
-            success: true,
-            message: SUCCESS_MESSAGES.ORDER_CREATED,
-            data: savedOrder
-        });
     } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
+        logError(`[${requestId}] Error creating order: ${error.message}`);
+        handleError(res, error);
     }
 };
 
@@ -869,9 +877,30 @@ export const stripeWebhook = async (req, res) => {
 
                 const order = await Order.findById(orderId);
                 if (order) {
-                    order.paymentStatus = 'paid';
-                    await order.save();
-                    logInfo(`[${requestId}] Updated payment status for order: ${orderId}`);
+                    order.paymentStatus = PAYMENT_STATUS.PAID;
+                    order.status = ORDER_STATUS.PROCESSING;
+                    order.paymentIntentId = paymentIntent.id;
+                    order.statusHistory.push({
+                        status: ORDER_STATUS.PROCESSING,
+                        updatedBy: order.user,
+                        note: 'Thanh toán thành công qua Stripe',
+                        updatedAt: new Date()
+                    });
+
+                    // Cập nhật stock sản phẩm
+                    const updateStockPromises = order.items.map(item => 
+                        Product.findOneAndUpdate(
+                            { sku: item.sku },
+                            { $inc: { quantity: -item.quantity } }
+                        ).exec()
+                    );
+
+                    await Promise.all([
+                        order.save(),
+                        ...updateStockPromises
+                    ]);
+
+                    logInfo(`[${requestId}] Updated payment status and stock for order: ${orderId}`);
                 }
                 break;
             default:

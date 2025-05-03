@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
-import User from "../models/User.js";
-import Order from "../models/Order.js";
+import User from "../models/user.js";
+import Order from "../models/order.js";
 import jwt from "jsonwebtoken";
 import { logInfo, logError } from "../utils/logger.js";
 import env from "../config/env.js";
@@ -12,6 +12,7 @@ import { sendEmail } from "../utils/sendEmail.js";
 import { AUTH_CONFIG } from "../utils/constants.js";
 import { generateOTP } from "../utils/helpers.js";
 import { getRedisClient } from "../config/redis.js";
+import Product from "../models/product.js";
 
 // Helper functions
 const hashPassword = (password) => bcrypt.hash(password, 10);

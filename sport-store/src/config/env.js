@@ -72,6 +72,7 @@ const env = {
     
     // Stripe
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     
     // Paths
     UPLOAD_DIR: join(__dirname, "../../uploads"),
