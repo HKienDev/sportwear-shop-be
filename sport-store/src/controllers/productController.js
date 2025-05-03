@@ -12,7 +12,7 @@ import { createProductSchema, updateProductSchema, searchProductSchema, productS
 import { sendErrorResponse, sendSuccessResponse } from '../utils/responseUtils.js';
 import { generateRequestId } from '../utils/requestUtils.js';
 import slugify from 'slugify';
-import { clearDashboardCache } from './dashboardController.js';
+import { clearDashboardCacheUtil } from './dashboardController.js';
 
 // Constants
 const REQUIRED_FIELDS = {
@@ -411,7 +411,7 @@ export const createProduct = async (req, res) => {
         console.log(`[${requestId}] Product saved successfully:`, savedProduct._id);
 
         // Xóa cache dashboard
-        await clearDashboardCache();
+        await clearDashboardCacheUtil();
 
         // Log success
         logInfo(`[${requestId}] Product created successfully: ${savedProduct?.name || 'Unknown'}`);
@@ -636,7 +636,7 @@ export const updateProduct = async (req, res) => {
             console.log(`[${requestId}] Product updated successfully:`, updatedProduct._id);
             
             // Xóa cache dashboard
-            await clearDashboardCache();
+            await clearDashboardCacheUtil();
             
             // Log success
             logInfo(`[${requestId}] Product updated successfully: ${updatedProduct?.name || 'Unknown'}`);
@@ -688,7 +688,7 @@ export const deleteProduct = async (req, res) => {
         await Product.deleteOne({ sku });
 
         // Xóa cache dashboard
-        await clearDashboardCache();
+        await clearDashboardCacheUtil();
 
         return sendSuccessResponse(res, 200, 'Product deleted successfully');
     } catch (error) {
@@ -738,7 +738,7 @@ export const updateProductStatus = async (req, res) => {
         ).populate('categoryId', 'name slug');
 
         // Xóa cache dashboard
-        await clearDashboardCache();
+        await clearDashboardCacheUtil();
 
         // Log success
         console.log(`[${requestId}] Product status updated successfully:`, {

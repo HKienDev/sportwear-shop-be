@@ -6,31 +6,28 @@ import { logInfo, logError } from '../utils/logger.js';
 import { handleError } from '../utils/helpers.js';
 import { v4 as uuidv4 } from 'uuid';
 
-// Hàm xóa cache dashboard
+// Hàm utility xóa cache dashboard (không req/res)
+export const clearDashboardCacheUtil = async () => {
+    try {
+        const redis = getRedisClient();
+        if (redis) {
+            const cacheKey = 'dashboard_stats';
+            await redis.del(cacheKey);
+            logInfo(`[clearDashboardCacheUtil] Dashboard cache cleared successfully`);
+        }
+    } catch (error) {
+        logError(`[clearDashboardCacheUtil] Error clearing dashboard cache: ${error.message}`);
+    }
+};
+
+// Middleware cho route thủ công (giữ nguyên route, dùng cho API clear cache)
 export const clearDashboardCache = async (req, res) => {
     const requestId = req.id || 'unknown';
-    
     try {
-        logInfo(`[${requestId}] Clearing dashboard cache`);
-        
-        const redis = getRedisClient();
-        if (!redis) {
-            logInfo(`[${requestId}] Redis client not available`);
-            return res.json({
-                success: true,
-                message: 'Redis client not available',
-                clearedKeys: 0
-            });
-        }
-
-        const cacheKey = 'dashboard_stats';
-        await redis.del(cacheKey);
-        logInfo(`[${requestId}] Dashboard cache cleared successfully`);
-        
+        await clearDashboardCacheUtil();
         res.json({
             success: true,
-            message: 'Dashboard cache cleared successfully',
-            clearedKeys: 1
+            message: 'Dashboard cache cleared successfully'
         });
     } catch (error) {
         logError(`[${requestId}] Error clearing dashboard cache: ${error.message}`);

@@ -12,6 +12,7 @@ import { handleError } from "../utils/helpers.js";
 import { Coupon } from "../models/coupon.js";
 import { getRedisClient } from '../config/redis.js';
 import { sendEmail } from "../utils/sendEmail.js";
+import { clearDashboardCacheUtil } from './dashboardController.js';
 
 const stripeInstance = stripe(env.STRIPE_SECRET_KEY);
 
@@ -533,7 +534,7 @@ export const cancelOrder = async (req, res) => {
         await order.save();
 
         // Xóa cache sau khi hủy đơn hàng
-        await clearDashboardCache(requestId);
+        await clearDashboardCacheUtil(requestId);
 
         logInfo(`[${requestId}] Successfully cancelled order: ${order._id}`);
         res.json({
@@ -747,7 +748,7 @@ export const updateOrderStatus = async (req, res) => {
         await order.save();
 
         // Xóa cache sau khi cập nhật trạng thái đơn hàng
-        await clearDashboardCache(requestId);
+        await clearDashboardCacheUtil(requestId);
 
         logInfo(`[${requestId}] Successfully updated order status: ${order._id}`);
         res.json({
@@ -790,7 +791,7 @@ export const updateOrderPayment = async (req, res) => {
         await order.save();
 
         // Xóa cache sau khi cập nhật trạng thái thanh toán
-        await clearDashboardCache(requestId);
+        await clearDashboardCacheUtil(requestId);
 
         logInfo(`[${requestId}] Successfully updated order payment: ${order._id}`);
         res.json({
