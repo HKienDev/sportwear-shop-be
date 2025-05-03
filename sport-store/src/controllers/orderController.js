@@ -304,14 +304,6 @@ export const createOrder = async (req, res) => {
             }
         });
 
-        // Thêm lịch sử trạng thái
-        order.statusHistory = [{
-            status: initialStatus,
-            updatedBy: userId,
-            note: 'Đơn hàng được tạo',
-            updatedAt: new Date()
-        }];
-
         // Thêm timeout cho việc lưu đơn hàng
         const saveOrderWithTimeout = async () => {
             return Promise.race([
