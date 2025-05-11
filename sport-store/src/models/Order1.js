@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
-import { nanoid } from "nanoid";
-import { ORDER_STATUS, PAYMENT_METHODS, PAYMENT_STATUS, SHIPPING_METHODS, SHIPPING_FEES } from '../utils/constants.js';
+// import { nanoid } from "nanoid"; // eslint-disable-line @typescript-eslint/no-unused-vars
+import { ORDER_STATUS, PAYMENT_METHODS, PAYMENT_STATUS, SHIPPING_METHODS } from '../utils/constants.js';
+// const SHIPPING_FEES = ... // eslint-disable-line @typescript-eslint/no-unused-vars
 
 // Helper functions
 const generateShortId = () => {

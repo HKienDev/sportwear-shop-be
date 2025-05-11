@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Category from "./Category.js";
+import Category from "./Category1.js";
 import { generateSKU } from "../utils/productUtils.js";
 import { PRODUCT_STATUS, SORT_OPTIONS } from '../utils/constants.js';
 import * as slugifyModule from 'slugify';

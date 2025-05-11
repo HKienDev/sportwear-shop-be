@@ -1,9 +1,9 @@
 import mongoose from "mongoose";
-import dayjs from "../utils/timeUtils.js";
-import { logInfo, logError } from "../utils/logger.js";
-import { ERROR_MESSAGES } from "../utils/constants.js";
-import { generateCouponCode } from "../utils/couponUtils.js";
+// import dayjs from 'dayjs'; // eslint-disable-line @typescript-eslint/no-unused-vars
 import { DateUtils } from "../utils/timeUtils.js";
+// import { logInfo, logError } from '../utils/logger.js'; // eslint-disable-line @typescript-eslint/no-unused-vars
+// import { ERROR_MESSAGES } from '../utils/constants.js'; // eslint-disable-line @typescript-eslint/no-unused-vars
+// import { generateCouponCode } from '../utils/couponUtils.js'; // eslint-disable-line @typescript-eslint/no-unused-vars
 
 // Constants
 export const COUPON_STATUS = {

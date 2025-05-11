@@ -1,10 +1,9 @@
 import mongoose from "mongoose";
 
-// Constants
-const CATEGORY_STATUS = {
-    ACTIVE: "active",
-    INACTIVE: "inactive"
-};
+// const CATEGORY_STATUS = {
+//     ACTIVE: "active",
+//     INACTIVE: "inactive"
+// };
 
 // Schema
 const categorySchema = new mongoose.Schema({
