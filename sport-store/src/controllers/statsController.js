@@ -1,6 +1,6 @@
-import Order from "../models/order.js";
-import Product from "../models/product.js";
-import User from "../models/user.js";
+import Order from '../models/Order.js';
+import Product from '../models/Product.js';
+import User from '../models/User.js';
 import { logInfo, logError } from "../utils/logger.js";
 import env from "../config/env.js";
 import { ERROR_MESSAGES } from "../utils/constants.js";
