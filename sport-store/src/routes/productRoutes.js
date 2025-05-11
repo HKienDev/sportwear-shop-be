@@ -6,7 +6,6 @@ import {
     updateProduct,
     deleteProduct,
     updateProductStatus,
-    updateSizeStatus,
     getProductsByCategory
 } from '../controllers/productController.js';
 import { verifyUser, verifyAdmin } from '../middlewares/authMiddleware.js';
@@ -16,8 +15,7 @@ import {
     createProductSchema, 
     updateProductSchema, 
     searchProductSchema,
-    productStatusSchema,
-    updateSizeStatusSchema
+    productStatusSchema
 } from '../schemas/productSchema.js';
 import { SUCCESS_MESSAGES } from '../utils/constants.js';
 
@@ -34,9 +32,6 @@ router.get("/search", validateRequest(searchProductSchema), getProducts);
 router.get("/sku/:sku", getProductBySku);
 router.get("/category/:categoryId", getProductsByCategory);
 
-// Admin routes (require admin role)
-router.get("/admin", verifyUser, verifyAdmin, getAdminProducts);
-
 // Protected routes (require authentication)
 router.use(verifyUser);
 
@@ -48,7 +43,6 @@ router.post("/", upload.array('images', 5), validateRequest(createProductSchema)
 router.put("/:sku", upload.array('images', 5), validateRequest(updateProductSchema), updateProduct);
 router.delete("/:sku", deleteProduct);
 router.patch("/:sku/status", validateRequest(productStatusSchema), updateProductStatus);
-router.patch("/:sku/size-status", validateRequest(updateSizeStatusSchema), updateSizeStatus);
 
 // Lấy chi tiết sản phẩm theo SKU (phải đặt sau các route khác để tránh xung đột)
 router.get("/:sku", getProductBySku);
