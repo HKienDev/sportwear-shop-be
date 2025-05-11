@@ -6,13 +6,12 @@ import {
     updateProfileSchema, 
     changePasswordSchema
 } from '../schemas/userSchema.js';
-import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../utils/constants.js';
 
 const router = express.Router();
 
 // Public routes
 router.get("/test", (req, res) => {
-    res.json({ message: SUCCESS_MESSAGES.ROUTE_WORKING });
+    res.json({ message: "Route is working!" });
 });
 
 // Route kiểm tra số điện thoại

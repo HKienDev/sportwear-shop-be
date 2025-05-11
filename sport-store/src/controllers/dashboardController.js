@@ -3,7 +3,6 @@ import Product from "../models/product.js";
 import User from "../models/user.js";
 import { getRedisClient } from '../config/redis.js';
 import { logInfo, logError } from '../utils/logger.js';
-import { handleError } from '../utils/helpers.js';
 import { v4 as uuidv4 } from 'uuid';
 
 // Hàm utility xóa cache dashboard (không req/res)
@@ -353,50 +352,24 @@ export const getRevenue = async (req, res) => {
 
         const now = new Date();
         let startDate;
-        let groupBy;
-        let dateFormat;
 
         switch (period) {
             case 'day':
                 startDate = new Date(now);
                 startDate.setDate(startDate.getDate() - parseInt(limit) + 1); // +1 để bao gồm ngày hiện tại
                 startDate.setHours(0, 0, 0, 0); // Reset về đầu ngày
-                groupBy = {
-                    $dateToString: {
-                        format: "%Y-%m-%d",
-                        date: "$createdAt"
-                    }
-                };
                 break;
             case 'month':
                 startDate = new Date(now);
                 startDate.setMonth(startDate.getMonth() - parseInt(limit));
-                groupBy = {
-                    $dateToString: {
-                        format: "%Y-%m",
-                        date: "$createdAt"
-                    }
-                };
                 break;
             case 'year':
                 startDate = new Date(now);
                 startDate.setFullYear(startDate.getFullYear() - parseInt(limit));
-                groupBy = {
-                    $dateToString: {
-                        format: "%Y",
-                        date: "$createdAt"
-                    }
-                };
                 break;
             default:
                 startDate = new Date(now);
                 startDate.setMonth(startDate.getMonth() - parseInt(limit));
-                groupBy = {
-                    $dateToString: {
-                        format: "%Y-%m",
-                        date: "$createdAt"
-                    }
-                };
         }
 
         // Tối ưu query
@@ -949,15 +922,9 @@ export const getProductStatsByCategory = async (req, res) => {
     }
 };
 
-export const getDashboardStats = async (req, res) => {
-    const requestId = generateRequestId();
-    try {
-        // ... existing code ...
-        const query = {}; // Xóa isDeleted: false
-        // ... existing code ...
-    } catch (error) {
-        // ... existing code ...
-    }
+export const getDashboardStats = async () => {
+    // ... giữ nguyên code, không khai báo req, res, requestId, query, error nếu không dùng ...
+    // ... existing code ...
 };
 
 // Xóa cache

@@ -10,36 +10,9 @@ const preprocessNumber = (val) => {
 };
 
 // Schema cho kích thước sản phẩm
-const productDimensionsSchema = z.object({
-  length: z.number().min(0).optional(),
-  width: z.number().min(0).optional(),
-  height: z.number().min(0).optional(),
-  weight: z.number().min(0).optional(),
-  unit: z.enum(['cm', 'mm', 'm', 'kg', 'g']).optional()
-});
-
-// Schema cho kích thước sản phẩm
 const productSizeSchema = z.object({
   size: z.string().min(1, 'Kích thước không được để trống'),
   isAvailable: z.boolean().optional().default(true)
-});
-
-// Schema cơ bản cho sản phẩm
-const baseProductSchema = z.object({
-  name: z.string().min(1, 'Tên sản phẩm không được để trống'),
-  description: z.string().min(1, 'Mô tả sản phẩm không được để trống'),
-  originalPrice: z.number().min(0, 'Giá gốc phải lớn hơn hoặc bằng 0'),
-  salePrice: z.number().min(0, 'Giá bán phải lớn hơn hoặc bằng 0'),
-  stock: z.number().int().min(0, 'Số lượng tồn kho phải lớn hơn hoặc bằng 0'),
-  categoryId: z.string().min(1, 'Danh mục sản phẩm không được để trống'),
-  brand: z.string().min(1, 'Thương hiệu không được để trống'),
-  mainImage: z.string().url('URL hình ảnh chính không hợp lệ'),
-  subImages: z.array(z.string().url('URL hình ảnh phụ không hợp lệ')).optional(),
-  colors: z.array(z.string()).min(1, 'Phải có ít nhất một màu sắc'),
-  sizes: z.array(z.string()).min(1, 'Phải có ít nhất một kích cỡ'),
-  tags: z.array(z.string()).optional(),
-  isActive: z.boolean().optional().default(true),
-  dimensions: productDimensionsSchema.optional()
 });
 
 // Schema cho tạo sản phẩm mới

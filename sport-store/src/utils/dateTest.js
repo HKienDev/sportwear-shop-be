@@ -19,8 +19,7 @@ dayjs.extend(isLeapYear);
 // Constants
 const VIETNAM_TIMEZONE = "Asia/Ho_Chi_Minh";
 const VIETNAM_DATE_FORMAT = "DD/MM/YYYY HH:mm";
-const ISO_DATE_FORMAT = "YYYY-MM-DDTHH:mm:ssZ";
-const ISO_DATE_FORMAT_WITH_OFFSET = "YYYY-MM-DDTHH:mm:ss+07:00";
+const ISO_DATE_FORMAT_WITH_OFFSET = 'YYYY-MM-DDTHH:mm:ssZ';
 
 console.log('Testing date parsing with dayjs');
 console.log('-----------------------------------');
@@ -123,7 +122,4 @@ if (!d1.isValid() || !d4.isValid()) {
     console.error("Lỗi xác thực dữ liệu");
     console.error("Ngày bắt đầu không hợp lệ");
     console.error("Ngày kết thúc không hợp lệ");
-}
-
-parsedStartDate = d1.utc().toDate();
-parsedEndDate = d4.utc().toDate(); 
+} 

@@ -4,8 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { logInfo, logError } from "../utils/logger.js";
 import env from "../config/env.js";
-import { ERROR_MESSAGES, SUCCESS_MESSAGES, UPLOAD_CONFIG } from "../utils/constants.js";
-import multer from "multer";
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from "../utils/constants.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

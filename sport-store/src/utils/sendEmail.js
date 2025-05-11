@@ -1,7 +1,6 @@
 import { Resend } from "resend";
 import { logInfo, logError } from "./logger.js";
 import env from "../config/env.js";
-import { ERROR_MESSAGES, SUCCESS_MESSAGES } from "./constants.js";
 
 const resend = new Resend(env.RESEND_API_KEY);
 
@@ -80,7 +79,7 @@ async function getEmailTemplate(template, data) {
     }
 
     switch (template) {
-        case 'newOrder':
+        case 'newOrder': {
             // Kiểm tra dữ liệu cần thiết
             if (!data.shortId || !data.shippingAddress || !data.items || !data.createdAt) {
                 console.error('Missing required order data:', {
@@ -163,6 +162,7 @@ async function getEmailTemplate(template, data) {
             `;
 
             return { subject, html };
+        }
         case 'verification':
             return {
                 subject: 'Xác thực tài khoản Sport Store',

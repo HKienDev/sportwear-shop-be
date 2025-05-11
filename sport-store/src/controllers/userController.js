@@ -2,17 +2,12 @@ import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import User from "../models/user.js";
 import Order from "../models/order.js";
-import jwt from "jsonwebtoken";
 import { logInfo, logError } from "../utils/logger.js";
 import env from "../config/env.js";
-import { ERROR_MESSAGES, SUCCESS_MESSAGES, USER_ROLES, USER_STATUS, USER_CONFIG, TOKEN_CONFIG } from "../utils/constants.js";
+import { ERROR_MESSAGES, SUCCESS_MESSAGES, USER_ROLES } from "../utils/constants.js";
 import { handleError, setAuthCookies } from "../utils/helpers.js";
 import { generateTokens } from "./authController.js";
-import { sendEmail } from "../utils/sendEmail.js";
-import { AUTH_CONFIG } from "../utils/constants.js";
-import { generateOTP } from "../utils/helpers.js";
 import { getRedisClient } from "../config/redis.js";
-import Product from "../models/product.js";
 
 // Helper functions
 const hashPassword = (password) => bcrypt.hash(password, 10);
@@ -306,7 +301,7 @@ export const getUserProfile = async (req, res) => {
             success: true,
             data: user
         });
-    } catch (error) {
+    } catch {
         res.status(500).json({
             success: false,
             message: ERROR_MESSAGES.SERVER_ERROR
@@ -341,7 +336,7 @@ export const updateProfile = async (req, res) => {
             message: SUCCESS_MESSAGES.PROFILE_UPDATED,
             data: user
         });
-    } catch (error) {
+    } catch {
         res.status(500).json({
             success: false,
             message: ERROR_MESSAGES.SERVER_ERROR
@@ -731,7 +726,7 @@ export const changePassword = async (req, res) => {
             success: true,
             message: SUCCESS_MESSAGES.PASSWORD_CHANGED
         });
-    } catch (error) {
+    } catch {
         res.status(500).json({
             success: false,
             message: ERROR_MESSAGES.SERVER_ERROR

@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import Order from "../models/order.js";
 import Product from "../models/product.js";
 import User from "../models/user.js";
@@ -60,10 +59,11 @@ const getPeriodKey = (date, groupBy) => {
     switch (groupBy) {
         case 'day':
             return formatDate(date, { day: '2-digit', month: '2-digit' });
-        case 'month':
+        case 'month': {
             const month = formatDate(date, { month: '2-digit' });
             const year = formatDate(date, { year: 'numeric' });
             return `${month}-${year}`;
+        }
         case 'year':
             return formatDate(date, { year: 'numeric' });
         default:
@@ -196,11 +196,6 @@ export const getRevenue = async (req, res) => {
             }
         ]).exec();
 
-        // Convert to plain JavaScript objects
-        const plainOrders = orders.map(order => order.toObject ? order.toObject() : order);
-
-        logInfo(`[${requestId}] Found ${orders.length} orders for the period`);
-
         // Group orders by period
         const revenueByPeriod = orders.reduce((acc, order) => {
             const deliveredStatus = order.statusHistory.find(status => status.status === 'delivered');
@@ -301,17 +296,14 @@ export const getBestSellingProducts = async (req, res) => {
             }
         ]).exec();
 
-        // Convert to plain JavaScript objects
-        const plainProducts = products.map(product => product.toObject ? product.toObject() : product);
-
         // Get product details
-        const productIds = plainProducts.map(p => p._id);
+        const productIds = products.map(p => p._id);
         const productDetails = await Product.find({ _id: { $in: productIds } })
             .select('name image')
             .lean();
 
         // Merge product details with stats
-        const bestSellingProducts = plainProducts.map(product => {
+        const bestSellingProducts = products.map(product => {
             const details = productDetails.find(p => p._id.toString() === product._id.toString());
             return {
                 ...product,
@@ -391,13 +383,10 @@ export const getRevenueStats = async (req, res) => {
             }
         ]).exec();
 
-        // Convert to plain JavaScript objects
-        const plainStats = stats.map(stat => stat.toObject ? stat.toObject() : stat);
-
         logInfo(`[${requestId}] Successfully fetched revenue stats`);
         res.json({
             success: true,
-            data: plainStats
+            data: stats.map(stat => stat.toObject ? stat.toObject() : stat)
         });
     } catch (error) {
         const errorResponse = handleError(error, requestId);

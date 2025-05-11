@@ -1,7 +1,7 @@
 import { ERROR_MESSAGES } from '../utils/constants.js';
 import { logError } from '../utils/logger.js';
 
-export const errorHandler = (err, req, res, next) => {
+export const errorHandler = (err, req, res) => {
   const requestId = req.id || 'unknown';
   logError(`[${requestId}] Error:`, err);
 

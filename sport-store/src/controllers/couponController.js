@@ -1,5 +1,4 @@
 import { Coupon } from "../models/coupon.js";
-import { DISCOUNT_TYPE, COUPON_STATUS } from "../models/coupon.js";
 import { SUCCESS_MESSAGES, ERROR_MESSAGES } from "../utils/constants.js";
 import { handleError } from "../utils/errorHandler.js";
 import { DateUtils } from "../utils/timeUtils.js";
@@ -14,6 +13,7 @@ import customParseFormat from "dayjs/plugin/customParseFormat.js";
 import mongoose from "mongoose";
 import { logInfo, logError } from "../utils/logger.js";
 import { generateCouponCode } from "../utils/couponUtils.js";
+import { COUPON_STATUS } from '../models/Coupon.js';
 
 // Cấu hình dayjs
 dayjs.extend(utc);
@@ -25,9 +25,6 @@ dayjs.extend(customParseFormat);
 
 // Constants
 const VIETNAM_TIMEZONE = "Asia/Ho_Chi_Minh";
-const MIN_COUPON_DURATION = 1; // 1 hour
-const MAX_COUPON_DURATION = 365; // 365 days
-const SIMPLE_DATE_FORMAT = "YYYY-MM-DD";
 
 // Create a new coupon
 export const createCoupon = async (req, res) => {
@@ -130,18 +127,6 @@ export const createCoupon = async (req, res) => {
 };
 
 // Helper functions
-function validateRequiredFields(data) {
-    const errors = [];
-    for (const [key, value] of Object.entries(data)) {
-        if (!value) {
-            errors.push({ field: key, message: `${key} là bắt buộc` });
-        }
-    }
-    if (errors.length > 0) {
-        throw { status: 400, message: "Vui lòng cung cấp đầy đủ thông tin", errors };
-    }
-}
-
 function parseAndValidateDates(startDate, endDate) {
     console.log('Parsing dates:', { startDate, endDate });
     
@@ -204,32 +189,6 @@ function validateDates(startDate, endDate) {
             ]
         };
     }
-}
-
-async function validateOverlappingCoupons(startDate, endDate) {
-    const overlappingCoupons = await Coupon.find({
-        $or: [
-            {
-                startDate: { $lte: endDate },
-                endDate: { $gte: startDate }
-            }
-        ],
-        status: { $ne: COUPON_STATUS.EXPIRED }
-    });
-
-    if (overlappingCoupons.length > 0) {
-        throw { status: 400, message: "Thời gian này đã có coupon khác đang hoạt động" };
-    }
-}
-
-function formatCouponResponse(coupon) {
-    return {
-        ...coupon.toObject(),
-        startDate: DateUtils.formatToVietnamDateString(coupon.startDate),
-        endDate: DateUtils.formatToVietnamDateString(coupon.endDate),
-        createdAt: DateUtils.formatToVietnamDateString(coupon.createdAt),
-        updatedAt: DateUtils.formatToVietnamDateString(coupon.updatedAt)
-    };
 }
 
 // Get all coupons

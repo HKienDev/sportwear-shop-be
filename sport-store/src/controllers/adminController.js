@@ -1,6 +1,5 @@
 import User from "../models/user.js";
 import { ERROR_MESSAGES } from '../utils/constants.js';
-import mongoose from 'mongoose';
 
 // Lấy danh sách tất cả users
 export const getAllUsers = async (req, res, next) => {

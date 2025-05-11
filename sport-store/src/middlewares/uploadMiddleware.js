@@ -1,7 +1,6 @@
 import multer from 'multer';
 import path from 'path';
 import { logError, logInfo } from '../utils/logger.js';
-import env from '../config/env.js';
 
 // Constants
 const UPLOAD_CONFIG = {
@@ -134,11 +133,12 @@ const uploadMultiple = (fieldName, maxCount) => {
 
 // Middleware kiểm tra thư mục upload tồn tại
 const ensureUploadDir = (req, res, next) => {
-    const fs = require('fs');
-    if (!fs.existsSync(UPLOAD_CONFIG.UPLOAD_DIR)) {
-        fs.mkdirSync(UPLOAD_CONFIG.UPLOAD_DIR, { recursive: true });
-    }
-    next();
+    import('fs').then(({ default: fs }) => {
+        if (!fs.existsSync(UPLOAD_CONFIG.UPLOAD_DIR)) {
+            fs.mkdirSync(UPLOAD_CONFIG.UPLOAD_DIR, { recursive: true });
+        }
+        next();
+    });
 };
 
 export { upload, uploadSingle, uploadMultiple, ensureUploadDir }; 

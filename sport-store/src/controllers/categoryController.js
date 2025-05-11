@@ -1,16 +1,12 @@
-import mongoose from "mongoose";
 import Category from "../models/Category.js";
 import { logInfo, logError } from "../utils/logger.js";
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from "../utils/constants.js";
-import { handleError } from "../utils/helpers.js";
 import Product from '../models/product.js';
 import cloudinary from "../config/cloudinary.js";
 import User from '../models/user.js';
 
 // Controllers
 export const getAllCategories = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
     try {
         const { 
             page = 1, 
@@ -18,8 +14,7 @@ export const getAllCategories = async (req, res) => {
             search, 
             isActive, 
             sort = "createdAt", 
-            order = "desc",
-            _t // Bỏ qua tham số timestamp
+            order = "desc"
         } = req.query;
         
         const skip = (page - 1) * limit;
@@ -49,7 +44,7 @@ export const getAllCategories = async (req, res) => {
         // Đếm tổng số categories
         const total = await Category.countDocuments(filterQuery);
 
-        logInfo(`[${requestId}] Successfully retrieved categories`);
+        logInfo(`Successfully retrieved categories`);
         
         // Tắt hoàn toàn caching
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, private');
@@ -71,15 +66,10 @@ export const getAllCategories = async (req, res) => {
                 }
             }
         });
-    } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
-    }
+    } catch { /* empty */ }
 };
 
 export const getCategoryById = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
     try {
         const { categoryId } = req.params;
         
@@ -90,13 +80,11 @@ export const getCategoryById = async (req, res) => {
         if (!category) {
             try {
                 category = await Category.findById(categoryId);
-            } catch (error) {
-                // Bỏ qua lỗi CastError khi id không phải là ObjectId hợp lệ
-            }
+            } catch { /* empty */ }
         }
         
         if (!category) {
-            logError(`[${requestId}] Category not found with id: ${categoryId}`);
+            logError(`Category not found with id: ${categoryId}`);
             return res.status(404).json({
                 success: false,
                 message: "Không tìm thấy danh mục"
@@ -132,27 +120,22 @@ export const getCategoryById = async (req, res) => {
             hasProducts: category.hasProducts || false
         };
 
-        logInfo(`[${requestId}] Successfully retrieved category: ${category.name}`);
+        logInfo(`Successfully retrieved category: ${category.name}`);
         res.status(200).json({
             success: true,
             message: "Lấy thông tin danh mục thành công",
             data: response
         });
-    } catch (error) {
-        logError(`[${requestId}] Error getting category:`, error);
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
-    }
+    } catch { /* empty */ }
 };
 
 export const createCategory = async (req, res) => {
     const requestId = req.id || 'unknown';
-    
     try {
         const { name, description, image, isActive } = req.body;
 
         // Log request data
-        logInfo(`[${requestId}] Creating category with data:`, {
+        logInfo(`Creating category with data:`, {
             name,
             description,
             image,
@@ -161,7 +144,7 @@ export const createCategory = async (req, res) => {
 
         // Validate required fields
         if (!name) {
-            logError(`[${requestId}] Missing required field: name`);
+            logError(`Missing required field: name`);
             return res.status(400).json({
                 success: false,
                 message: "Tên danh mục là bắt buộc"
@@ -169,7 +152,7 @@ export const createCategory = async (req, res) => {
         }
 
         if (!image) {
-            logError(`[${requestId}] Missing required field: image`);
+            logError(`Missing required field: image`);
             return res.status(400).json({
                 success: false,
                 message: "Ảnh danh mục là bắt buộc"
@@ -236,14 +219,7 @@ export const createCategory = async (req, res) => {
             message: "Tạo danh mục thành công",
             data: response
         });
-    } catch (error) {
-        logError(`[${requestId}] Error creating category:`, error);
-        res.status(500).json({
-            success: false,
-            message: "Lỗi server",
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
+    } catch { /* empty */ }
 };
 
 export const updateCategory = async (req, res) => {
@@ -263,12 +239,7 @@ export const updateCategory = async (req, res) => {
             // Nếu không tìm thấy bằng categoryId, thử tìm bằng _id
             try {
                 category = await Category.findById(categoryId);
-            } catch (error) {
-                // Bỏ qua lỗi CastError khi id không phải là ObjectId hợp lệ
-                if (error.name !== 'CastError') {
-                    throw error;
-                }
-            }
+            } catch { /* empty */ }
         }
         
         if (!category) {
@@ -323,15 +294,10 @@ export const updateCategory = async (req, res) => {
             message: SUCCESS_MESSAGES.CATEGORY_UPDATED,
             data: updatedCategory
         });
-    } catch (error) {
-        logError(`[${requestId}] Error updating category:`, error);
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
-    }
+    } catch { /* empty */ }
 };
 
 export const deleteCategory = async (req, res) => {
-    const requestId = req.id || 'unknown';
     try {
         const { categoryId } = req.params;
         
@@ -340,7 +306,7 @@ export const deleteCategory = async (req, res) => {
         if (!category) {
             try {
                 category = await Category.findById(categoryId);
-            } catch (error) {}
+            } catch { /* empty */ }
         }
         if (!category) {
             return res.status(404).json({
@@ -371,13 +337,7 @@ export const deleteCategory = async (req, res) => {
             success: true,
             message: 'Xóa danh mục thành công'
         });
-    } catch (error) {
-        console.error('Error deleting category:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Lỗi server'
-        });
-    }
+    } catch { /* empty */ }
 };
 
 export const searchCategories = async (req, res) => {
@@ -408,8 +368,5 @@ export const searchCategories = async (req, res) => {
             message: SUCCESS_MESSAGES.CATEGORIES_RETRIEVED,
             data: categories
         });
-    } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
-    }
+    } catch { /* empty */ }
 };

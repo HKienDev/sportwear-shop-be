@@ -1,10 +1,8 @@
-import jwt from "jsonwebtoken";
-import User from "../models/user.js";
-import env from "../config/env.js";
 import { logInfo, logError } from "../utils/logger.js";
 import { ERROR_MESSAGES } from "../utils/constants.js";
 import { verifyAccessToken, verifyRefreshToken } from '../utils/jwt.js';
 import { getRedisClient } from '../config/redis.js';
+import User from "../models/user.js";
 
 // Helper functions
 const extractToken = (req) => {

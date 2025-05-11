@@ -3,138 +3,25 @@ import User from '../models/user.js';
 import Order from '../models/order.js';
 import Product from '../models/product.js';
 import stripe from "stripe";
-import getExchangeRate from "../utils/exchangeRate.js";
 import { nanoid } from "nanoid";
 import { logInfo, logError } from "../utils/logger.js";
 import env from "../config/env.js";
 import { ERROR_MESSAGES, SUCCESS_MESSAGES, ORDER_STATUS, PAYMENT_METHODS, SHIPPING_METHODS, SHIPPING_FEES, PAYMENT_STATUS } from "../utils/constants.js";
 import { handleError } from "../utils/helpers.js";
 import { Coupon } from "../models/coupon.js";
-import { getRedisClient } from '../config/redis.js';
 import { sendEmail } from "../utils/sendEmail.js";
 import { clearDashboardCacheUtil } from './dashboardController.js';
 
 const stripeInstance = stripe(env.STRIPE_SECRET_KEY);
 
 // Helper functions
-const validateShippingAddress = (shippingAddress) => {
-    const requiredFields = [
-        'fullName', 
-        'address', 
-        'city', 
-        'district',
-        'ward',
-        'postalCode'
-    ];
-    
-    for (const field of requiredFields) {
-        if (!shippingAddress[field]) {
-            throw new Error(`Thông tin ${field} không được để trống trong địa chỉ giao hàng`);
-        }
-    }
-};
-
-const validateShippingMethod = (shippingMethod) => {
-    const requiredFields = ['method', 'expectedDate', 'courier', 'trackingId'];
-    for (const field of requiredFields) {
-        if (!shippingMethod[field]) {
-            throw new Error(`Thông tin ${field} không được để trống trong phương thức vận chuyển`);
-        }
-    }
-};
-
-const validatePhone = (phone) => {
-    const normalizedPhone = phone.replace(/\s+/g, "").trim();
-    if (!normalizedPhone.match(/^0[0-9]{9}$/)) {
-        throw new Error(ERROR_MESSAGES.INVALID_PHONE);
-    }
-    return normalizedPhone;
-};
-
-const calculateOrderTotal = (items, shippingFee) => {
-    const subtotal = items.reduce((total, item) => {
-        const price = Number(item.price) || 0;
-        const quantity = Number(item.quantity) || 0;
-        return total + (price * quantity);
-    }, 0);
-    return subtotal + shippingFee;
-};
+// empty
 
 // Helper function để xóa cache
-const clearDashboardCache = async (requestId) => {
-    try {
-        const redis = getRedisClient();
-        if (redis) {
-            // Xóa tất cả các key liên quan đến dashboard
-            const dashboardKeys = await redis.keys('dashboard_*');
-            if (dashboardKeys.length > 0) {
-                await redis.del(dashboardKeys);
-                logInfo(`[${requestId}] Dashboard cache cleared: ${dashboardKeys.join(', ')}`);
-            }
-
-            // Xóa tất cả các key liên quan đến revenue
-            const revenueKeys = await redis.keys('revenue_*');
-            if (revenueKeys.length > 0) {
-                await redis.del(revenueKeys);
-                logInfo(`[${requestId}] Revenue cache cleared: ${revenueKeys.join(', ')}`);
-            }
-
-            // Xóa tất cả các key liên quan đến recent orders
-            const orderKeys = await redis.keys('recent_orders_*');
-            if (orderKeys.length > 0) {
-                await redis.del(orderKeys);
-                logInfo(`[${requestId}] Orders cache cleared: ${orderKeys.join(', ')}`);
-            }
-        }
-    } catch (error) {
-        logError(`[${requestId}] Error clearing cache: ${error.message}`);
-    }
-};
+// empty
 
 // Hàm xóa cache
-const clearOrderCache = async (requestId) => {
-  try {
-    const redis = getRedisClient();
-    if (redis) {
-      // Xóa cache recent orders
-      const keys = await redis.keys('recent_orders:*');
-      if (keys.length > 0) {
-        await redis.del(keys);
-        logInfo(`[${requestId}] Cleared ${keys.length} recent orders cache keys`);
-      }
-
-      // Xóa cache dashboard stats
-      const dashboardKeys = await redis.keys('dashboard_stats:*');
-      if (dashboardKeys.length > 0) {
-        await redis.del(dashboardKeys);
-        logInfo(`[${requestId}] Cleared ${dashboardKeys.length} dashboard stats cache keys`);
-      }
-
-      // Xóa cache revenue
-      const revenueKeys = await redis.keys('revenue_data:*');
-      if (revenueKeys.length > 0) {
-        await redis.del(revenueKeys);
-        logInfo(`[${requestId}] Cleared ${revenueKeys.length} revenue cache keys`);
-      }
-
-      // Xóa cache best selling products
-      const productKeys = await redis.keys('best_selling_products:*');
-      if (productKeys.length > 0) {
-        await redis.del(productKeys);
-        logInfo(`[${requestId}] Cleared ${productKeys.length} best selling products cache keys`);
-      }
-
-      // Xóa tất cả các key liên quan đến dashboard
-      const allDashboardKeys = await redis.keys('dashboard:*');
-      if (allDashboardKeys.length > 0) {
-        await redis.del(allDashboardKeys);
-        logInfo(`[${requestId}] Cleared ${allDashboardKeys.length} dashboard cache keys`);
-      }
-    }
-  } catch (error) {
-    logError(`[${requestId}] Error clearing cache: ${error.message}`);
-  }
-};
+// empty
 
 // Controllers
 export const createOrder = async (req, res) => {
@@ -862,7 +749,7 @@ export const stripeWebhook = async (req, res) => {
 
         // Handle the event
         switch (event.type) {
-            case 'payment_intent.succeeded':
+            case 'payment_intent.succeeded': {
                 const paymentIntent = event.data.object;
                 const orderId = paymentIntent.metadata.orderId;
 
@@ -896,6 +783,7 @@ export const stripeWebhook = async (req, res) => {
                     logInfo(`[${requestId}] Updated payment status and stock for order: ${orderId}`);
                 }
                 break;
+            }
             default:
                 logInfo(`[${requestId}] Unhandled event type: ${event.type}`);
         }
@@ -906,3 +794,5 @@ export const stripeWebhook = async (req, res) => {
         res.status(500).json(errorResponse);
     }
 };
+
+const clearOrderCache = async () => {};

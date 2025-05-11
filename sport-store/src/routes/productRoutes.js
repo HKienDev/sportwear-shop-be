@@ -20,19 +20,9 @@ import {
     productStatusSchema,
     updateSizeStatusSchema
 } from '../schemas/productSchema.js';
-import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../utils/constants.js';
+import { SUCCESS_MESSAGES } from '../utils/constants.js';
 
 const router = express.Router();
-
-// Error handling middleware
-const errorHandler = (err, req, res, next) => {
-    console.error('Error:', err);
-    res.status(err.status || 500).json({
-        success: false,
-        message: err.message || ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
-        errors: err.errors || {}
-    });
-};
 
 // Public routes
 router.get("/test", (req, res) => {
@@ -63,8 +53,5 @@ router.patch("/:sku/size-status", validateRequest(updateSizeStatusSchema), updat
 
 // Lấy chi tiết sản phẩm theo SKU (phải đặt sau các route khác để tránh xung đột)
 router.get("/:sku", getProductBySku);
-
-// Apply error handler
-router.use(errorHandler);
 
 export default router;

@@ -6,13 +6,12 @@ import {
   createOrderSchema,
   updateOrderSchema
 } from '../schemas/orderSchema.js';
-import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../utils/constants.js';
 
 const router = express.Router();
 
 // Public routes
 router.get("/test", (req, res) => {
-    res.json({ message: SUCCESS_MESSAGES.ROUTE_WORKING });
+    res.json({ message: "Route is working" });
 });
 
 // Order routes (User only)

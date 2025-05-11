@@ -16,39 +16,10 @@ import { validateRequest } from '../middlewares/validateRequest.js';
 import {
   createUserSchema,
   updateUserSchema,
-  searchUserSchema,
   resetUserPasswordSchema
 } from '../schemas/userSchema.js';
-import mongoose from 'mongoose';
 
 const router = express.Router();
-
-// Middleware kiểm tra ObjectId hợp lệ
-const validateObjectId = (req, res, next) => {
-  const id = req.params.id;
-  console.log('Validating ObjectId:', id);
-  
-  if (!id) {
-    console.log('ID is missing');
-    return res.status(400).json({ 
-      success: false,
-      message: "ID không tồn tại.",
-      path: req.url
-    });
-  }
-  
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    console.log('Invalid ObjectId format:', id);
-    return res.status(400).json({ 
-      success: false,
-      message: "ID không hợp lệ!",
-      path: req.url
-    });
-  }
-  
-  console.log('ObjectId is valid:', id);
-  next();
-};
 
 // Tất cả routes đều yêu cầu token và quyền admin
 router.use(verifyUser, verifyAdmin);

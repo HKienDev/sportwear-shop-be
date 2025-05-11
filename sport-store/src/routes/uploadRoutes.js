@@ -7,7 +7,6 @@ import { verifyUser, verifyAdmin } from '../middlewares/authMiddleware.js';
 import fs from 'fs';
 import { validateRequest } from '../middlewares/validateRequest.js';
 import { uploadFileSchema } from '../schemas/uploadSchema.js';
-import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../utils/constants.js';
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -66,7 +65,7 @@ const handleMulterError = (err, req, res, next) => {
 
 // Public routes
 router.get("/test", (req, res) => {
-    res.json({ message: SUCCESS_MESSAGES.ROUTE_WORKING });
+    res.json({ message: 'Route is working' });
 });
 
 // Upload routes với multer

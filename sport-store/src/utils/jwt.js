@@ -1,5 +1,4 @@
 import jwt from 'jsonwebtoken';
-import { ERROR_MESSAGES } from './constants.js';
 import env from '../config/env.js';
 
 // Tạo access token

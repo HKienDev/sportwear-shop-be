@@ -1,29 +1,16 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { getRedisClient } from "../config/redis.js";
-import User from '../models/User.js';
+import User from '../models/user.js';
 import env from "../config/env.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { logInfo, logError } from "../utils/logger.js";
 import { ERROR_MESSAGES, SUCCESS_MESSAGES, TOKEN_CONFIG, AUTH_CONFIG } from "../utils/constants.js";
 import { hashPassword, formatUserResponse, handleError, generateOTP, setAuthCookies } from "../utils/helpers.js";
-import { generateAccessToken, generateRefreshToken, verifyAccessToken, verifyRefreshToken } from '../utils/jwt.js';
-import { oauth2Client, getGoogleAuthURL, getGoogleUser, verifyGoogleToken } from '../config/google.js';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt.js';
+import { getGoogleUser, verifyGoogleToken } from '../config/google.js';
 
 // Helper functions
-const cacheSet = (key, value, expiry) => {
-    const redis = getRedisClient();
-    if (!redis) return;
-    redis.setEx(key, expiry, JSON.stringify(value));
-};
-
-const cacheGet = async (key) => {
-    const redis = getRedisClient();
-    if (!redis) return null;
-    const data = await redis.get(key);
-    return data ? JSON.parse(data) : null;
-};
-
 const sendAndCacheOTP = async (email, purpose, requestId) => {
     const redis = getRedisClient();
     if (!redis) return null;
@@ -89,7 +76,7 @@ const verifyOTPHelper = async (email, otp, purpose) => {
 
         return user;
     } catch (error) {
-        logError(`[verifyOTPHelper] Error: ${error.message}`);
+        logError(`[verifyOTPHelper] Error:`, error);
         throw error;
     }
 };
@@ -508,14 +495,9 @@ export const logout = async (req, res) => {
             await addTokenToBlacklist(token, timeToExpire);
             
             logInfo(`[${requestId}] Token added to blacklist with expiry: ${timeToExpire}s`);
-        } catch (error) {
+        } catch {
             // Nếu token hết hạn, vẫn thêm vào blacklist
-            if (error.name === 'TokenExpiredError') {
-                logInfo(`[${requestId}] Token expired, adding to blacklist`);
-                await addTokenToBlacklist(token, 24 * 60 * 60); // Thêm vào blacklist 24h
-            } else {
-                throw error;
-            }
+            await addTokenToBlacklist(token, 24 * 60 * 60); // Thêm vào blacklist 24h
         }
 
         // Xóa cookies
@@ -901,7 +883,7 @@ export const getProfile = async (req, res) => {
             success: true,
             data: formatUserResponse(user)
         });
-    } catch (error) {
+    } catch {
         res.status(500).json({
             success: false,
             message: ERROR_MESSAGES.SERVER_ERROR
@@ -973,7 +955,7 @@ export const updateUser = async (req, res) => {
 
         // Kiểm tra OTP
         const otpKey = `otp:update:${email}`;
-        const storedOTP = await redisClient.get(otpKey);
+        const storedOTP = await getRedisClient().get(otpKey);
         
         if (!storedOTP) {
             logError(`[${requestId}] Invalid or expired OTP for: ${email}`);
@@ -997,7 +979,7 @@ export const updateUser = async (req, res) => {
         if (password) user.password = await hashPassword(password);
 
         await user.save();
-        await redisClient.del(otpKey);
+        await getRedisClient().del(otpKey);
 
         logInfo(`[${requestId}] User updated: ${userId}`);
         res.json({
