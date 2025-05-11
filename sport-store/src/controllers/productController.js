@@ -1,4 +1,4 @@
-import Product from '../models/product.js';
+import Product from '../models/Product.js';
 import Category from "../models/Category.js";
 import { logInfo, logError } from "../utils/logger.js";
 import { generateUniqueSKU } from "../utils/productUtils.js";

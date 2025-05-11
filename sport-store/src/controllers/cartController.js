@@ -1,5 +1,5 @@
 import Cart from '../models/cart.js';
-import Product from '../models/product.js';
+import Product from '../models/Product.js';
 import { sendSuccessResponse, sendErrorResponse } from '../utils/responseUtils.js';
 import { handleError } from '../utils/errorHandler.js';
 
