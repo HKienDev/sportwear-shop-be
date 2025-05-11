@@ -47,7 +47,7 @@ export const verifyRefreshToken = (token) => {
   }
   try {
     return jwt.verify(token, env.JWT_SECRET);
-  } catch (error) {
+  } catch {
     throw new Error('Invalid refresh token');
   }
 };

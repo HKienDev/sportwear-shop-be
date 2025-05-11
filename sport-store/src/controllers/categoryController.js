@@ -3,7 +3,7 @@ import { logInfo, logError } from "../utils/logger.js";
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from "../utils/constants.js";
 import Product from '../models/product.js';
 import cloudinary from "../config/cloudinary.js";
-import User from '../models/user.js';
+import User from '../models/User.js';
 
 // Controllers
 export const getAllCategories = async (req, res) => {

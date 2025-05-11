@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import User from '../models/user.js';
+import User from '../models/User.js';
 import Order from '../models/Order.js';
 import Product from '../models/product.js';
 import stripe from "stripe";
