@@ -1,4 +1,4 @@
-import { Coupon } from "../models/coupon.js";
+import { Coupon } from "../models/Coupon.js";
 import { SUCCESS_MESSAGES, ERROR_MESSAGES } from "../utils/constants.js";
 import { handleError } from "../utils/errorHandler.js";
 import { DateUtils } from "../utils/timeUtils.js";

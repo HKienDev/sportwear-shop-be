@@ -8,7 +8,7 @@ import { logInfo, logError } from "../utils/logger.js";
 import env from "../config/env.js";
 import { ERROR_MESSAGES, SUCCESS_MESSAGES, ORDER_STATUS, PAYMENT_METHODS, SHIPPING_METHODS, SHIPPING_FEES, PAYMENT_STATUS } from "../utils/constants.js";
 import { handleError } from "../utils/helpers.js";
-import { Coupon } from "../models/coupon.js";
+import { Coupon } from "../models/Coupon.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { clearDashboardCacheUtil } from './dashboardController.js';
 
