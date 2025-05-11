@@ -1,4 +1,4 @@
-import Cart from '../models/cart.js';
+import Cart from '../models/Cart.js';
 import Product from '../models/Product.js';
 import { sendSuccessResponse, sendErrorResponse } from '../utils/responseUtils.js';
 import { handleError } from '../utils/errorHandler.js';
