@@ -31,7 +31,7 @@ import uploadRoutes from "./src/routes/uploadRoutes.js";
 import dashboardRoutes from "./src/routes/dashboardRoutes.js";
 import couponRoutes from "./src/routes/couponRoutes.js";
 import cartRoutes from "./src/routes/cartRoutes.js";
-import stripeRoutes from "./src/routes/stripe.routes.js";
+import stripeRoutes from "./src/routes/stripeRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
