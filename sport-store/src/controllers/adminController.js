@@ -1,4 +1,4 @@
-import User from "../models/user.js";
+import User from "../models/User.js";
 import { ERROR_MESSAGES } from '../utils/constants.js';
 
 // Lấy danh sách tất cả users
