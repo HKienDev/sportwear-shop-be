@@ -6,7 +6,6 @@ import {
     updateProduct,
     deleteProduct,
     updateProductStatus,
-    getAdminProducts,
     updateSizeStatus,
     getProductsByCategory
 } from '../controllers/productController.js';
