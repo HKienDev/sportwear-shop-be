@@ -1,6 +1,6 @@
 import stripe from 'stripe';
 import env from '../config/env.js';
-import Order from '../models/order.js';
+import Order from '../models/Order.js';
 import { PAYMENT_STATUS, ORDER_STATUS } from '../utils/constants.js';
 import { logInfo, logError } from '../utils/logger.js';
 import { getRedisClient } from '../config/redis.js';

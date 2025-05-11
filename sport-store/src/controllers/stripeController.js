@@ -1,5 +1,5 @@
 import stripeService from '../services/stripeService.js';
-import Order from '../models/order.js';
+import Order from '../models/Order.js';
 import { PAYMENT_STATUS } from '../utils/constants.js';
 import env from '../config/env.js';
 import Stripe from 'stripe';
