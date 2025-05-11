@@ -18,7 +18,7 @@ import { notFoundHandler } from "./src/middlewares/notFoundHandler.js";
 import { initSocket } from "./src/config/socket.js";
 import { connectRedis } from "./src/config/redis.js";
 import corsOptions from './src/config/cors.js';
-import { stripeController } from "./src/controllers/stripe.controller.js";
+import { stripeController } from "./src/controllers/stripeController.js";
 
 // Import routes
 import authRoutes from "./src/routes/authRoutes.js";
