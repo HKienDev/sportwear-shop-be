@@ -11,7 +11,6 @@ import { dirname, join } from "path";
 import { createServer } from 'http';
 import { logInfo, logError } from "./src/utils/logger.js";
 import env from "./src/config/env.js";
-import { ERROR_MESSAGES } from "./src/utils/constants.js";
 import { requestId } from "./src/middlewares/requestId.js";
 import { errorHandler } from "./src/middlewares/errorHandler.js";
 import { notFoundHandler } from "./src/middlewares/notFoundHandler.js";
@@ -38,6 +37,9 @@ const __dirname = dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
+
+// Thêm dòng này ngay sau khi khởi tạo app để tin tưởng proxy (fix lỗi X-Forwarded-For với express-rate-limit)
+app.set('trust proxy', 1);
 
 // Khởi tạo Socket.IO
 initSocket(httpServer);
