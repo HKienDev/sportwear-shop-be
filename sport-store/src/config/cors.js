@@ -1,7 +1,19 @@
-import env from './env.js';
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://sport-store-fe-graduation.vercel.app',
+  'https://www.vjusport.com'
+];
 
 const corsOptions = {
-    origin: env.FRONTEND_URL || 'http://localhost:3000',
+    origin: function (origin, callback) {
+        // Cho phép request không có origin (ví dụ: mobile app, curl)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        } else {
+            return callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
