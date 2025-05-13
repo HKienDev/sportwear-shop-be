@@ -38,6 +38,9 @@ router.use(verifyUser);
 // Admin routes (require admin role)
 router.use(verifyAdmin);
 
+// Route để lấy danh sách sản phẩm cho admin (bao gồm cả sản phẩm không active)
+router.get("/admin", getProducts);
+
 // Product management routes - Admin
 router.post("/", upload.array('images', 5), validateRequest(createProductSchema), createProduct);
 router.put("/:sku", upload.array('images', 5), validateRequest(updateProductSchema), updateProduct);
