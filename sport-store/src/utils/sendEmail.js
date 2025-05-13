@@ -171,6 +171,118 @@ async function getEmailTemplate(template, data) {
                     <p>Your verification code is: ${data}</p>
                 `
             };
+        case 'register_success': {
+            const { fullname, email, username, customId } = data;
+            return {
+                subject: 'Chào mừng bạn đến với Sport Store! Xác nhận đăng ký tài khoản',
+                html: `
+                    <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px #0001;">
+                        <div style="text-align:center;">
+                            <img src='https://sport-store.vercel.app/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
+                            <h2>Chào mừng đến với Sport Store!</h2>
+                            <p>Xin chào <b>${fullname}</b>,</p>
+                            <p>Tài khoản của bạn đã được tạo thành công.</p>
+                        </div>
+                        <div style="background:#f0f6ff;padding:16px;border-radius:8px;margin:24px 0;">
+                            <h3>Thông tin tài khoản</h3>
+                            <p><b>Mã khách hàng:</b> ${customId}</p>
+                            <p><b>Tên đăng nhập:</b> ${username}</p>
+                            <p><b>Email:</b> ${email}</p>
+                        </div>
+                        <div style="text-align:center;margin:24px 0;">
+                            <a href="https://sport-store.vercel.app/auth/login" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;">Đăng nhập ngay</a>
+                        </div>
+                        <p style="font-size:13px;color:#666;text-align:center;">Nếu bạn cần hỗ trợ, hãy liên hệ: support@sportstore.com</p>
+                        <hr style="margin:24px 0;border:0;border-top:1px solid #eee;" />
+                        <p style="font-size:12px;color:#999;text-align:center;">© 2025 Sport Store. Địa chỉ: 97 Đường Võ Văn Tần, P.6, Q.3, TP.HCM</p>
+                    </div>
+                `
+            };
+        }
+        case 'forgot_password': {
+            const { otp, name = 'Khách hàng' } = data;
+            return {
+                subject: 'Mã OTP đặt lại mật khẩu tại Sport Store',
+                html: `
+                    <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px #0001;">
+                        <div style="text-align:center;">
+                            <img src='https://sport-store.vercel.app/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
+                            <h2>Yêu cầu đặt lại mật khẩu</h2>
+                            <p>Xin chào <b>${name}</b>,</p>
+                            <p>Vui lòng sử dụng mã OTP dưới đây để hoàn tất quá trình đặt lại mật khẩu:</p>
+                            <div style="background:#f3f4f6;padding:16px 0;margin:24px 0;border-radius:8px;font-size:24px;font-weight:bold;letter-spacing:4px;">${otp}</div>
+                            <p style="color:#666;font-size:13px;">Mã này sẽ hết hạn sau 10 phút.</p>
+                        </div>
+                        <div style="background:#fef2f2;padding:12px;border-radius:8px;margin:24px 0;">
+                            <b style="color:#dc2626;">Cảnh báo bảo mật:</b> Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email này.
+                        </div>
+                        <p style="font-size:13px;color:#666;text-align:center;">Cần hỗ trợ? support@sportstore.com</p>
+                        <hr style="margin:24px 0;border:0;border-top:1px solid #eee;" />
+                        <p style="font-size:12px;color:#999;text-align:center;">© 2025 Sport Store. Địa chỉ: 97 Đường Võ Văn Tần, P.6, Q.3, TP.HCM</p>
+                    </div>
+                `
+            };
+        }
+        case 'password_changed': {
+            const { name = 'Khách hàng', time = new Date().toLocaleString('vi-VN') } = data;
+            return {
+                subject: 'Mật khẩu của bạn đã được thay đổi thành công',
+                html: `
+                    <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px #0001;">
+                        <div style="text-align:center;">
+                            <img src='https://sport-store.vercel.app/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
+                            <h2>Mật khẩu đã được thay đổi</h2>
+                            <p>Xin chào <b>${name}</b>,</p>
+                            <p>Mật khẩu tài khoản Sport Store của bạn đã được thay đổi thành công vào lúc ${time}.</p>
+                        </div>
+                        <div style="background:#f0fdf4;padding:16px;border-radius:8px;margin:24px 0;">
+                            <b style="color:#16a34a;">Thay đổi mật khẩu thành công!</b>
+                        </div>
+                        <div style="background:#eff6ff;padding:12px;border-radius:8px;margin:24px 0;">
+                            <b style="color:#2563eb;">Lời khuyên bảo mật:</b> Luôn chọn mật khẩu mạnh và không sử dụng lại mật khẩu trên nhiều trang web khác nhau.
+                        </div>
+                        <div style="text-align:center;margin:24px 0;">
+                            <a href="https://sport-store.vercel.app/auth/login" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;">Đăng nhập ngay</a>
+                        </div>
+                        <p style="font-size:13px;color:#666;text-align:center;">Nếu bạn không thực hiện thay đổi này, hãy liên hệ: support@sportstore.com</p>
+                        <hr style="margin:24px 0;border:0;border-top:1px solid #eee;" />
+                        <p style="font-size:12px;color:#999;text-align:center;">© 2025 Sport Store. Địa chỉ: 97 Đường Võ Văn Tần, P.6, Q.3, TP.HCM</p>
+                    </div>
+                `
+            };
+        }
+        case 'profile_update': {
+            const { name = 'Khách hàng', time = new Date().toLocaleString('vi-VN'), changes = [] } = data;
+            let changesHtml = '';
+            if (Array.isArray(changes) && changes.length > 0) {
+                changesHtml = `<table style='width:100%;margin:16px 0;'>${changes.map((c, i) => `<tr style='background:${i%2===0?'#f9fafb':'#fff'};'><td style='padding:8px 12px;color:#666;font-size:14px;'>${c.field}</td><td style='padding:8px 12px;color:#222;font-size:14px;'>${c.value}</td></tr>`).join('')}</table>`;
+            } else {
+                changesHtml = `<div style='background:#f0fdf4;padding:16px;border-radius:8px;text-align:center;'>Cập nhật thông tin thành công!</div>`;
+            }
+            return {
+                subject: 'Thông tin tài khoản của bạn đã được cập nhật',
+                html: `
+                    <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px #0001;">
+                        <div style="text-align:center;">
+                            <img src='https://sport-store.vercel.app/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
+                            <h2>Thông tin tài khoản đã được cập nhật</h2>
+                            <p>Xin chào <b>${name}</b>,</p>
+                            <p>Thông tin tài khoản của bạn tại Sport Store đã được cập nhật thành công vào lúc ${time}.</p>
+                        </div>
+                        <div style="margin:24px 0;">${changesHtml}</div>
+                        <div style="background:#fef9c3;padding:12px;border-radius:8px;margin:24px 0;">
+                            <b style="color:#ca8a04;">Lưu ý bảo mật:</b> Nếu bạn không thực hiện thay đổi này, hãy liên hệ ngay với chúng tôi.
+                        </div>
+                        <div style="text-align:center;margin:24px 0;">
+                            <a href="https://sport-store.vercel.app/user/profile" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;">Xem tài khoản của tôi</a>
+                        </div>
+                        <p style="font-size:13px;color:#666;text-align:center;">Cần hỗ trợ? support@sportstore.com</p>
+                        <hr style="margin:24px 0;border:0;border-top:1px solid #eee;" />
+                        <p style="font-size:12px;color:#999;text-align:center;">© 2025 Sport Store. Địa chỉ: 97 Đường Võ Văn Tần, P.6, Q.3, TP.HCM</p>
+                    </div>
+                `
+            };
+        }
         default:
             throw new Error(`Template ${template} not found`);
     }

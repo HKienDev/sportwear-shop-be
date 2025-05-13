@@ -22,7 +22,7 @@ const sendAndCacheOTP = async (email, purpose, requestId) => {
     await sendEmail({
         to: email,
         template: purpose,
-        data: otp,
+        data: { otp },
         requestId
     });
 
@@ -631,7 +631,7 @@ export const forgotPassword = async (req, res) => {
         }
 
         // Gửi OTP đặt lại mật khẩu
-        await sendAndCacheOTP(email, 'forgotPassword', requestId);
+        await sendAndCacheOTP(email, 'forgot_password', requestId);
 
         logInfo(`[${requestId}] Password reset OTP sent to: ${email}`);
         res.status(200).json({
@@ -677,7 +677,7 @@ export const resetPassword = async (req, res) => {
         }
 
         // Tìm email dựa vào OTP
-        const keys = await redis.keys('otp:forgotPassword:*');
+        const keys = await redis.keys('otp:forgot_password:*');
         let userEmail = null;
         
         for (const key of keys) {
@@ -697,7 +697,7 @@ export const resetPassword = async (req, res) => {
         }
 
         // Xác thực OTP
-        const user = await verifyOTPHelper(userEmail, otp, 'forgotPassword');
+        const user = await verifyOTPHelper(userEmail, otp, 'forgot_password');
 
         // Kiểm tra trạng thái tài khoản
         if (!user.isActive) {
