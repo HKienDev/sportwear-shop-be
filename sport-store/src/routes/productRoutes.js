@@ -50,4 +50,14 @@ router.patch("/:sku/status", validateRequest(productStatusSchema), updateProduct
 // Lấy chi tiết sản phẩm theo SKU (phải đặt sau các route khác để tránh xung đột)
 router.get("/:sku", getProductBySku);
 
+// Route mới: /new-arrivals
+router.get('/new-arrivals', (req, res) => {
+  res.json({ products: [], message: 'Chưa có logic new-arrivals, trả về mảng rỗng.' });
+});
+
+// Route mới: /sale
+router.get('/sale', (req, res) => {
+  res.json({ products: [], message: 'Chưa có logic sale, trả về mảng rỗng.' });
+});
+
 export default router;
