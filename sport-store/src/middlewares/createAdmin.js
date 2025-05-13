@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
-import User from "../models/user.js";
+import User from "../models/User.js";
 import dotenv from "dotenv";
 
 // Load biến môi trường
@@ -10,7 +10,7 @@ dotenv.config();
 async function createAdmin() {
   try {
     // Kết nối tới MongoDB
-    await mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/sport-store");
+    await mongoose.connect(process.env.MONGODB_URI || "mongodb+srv://hoangtientrungkien2k3:Nguyensinhcung%401890@cluster0.iwl8w.mongodb.net/sports_store?retryWrites=true&w=majority&appName=Cluster0");
 
     // Kiểm tra xem đã có tài khoản admin chưa
     const existingAdmin = await User.findOne({ role: "admin" });
