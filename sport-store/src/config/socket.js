@@ -6,7 +6,11 @@ let io;
 export const initSocket = (server) => {
     io = new Server(server, {
         cors: {
-            origin: ['http://localhost:3000', 'https://sport-store-fe-graduation.vercel.app'],
+            origin: [
+                'http://localhost:3000',
+                'https://sport-store-fe-graduation.vercel.app',
+                'https://www.vjusport.com'
+            ],
             methods: ['GET', 'POST'],
             credentials: true
         },
