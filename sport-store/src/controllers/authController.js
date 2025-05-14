@@ -853,7 +853,7 @@ export const googleCallback = async (req, res) => {
         setAuthCookies(res, accessToken, refreshToken);
 
         // Redirect về frontend (dùng trực tiếp process.env.FRONTEND_URL)
-        res.redirect(`${process.env.FRONTEND_URL}/auth/success`);
+        res.redirect(`${process.env.FRONTEND_URL}/user`);
     } catch (error) {
         logError('Google callback error:', error);
         res.redirect(`${process.env.FRONTEND_URL}/auth/error`);
