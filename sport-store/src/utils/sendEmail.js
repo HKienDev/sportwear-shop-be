@@ -284,15 +284,26 @@ async function getEmailTemplate(template, data) {
             };
         }
         case 'profileUpdate': {
-            // Đọc file template HTML từ FE (nếu chạy chung repo hoặc copy sang BE)
-            const fs = await import('fs/promises');
-            const path = await import('path');
-            const templatePath = path.resolve(process.cwd(), 'src/email-templates/profileUpdate.html');
-            let html = await fs.readFile(templatePath, 'utf8');
-            html = html.replace(/{{otp}}/g, data.otp || '');
+            const { otp } = data;
             return {
                 subject: 'Xác thực cập nhật thông tin tài khoản',
-                html
+                html: `
+                    <html>
+                      <body style="font-family: Arial, sans-serif; background: #f9f9f9; padding: 24px;">
+                        <div style="max-width: 480px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 32px;">
+                          <h2 style="color: #7c3aed;">Xác thực cập nhật thông tin tài khoản</h2>
+                          <p>Xin chào,</p>
+                          <p>Bạn vừa yêu cầu cập nhật thông tin tài khoản trên <b>VJU SPORT</b>.</p>
+                          <p>Mã xác thực (OTP) của bạn là:</p>
+                          <div style="font-size: 2rem; font-weight: bold; color: #ef4444; margin: 16px 0;">${otp}</div>
+                          <p>Vui lòng nhập mã này để hoàn tất cập nhật thông tin.</p>
+                          <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;" />
+                          <p style="font-size: 0.95rem; color: #888;">Nếu bạn không thực hiện yêu cầu này, hãy bỏ qua email này.</p>
+                          <p style="font-size: 0.95rem; color: #888;">Trân trọng,<br />Đội ngũ VJU SPORT</p>
+                        </div>
+                      </body>
+                    </html>
+                `
             };
         }
         default:
