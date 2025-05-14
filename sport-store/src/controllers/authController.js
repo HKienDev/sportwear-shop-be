@@ -852,11 +852,11 @@ export const googleCallback = async (req, res) => {
         // Set cookies
         setAuthCookies(res, accessToken, refreshToken);
 
-        // Redirect về frontend
-        res.redirect(`${env.FRONTEND_URL}/auth/success`);
+        // Redirect về frontend (dùng trực tiếp process.env.FRONTEND_URL)
+        res.redirect(`${process.env.FRONTEND_URL}/auth/success`);
     } catch (error) {
         logError('Google callback error:', error);
-        res.redirect(`${env.FRONTEND_URL}/auth/error`);
+        res.redirect(`${process.env.FRONTEND_URL}/auth/error`);
     }
 };
 
