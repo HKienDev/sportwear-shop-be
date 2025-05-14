@@ -18,6 +18,7 @@ import {
 } from '../controllers/authController.js';
 import { verifyUser } from '../middlewares/authMiddleware.js';
 import { validateLogin, validateRegister, validateForgotPassword, validateResetPassword } from '../middlewares/validationMiddleware.js';
+import { loginRateLimiter } from '../middlewares/rateLimit.js';
 
 const router = express.Router();
 
@@ -27,7 +28,7 @@ router.get('/test', (req, res) => {
 });
 
 // Auth routes
-router.post('/login', validateLogin, login);
+router.post('/login', loginRateLimiter, validateLogin, login);
 router.post('/register', validateRegister, register);
 router.post('/forgot-password', validateForgotPassword, forgotPassword);
 router.post('/reset-password', validateResetPassword, resetPassword);
