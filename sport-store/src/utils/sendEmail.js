@@ -193,7 +193,7 @@ async function getEmailTemplate(template, data) {
                         </div>
                         <p style="font-size:13px;color:#666;text-align:center;">Nếu bạn cần hỗ trợ, hãy liên hệ: support@sportstore.com</p>
                         <hr style="margin:24px 0;border:0;border-top:1px solid #eee;" />
-                        <p style="font-size:12px;color:#999;text-align:center;">© 2025 Sport Store. Địa chỉ: 97 Đường Võ Văn Tần, P.6, Q.3, TP.HCM</p>
+                        <p style="font-size:12px;color:#999;text-align:center;">© 2025 Sport Store. Địa chỉ: P. Lưu Hữu Phước, Cầu Diễn, Nam Từ Liêm, Hà Nội</p>
                     </div>
                 `
             };
@@ -217,7 +217,7 @@ async function getEmailTemplate(template, data) {
                         </div>
                         <p style="font-size:13px;color:#666;text-align:center;">Cần hỗ trợ? support@sportstore.com</p>
                         <hr style="margin:24px 0;border:0;border-top:1px solid #eee;" />
-                        <p style="font-size:12px;color:#999;text-align:center;">© 2025 Sport Store. Địa chỉ: 97 Đường Võ Văn Tần, P.6, Q.3, TP.HCM</p>
+                        <p style="font-size:12px;color:#999;text-align:center;">© 2025 Sport Store. Địa chỉ: P. Lưu Hữu Phước, Cầu Diễn, Nam Từ Liêm, Hà Nội</p>
                     </div>
                 `
             };
@@ -245,7 +245,7 @@ async function getEmailTemplate(template, data) {
                         </div>
                         <p style="font-size:13px;color:#666;text-align:center;">Nếu bạn không thực hiện thay đổi này, hãy liên hệ: support@sportstore.com</p>
                         <hr style="margin:24px 0;border:0;border-top:1px solid #eee;" />
-                        <p style="font-size:12px;color:#999;text-align:center;">© 2025 Sport Store. Địa chỉ: 97 Đường Võ Văn Tần, P.6, Q.3, TP.HCM</p>
+                        <p style="font-size:12px;color:#999;text-align:center;">© 2025 Sport Store. Địa chỉ: P. Lưu Hữu Phước, Cầu Diễn, Nam Từ Liêm, Hà Nội</p>
                     </div>
                 `
             };
@@ -277,7 +277,7 @@ async function getEmailTemplate(template, data) {
                         </div>
                         <p style="font-size:13px;color:#666;text-align:center;">Cần hỗ trợ? support@sportstore.com</p>
                         <hr style="margin:24px 0;border:0;border-top:1px solid #eee;" />
-                        <p style="font-size:12px;color:#999;text-align:center;">© 2025 Sport Store. Địa chỉ: 97 Đường Võ Văn Tần, P.6, Q.3, TP.HCM</p>
+                        <p style="font-size:12px;color:#999;text-align:center;">© 2025 Sport Store. Địa chỉ: P. Lưu Hữu Phước, Cầu Diễn, Nam Từ Liêm, Hà Nội</p>
                     </div>
                 `
             };
