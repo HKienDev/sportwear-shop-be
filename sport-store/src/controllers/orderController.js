@@ -74,6 +74,7 @@ export const createOrder = async (req, res) => {
 
         // Calculate total and validate stock
         let subtotal = 0;
+        let directDiscount = 0;
         const orderItems = [];
 
         for (const item of items) {
@@ -110,27 +111,36 @@ export const createOrder = async (req, res) => {
                 });
             }
 
-            const price = Number(product.price) || 0;
+            const originalPrice = Number(product.originalPrice) || 0;
+            const salePrice = (typeof product.salePrice === 'number' ? product.salePrice : originalPrice);
+            const price = salePrice; // Giá bán thực tế
             const quantity = Number(item.quantity) || 0;
             const itemTotal = price * quantity;
-            subtotal += itemTotal;
+            const itemDirectDiscount = (originalPrice - price) * quantity;
+
+            subtotal += originalPrice * quantity;
+            directDiscount += itemDirectDiscount;
 
             orderItems.push({
                 product: product._id,
                 sku: product.sku,
                 name: product.name,
                 price: price,
+                originalPrice: originalPrice,
+                salePrice: salePrice,
                 quantity: quantity,
                 color: item.color || 'Mặc định',
                 size: item.size || 'Mặc định',
                 image: product.images && product.images.length > 0 ? product.images[0] : null,
-                total: itemTotal
+                total: itemTotal,
+                directDiscount: itemDirectDiscount
             });
         }
 
         // Apply shipping fee
         const shippingFee = SHIPPING_FEES[shippingMethod] || 0;
-        let totalPrice = Number(subtotal) + Number(shippingFee);
+        // Tính tổng tiền trước khi áp dụng coupon
+        let totalPrice = subtotal - directDiscount + shippingFee;
 
         // Apply coupon if provided
         let couponDiscount = 0;
@@ -153,8 +163,9 @@ export const createOrder = async (req, res) => {
                 });
             }
 
-            couponDiscount = Number(coupon.calculateDiscount(subtotal)) || 0;
-            totalPrice = Number(totalPrice) - Number(couponDiscount);
+            // Áp dụng giảm giá coupon trên tổng tiền đã trừ giảm giá trực tiếp
+            couponDiscount = Number(coupon.calculateDiscount(totalPrice)) || 0;
+            totalPrice = totalPrice - couponDiscount;
             appliedCoupon = {
                 code: coupon.code,
                 discount: couponDiscount
@@ -177,6 +188,8 @@ export const createOrder = async (req, res) => {
             },
             shippingFee,
             subtotal,
+            directDiscount,
+            couponDiscount,
             totalPrice,
             paymentMethod,
             coupon: appliedCoupon,
