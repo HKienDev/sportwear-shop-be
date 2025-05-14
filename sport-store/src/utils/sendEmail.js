@@ -178,7 +178,7 @@ async function getEmailTemplate(template, data) {
                 html: `
                     <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px #0001;">
                         <div style="text-align:center;">
-                            <img src='https://sport-store.vercel.app/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
+                            <img src='https://www.vjusport.com/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
                             <h2>Chào mừng đến với Sport Store!</h2>
                             <p>Xin chào <b>${fullname}</b>,</p>
                             <p>Tài khoản của bạn đã được tạo thành công.</p>
@@ -189,7 +189,7 @@ async function getEmailTemplate(template, data) {
                             <p><b>Email:</b> ${email}</p>
                         </div>
                         <div style="text-align:center;margin:24px 0;">
-                            <a href="https://sport-store.vercel.app/auth/login" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;">Đăng nhập ngay</a>
+                            <a href="https://www.vjusport.com/auth/login" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;">Đăng nhập ngay</a>
                         </div>
                         <p style="font-size:13px;color:#666;text-align:center;">Nếu bạn cần hỗ trợ, hãy liên hệ: support@sportstore.com</p>
                         <hr style="margin:24px 0;border:0;border-top:1px solid #eee;" />
@@ -205,7 +205,7 @@ async function getEmailTemplate(template, data) {
                 html: `
                     <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px #0001;">
                         <div style="text-align:center;">
-                            <img src='https://sport-store.vercel.app/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
+                            <img src='https://www.vjusport.com/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
                             <h2>Yêu cầu đặt lại mật khẩu</h2>
                             <p>Xin chào <b>${name}</b>,</p>
                             <p>Vui lòng sử dụng mã OTP dưới đây để hoàn tất quá trình đặt lại mật khẩu:</p>
@@ -229,7 +229,7 @@ async function getEmailTemplate(template, data) {
                 html: `
                     <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px #0001;">
                         <div style="text-align:center;">
-                            <img src='https://sport-store.vercel.app/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
+                            <img src='https://www.vjusport.com/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
                             <h2>Mật khẩu đã được thay đổi</h2>
                             <p>Xin chào <b>${name}</b>,</p>
                             <p>Mật khẩu tài khoản Sport Store của bạn đã được thay đổi thành công vào lúc ${time}.</p>
@@ -241,7 +241,7 @@ async function getEmailTemplate(template, data) {
                             <b style="color:#2563eb;">Lời khuyên bảo mật:</b> Luôn chọn mật khẩu mạnh và không sử dụng lại mật khẩu trên nhiều trang web khác nhau.
                         </div>
                         <div style="text-align:center;margin:24px 0;">
-                            <a href="https://sport-store.vercel.app/auth/login" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;">Đăng nhập ngay</a>
+                            <a href="https://www.vjusport.com/auth/login" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;">Đăng nhập ngay</a>
                         </div>
                         <p style="font-size:13px;color:#666;text-align:center;">Nếu bạn không thực hiện thay đổi này, hãy liên hệ: support@sportstore.com</p>
                         <hr style="margin:24px 0;border:0;border-top:1px solid #eee;" />
@@ -263,7 +263,7 @@ async function getEmailTemplate(template, data) {
                 html: `
                     <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px #0001;">
                         <div style="text-align:center;">
-                            <img src='https://sport-store.vercel.app/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
+                            <img src='https://www.vjusport.com/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
                             <h2>Thông tin tài khoản đã được cập nhật</h2>
                             <p>Xin chào <b>${name}</b>,</p>
                             <p>Thông tin tài khoản của bạn tại Sport Store đã được cập nhật thành công vào lúc ${time}.</p>
@@ -273,7 +273,7 @@ async function getEmailTemplate(template, data) {
                             <b style="color:#ca8a04;">Lưu ý bảo mật:</b> Nếu bạn không thực hiện thay đổi này, hãy liên hệ ngay với chúng tôi.
                         </div>
                         <div style="text-align:center;margin:24px 0;">
-                            <a href="https://sport-store.vercel.app/user/profile" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;">Xem tài khoản của tôi</a>
+                            <a href="https://www.vjusport.com/user/profile" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-weight:600;">Xem tài khoản của tôi</a>
                         </div>
                         <p style="font-size:13px;color:#666;text-align:center;">Cần hỗ trợ? support@sportstore.com</p>
                         <hr style="margin:24px 0;border:0;border-top:1px solid #eee;" />
