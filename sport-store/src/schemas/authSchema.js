@@ -4,7 +4,6 @@ import { z } from 'zod';
 export const registerSchema = z.object({
   email: z.string().email({ message: 'Email không hợp lệ' }).min(1, { message: 'Email là bắt buộc' }),
   password: z.string().min(6, { message: 'Mật khẩu phải có ít nhất 6 ký tự' }).min(1, { message: 'Mật khẩu là bắt buộc' }),
-  username: z.string().min(3, { message: 'Tên đăng nhập phải có ít nhất 3 ký tự' }).max(30, { message: 'Tên đăng nhập không được vượt quá 30 ký tự' }).min(1, { message: 'Tên đăng nhập là bắt buộc' }),
   fullname: z.string().min(2, { message: 'Họ tên phải có ít nhất 2 ký tự' }).min(1, { message: 'Họ tên là bắt buộc' }),
   phone: z.string().regex(/^[0-9]{10}$/, { message: 'Số điện thoại không hợp lệ' }).min(1, { message: 'Số điện thoại là bắt buộc' })
 });

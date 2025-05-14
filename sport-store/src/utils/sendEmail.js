@@ -172,7 +172,7 @@ async function getEmailTemplate(template, data) {
                 `
             };
         case 'register_success': {
-            const { fullname, email, username, customId } = data;
+            const { fullname, email, customId } = data;
             return {
                 subject: 'Chào mừng bạn đến với Sport Store! Xác nhận đăng ký tài khoản',
                 html: `
@@ -186,7 +186,6 @@ async function getEmailTemplate(template, data) {
                         <div style="background:#f0f6ff;padding:16px;border-radius:8px;margin:24px 0;">
                             <h3>Thông tin tài khoản</h3>
                             <p><b>Mã khách hàng:</b> ${customId}</p>
-                            <p><b>Tên đăng nhập:</b> ${username}</p>
                             <p><b>Email:</b> ${email}</p>
                         </div>
                         <div style="text-align:center;margin:24px 0;">

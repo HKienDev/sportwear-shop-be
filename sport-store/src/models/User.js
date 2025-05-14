@@ -37,14 +37,6 @@ const userSchema = new mongoose.Schema({
         sparse: true,
         trim: true
     },
-    username: { 
-        type: String, 
-        required: function () { return !this.googleId; },
-        unique: true,
-        trim: true,
-        minlength: [3, 'Tên đăng nhập phải có ít nhất 3 ký tự'],
-        maxlength: [30, 'Tên đăng nhập không được vượt quá 30 ký tự']
-    },
     email: { 
         type: String, 
         required: true, 

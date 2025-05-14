@@ -61,7 +61,7 @@ export const searchUserSchema = z.object({
   keyword: z.string().optional(),
   role: z.enum(['user', 'admin']).optional(),
   isActive: z.boolean().optional(),
-  sort: z.enum(['username', 'email', 'createdAt', 'updatedAt']).optional(),
+  sort: z.enum(['email', 'createdAt', 'updatedAt']).optional(),
   order: z.enum(['asc', 'desc']).optional(),
   page: z.number().int().min(1).optional(),
   limit: z.number().int().min(1).max(100).optional()

@@ -80,14 +80,13 @@ export const getUserByPhone = async (req, res, next) => {
 // Cập nhật thông tin user
 export const updateUser = async (req, res, next) => {
   try {
-    const { username, email, role, isActive } = req.body;
+    const { email, role, isActive } = req.body;
     const user = await User.findById(req.params.id);
     
     if (!user) {
       return res.status(404).json({ message: ERROR_MESSAGES.NOT_FOUND_ERROR });
     }
 
-    user.username = username || user.username;
     user.email = email || user.email;
     user.role = role || user.role;
     user.isActive = isActive !== undefined ? isActive : user.isActive;

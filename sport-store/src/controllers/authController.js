@@ -101,9 +101,9 @@ export const register = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { email, password, username, fullname, phone } = req.body;
+        const { email, password, fullname, phone } = req.body;
 
-        if (!email || !password || !username || !fullname || !phone) {
+        if (!email || !password || !fullname || !phone) {
             logError(`[${requestId}] Missing required fields`);
             return res.status(400).json({
                 success: false,
@@ -111,7 +111,6 @@ export const register = async (req, res) => {
                 errors: [
                     { field: 'email', message: !email ? 'Email là bắt buộc' : null },
                     { field: 'password', message: !password ? 'Mật khẩu là bắt buộc' : null },
-                    { field: 'username', message: !username ? 'Tên đăng nhập là bắt buộc' : null },
                     { field: 'fullname', message: !fullname ? 'Họ tên là bắt buộc' : null },
                     { field: 'phone', message: !phone ? 'Số điện thoại là bắt buộc' : null }
                 ].filter(error => error.message)
@@ -121,7 +120,6 @@ export const register = async (req, res) => {
         const existingUser = await User.findOne({ 
             $or: [
                 { email },
-                { username },
                 { phone }
             ]
         });
@@ -130,15 +128,10 @@ export const register = async (req, res) => {
             logError(`[${requestId}] User already exists: ${email}`);
             let errorField = 'email';
             let errorMessage = ERROR_MESSAGES.EMAIL_EXISTS;
-
-            if (existingUser.username === username) {
-                errorField = 'username';
-                errorMessage = 'Tên đăng nhập đã tồn tại';
-            } else if (existingUser.phone === phone) {
+            if (existingUser.phone === phone) {
                 errorField = 'phone';
                 errorMessage = 'Số điện thoại đã được sử dụng';
             }
-
             return res.status(400).json({
                 success: false,
                 message: errorMessage,
@@ -155,7 +148,6 @@ export const register = async (req, res) => {
         const newUser = new User({
             email,
             password: hashedPassword,
-            username,
             fullname,
             phone,
             role: "user",
@@ -184,7 +176,6 @@ export const register = async (req, res) => {
                 data: {
                     fullname: savedUser.fullname,
                     email: savedUser.email,
-                    username: savedUser.username,
                     phone: savedUser.phone,
                     customId: savedUser.customId
                 },
@@ -203,7 +194,6 @@ export const register = async (req, res) => {
             data: {
                 id: savedUser.customId,
                 email: savedUser.email,
-                username: savedUser.username,
                 fullname: savedUser.fullname,
                 phone: savedUser.phone,
                 role: savedUser.role,
@@ -941,7 +931,7 @@ export const updateUser = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { email, username, password, otp } = req.body;
+        const { email, password, otp } = req.body;
         const userId = req.user._id;
 
         const user = await User.findById(userId);
@@ -975,7 +965,6 @@ export const updateUser = async (req, res) => {
 
         // Cập nhật thông tin
         if (email) user.email = email;
-        if (username) user.username = username;
         if (password) user.password = await hashPassword(password);
 
         await user.save();
@@ -988,7 +977,6 @@ export const updateUser = async (req, res) => {
             data: {
                 id: user._id,
                 email: user.email,
-                username: user.username,
                 role: user.role,
                 isVerified: user.isVerified
             }

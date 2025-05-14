@@ -26,7 +26,6 @@ async function createAdmin() {
     const newAdmin = new User({
       email: "adminVjuSport@gmail.com",
       password: hashedPassword,
-      username: "adminVjuSport",
       fullname: "Admin System",
       phone: "0123456789",
       role: "admin",

@@ -8,7 +8,6 @@ export const hashPassword = (password) => bcrypt.hash(password, 10);
 export const formatUserResponse = (user) => ({
     _id: user._id,
     email: user.email,
-    username: user.username,
     fullname: user.fullname || "",
     role: user.role,
     isActive: user.isActive,
@@ -85,7 +84,6 @@ export const setAuthCookies = (res, accessToken, refreshToken, userData) => {
             isActive: userData.isActive,
             isVerified: userData.isVerified,
             authStatus: userData.authStatus,
-            username: userData.username,
             fullname: userData.fullname,
             phone: userData.phone,
             avatar: userData.avatar,

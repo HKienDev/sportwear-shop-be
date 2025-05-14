@@ -120,7 +120,7 @@ export const updateUser = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { email, username, password, otp } = req.body;
+        const { email, password, otp } = req.body;
         const userId = req.user._id;
 
         const user = await User.findById(userId);
@@ -159,7 +159,6 @@ export const updateUser = async (req, res) => {
 
         // Cập nhật thông tin
         if (email) user.email = email;
-        if (username) user.username = username;
         if (password) user.password = await hashPassword(password);
 
         await user.save();
@@ -171,7 +170,6 @@ export const updateUser = async (req, res) => {
             message: SUCCESS_MESSAGES.USER_UPDATED,
             data: {
                 email: user.email,
-                username: user.username,
                 role: user.role,
                 isVerified: user.isVerified
             }
@@ -311,7 +309,7 @@ export const getUserProfile = async (req, res) => {
 
 export const updateProfile = async (req, res) => {
     try {
-        const { username, fullname, phone, address, dob, gender } = req.body;
+        const { fullname, phone, address, dob, gender } = req.body;
         const user = await User.findById(req.user._id);
         
         if (!user) {
@@ -322,7 +320,6 @@ export const updateProfile = async (req, res) => {
         }
 
         // Cập nhật thông tin
-        user.username = username || user.username;
         user.fullname = fullname || user.fullname;
         user.phone = phone || user.phone;
         user.address = address || user.address;
@@ -348,7 +345,7 @@ export const register = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { email, password, username, isAdminCreate } = req.body;
+        const { email, password, isAdminCreate } = req.body;
 
         if (isAdminCreate && req.user.role !== "admin") {
             logError(`[${requestId}] Unauthorized admin creation attempt`);
@@ -358,7 +355,7 @@ export const register = async (req, res) => {
             });
         }
 
-        if (!email || !password || !username) {
+        if (!email || !password) {
             logError(`[${requestId}] Missing required fields`);
             return res.status(400).json({
                 success: false,
@@ -380,7 +377,6 @@ export const register = async (req, res) => {
         const newUser = new User({
             email,
             password: hashedPassword,
-            username,
             role: "user",
             isVerified: isAdminCreate ? true : false,
             authStatus: isAdminCreate ? "verified" : "pending",
@@ -421,7 +417,6 @@ export const updateUserByAdmin = async (req, res) => {
         let { 
             password, 
             fullname, 
-            username, 
             phone, 
             avatar, 
             role, 
@@ -437,7 +432,6 @@ export const updateUserByAdmin = async (req, res) => {
         const updateFields = {};
 
         if (fullname) updateFields.fullname = fullname;
-        if (username) updateFields.username = username;
         if (phone) updateFields.phone = phone;
         if (avatar) updateFields.avatar = avatar;
         if (role) updateFields.role = role;
@@ -491,7 +485,7 @@ export const createNewAdmin = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { email, password, username } = req.body;
+        const { email, password } = req.body;
 
         // Kiểm tra email đã tồn tại chưa
         const existingUser = await User.findOne({ email });
@@ -510,7 +504,6 @@ export const createNewAdmin = async (req, res) => {
         const newAdmin = new User({
             email,
             password: hashedPassword,
-            username,
             role: "admin",
             isVerified: true,
             authStatus: "verified"
@@ -524,7 +517,6 @@ export const createNewAdmin = async (req, res) => {
             message: SUCCESS_MESSAGES.ADMIN_CREATED,
             data: {
                 email: savedAdmin.email,
-                username: savedAdmin.username,
                 role: savedAdmin.role
             }
         });
@@ -806,7 +798,6 @@ export const login = async (req, res) => {
             message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
             data: {
                 email: user.email,
-                username: user.username,
                 fullname: user.fullname,
                 phone: user.phone,
                 role: user.role,

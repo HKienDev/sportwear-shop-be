@@ -458,7 +458,7 @@ export const getAllOrders = async (req, res) => {
 
         const orders = await Order.find(query)
             .sort({ createdAt: -1 })
-            .populate('user', 'email username')
+            .populate('user', 'email')
             .populate('items.product', 'name price image')
             .lean();
 
@@ -479,7 +479,7 @@ export const getOrderById = async (req, res) => {
     try {
         const { id } = req.params;
         const order = await Order.findById(id)
-            .populate('user', 'username email fullname phone customId')
+            .populate('user', 'email fullname phone customId')
             .populate('items.product', 'name price mainImage')
             .lean();
 
