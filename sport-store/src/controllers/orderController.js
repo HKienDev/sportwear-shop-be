@@ -242,12 +242,21 @@ export const createOrder = async (req, res) => {
             try {
                 const sendEmailPromise = sendEmail({
                     to: req.user.email,
-                    subject: 'Xác nhận đơn hàng',
-                    template: 'order-confirmation',
-                    context: {
-                        order: savedOrder,
-                        user: req.user
-                    }
+                    template: 'newOrder',
+                    data: {
+                        shortId: savedOrder.shortId,
+                        shippingAddress: savedOrder.shippingAddress,
+                        items: savedOrder.items,
+                        createdAt: savedOrder.createdAt,
+                        subtotal: savedOrder.subtotal,
+                        directDiscount: savedOrder.directDiscount,
+                        couponDiscount: savedOrder.couponDiscount,
+                        shippingFee: savedOrder.shippingFee,
+                        totalPrice: savedOrder.totalPrice,
+                        paymentMethod: savedOrder.paymentMethod,
+                        paymentStatus: savedOrder.paymentStatus,
+                    },
+                    requestId
                 });
 
                 await Promise.race([
