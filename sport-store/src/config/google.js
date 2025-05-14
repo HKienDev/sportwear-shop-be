@@ -17,7 +17,8 @@ export const getGoogleAuthURL = () => {
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
-    scope: scopes
+    scope: scopes,
+    redirect_uri: process.env.GOOGLE_REDIRECT_URI
   });
 };
 
