@@ -14,11 +14,13 @@ import {
     updateProfile,
     requestPasswordChange,
     verifyOTPAndChangePassword,
-    requestProfileUpdate
+    requestProfileUpdate,
+    googleCallback
 } from '../controllers/authController.js';
 import { verifyUser } from '../middlewares/authMiddleware.js';
 import { validateLogin, validateRegister, validateForgotPassword, validateResetPassword } from '../middlewares/validationMiddleware.js';
 import { loginRateLimiter } from '../middlewares/rateLimit.js';
+import { getGoogleAuthURL } from '../config/google.js';
 
 const router = express.Router();
 
@@ -49,5 +51,12 @@ router.get('/verify-token', verifyUser, verifyToken);
 // Cập nhật thông tin profile
 router.post('/profile/update-request', verifyUser, requestProfileUpdate);
 router.put('/profile/update', verifyUser, updateProfile);
+
+// Google OAuth2 redirect flow
+router.get('/google', (req, res) => {
+  const url = getGoogleAuthURL();
+  res.redirect(url);
+});
+router.get('/google/callback', googleCallback);
 
 export default router; 
