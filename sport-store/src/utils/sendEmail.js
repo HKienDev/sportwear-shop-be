@@ -283,6 +283,18 @@ async function getEmailTemplate(template, data) {
                 `
             };
         }
+        case 'profileUpdate': {
+            // Đọc file template HTML từ FE (nếu chạy chung repo hoặc copy sang BE)
+            const fs = await import('fs/promises');
+            const path = await import('path');
+            const templatePath = path.resolve(process.cwd(), 'src/email-templates/profileUpdate.html');
+            let html = await fs.readFile(templatePath, 'utf8');
+            html = html.replace(/{{otp}}/g, data.otp || '');
+            return {
+                subject: 'Xác thực cập nhật thông tin tài khoản',
+                html
+            };
+        }
         default:
             throw new Error(`Template ${template} not found`);
     }
