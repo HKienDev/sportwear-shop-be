@@ -59,7 +59,7 @@ export const setAuthCookies = (res, accessToken, refreshToken, userData) => {
     const cookieOptions = {
         httpOnly: true,
         secure: env.NODE_ENV === "production",
-        sameSite: "lax",
+        sameSite: "none",
         path: '/'
     };
 
