@@ -178,7 +178,7 @@ async function getEmailTemplate(template, data) {
                 html: `
                     <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px #0001;">
                         <div style="text-align:center;">
-                            <img src='https://www.vjusport.com/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
+                            <img src='https://www.vjusport.com/vju-logo-main.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
                             <h2>Chào mừng đến với Sport Store!</h2>
                             <p>Xin chào <b>${fullname}</b>,</p>
                             <p>Tài khoản của bạn đã được tạo thành công.</p>
@@ -205,7 +205,7 @@ async function getEmailTemplate(template, data) {
                 html: `
                     <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px #0001;">
                         <div style="text-align:center;">
-                            <img src='https://www.vjusport.com/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
+                            <img src='https://www.vjusport.com/vju-logo-main.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
                             <h2>Yêu cầu đặt lại mật khẩu</h2>
                             <p>Xin chào <b>${name}</b>,</p>
                             <p>Vui lòng sử dụng mã OTP dưới đây để hoàn tất quá trình đặt lại mật khẩu:</p>
@@ -229,7 +229,7 @@ async function getEmailTemplate(template, data) {
                 html: `
                     <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px #0001;">
                         <div style="text-align:center;">
-                            <img src='https://www.vjusport.com/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
+                            <img src='https://www.vjusport.com/vju-logo-main.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
                             <h2>Mật khẩu đã được thay đổi</h2>
                             <p>Xin chào <b>${name}</b>,</p>
                             <p>Mật khẩu tài khoản Sport Store của bạn đã được thay đổi thành công vào lúc ${time}.</p>
@@ -263,7 +263,7 @@ async function getEmailTemplate(template, data) {
                 html: `
                     <div style="font-family:sans-serif;max-width:600px;margin:auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px #0001;">
                         <div style="text-align:center;">
-                            <img src='https://www.vjusport.com/Logo_vju.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
+                            <img src='https://www.vjusport.com/vju-logo-main.png' width='160' alt='Sport Store Logo' style='margin-bottom:24px;' />
                             <h2>Thông tin tài khoản đã được cập nhật</h2>
                             <p>Xin chào <b>${name}</b>,</p>
                             <p>Thông tin tài khoản của bạn tại Sport Store đã được cập nhật thành công vào lúc ${time}.</p>
