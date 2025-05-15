@@ -775,10 +775,9 @@ export const googleAuth = async (req, res) => {
         if (!user) {
             user = await User.create({
                 email: payload.email,
-                fullname: payload.name,
-                avatar: payload.picture,
+                fullName: payload.name || "",
+                avatar: payload.picture || "",
                 isVerified: true,
-                authStatus: "verified",
                 googleId: payload.sub,
                 googleEmail: payload.email
             });
@@ -836,23 +835,37 @@ export const googleCallback = async (req, res) => {
         let user = await User.findOne({ email: googleUser.email });
         
         if (!user) {
-            // Tạo user mới nếu chưa tồn tại
+            // Tạo user mới nếu chưa tồn tại, chỉ truyền các trường tối thiểu
             user = await User.create({
                 email: googleUser.email,
-                fullName: googleUser.name,
-                avatar: googleUser.picture,
+                fullName: googleUser.name || "",
+                avatar: googleUser.picture || "",
                 isVerified: true,
-                googleId: googleUser.id
+                googleId: googleUser.id,
+                googleEmail: googleUser.email
+                // Các trường khác để mặc định theo schema
             });
+        } else {
+            // Nếu user đã tồn tại, liên kết Google nếu chưa có
+            let updated = false;
+            if (!user.googleId) {
+                user.googleId = googleUser.id;
+                updated = true;
+            }
+            if (!user.googleEmail) {
+                user.googleEmail = googleUser.email;
+                updated = true;
+            }
+            if (updated) await user.save();
         }
 
         // Tạo tokens
         const { accessToken, refreshToken } = generateTokens(user._id, user.email);
 
-        // Set cookies
+        // Set cookies đăng nhập
         setAuthCookies(res, accessToken, refreshToken);
 
-        // Redirect về frontend (dùng trực tiếp process.env.FRONTEND_URL)
+        // Redirect về FE
         res.redirect(`${process.env.FRONTEND_URL}/user`);
     } catch (error) {
         logError('Google callback error:', error);
