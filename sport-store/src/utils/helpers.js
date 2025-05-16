@@ -60,7 +60,8 @@ export const setAuthCookies = (res, accessToken, refreshToken, userData) => {
         httpOnly: true,
         secure: env.NODE_ENV === "production",
         sameSite: "none",
-        path: '/'
+        path: '/',
+        domain: env.NODE_ENV === "production" ? ".vjusport.com" : "localhost"
     };
 
     // Set access token cookie
@@ -81,9 +82,9 @@ export const setAuthCookies = (res, accessToken, refreshToken, userData) => {
             _id: userData._id,
             email: userData.email,
             role: userData.role,
-            isActive: userData.isActive,
-            isVerified: userData.isVerified,
-            authStatus: userData.authStatus,
+            isActive: userData.isActive ?? true,
+            isVerified: userData.isVerified ?? true,
+            authStatus: userData.authStatus ?? 'verified',
             fullname: userData.fullname,
             phone: userData.phone,
             avatar: userData.avatar,
