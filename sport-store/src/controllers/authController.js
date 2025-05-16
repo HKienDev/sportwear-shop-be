@@ -408,22 +408,7 @@ export const login = async (req, res) => {
         }
 
         // Set cookies
-        setAuthCookies(res, accessToken, refreshToken, {
-            _id: user._id,
-            email: user.email,
-            role: user.role,
-            isActive: user.isActive,
-            isVerified: user.isVerified,
-            authStatus: user.authStatus,
-            username: user.username,
-            fullname: user.fullname,
-            phone: user.phone,
-            avatar: user.avatar,
-            gender: user.gender,
-            dob: user.dob,
-            address: user.address,
-            membershipLevel: user.membershipLevel,
-        });
+        setAuthCookies(res, accessToken, refreshToken, user);
 
         // Trả về response
         return res.status(200).json({
@@ -864,7 +849,7 @@ export const googleCallback = async (req, res) => {
         const { accessToken, refreshToken } = generateTokens(user._id, user.email);
 
         // Set cookies đăng nhập
-        setAuthCookies(res, accessToken, refreshToken);
+        setAuthCookies(res, accessToken, refreshToken, user);
 
         // Redirect về FE
         res.redirect(`${process.env.FRONTEND_URL}/user`);
