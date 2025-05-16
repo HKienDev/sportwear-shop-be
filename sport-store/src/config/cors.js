@@ -2,6 +2,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'https://sport-store-fe-graduation.vercel.app',
   'https://www.vjusport.com',
+  'https://vjusport.com',
   'https://sport-store-be-graduation-production.up.railway.app'
 ];
 
