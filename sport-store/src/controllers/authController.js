@@ -255,6 +255,7 @@ export const checkAuth = async (req, res) => {
             address: user.address,
             avatar: user.avatar,
             isVerified: user.isVerified,
+            authStatus: user.authStatus,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt
         };
