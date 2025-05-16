@@ -10,7 +10,7 @@ export const formatUserResponse = (user) => ({
     email: user.email,
     fullname: user.fullname || "",
     role: user.role,
-    isActive: user.isActive,
+    isActive: user.isActive ?? true,
     authStatus: user.authStatus,
     isVerified: user.isVerified,
     phone: user.phone || "",
@@ -118,7 +118,7 @@ export const clearAuthCookies = (res) => {
         sameSite: "lax",
         path: '/',
         domain: env.NODE_ENV === "production" 
-            ? ".sport-store-fe-graduation.vercel.app" 
+            ? ".vjusport.com" 
             : "localhost"
     };
 
