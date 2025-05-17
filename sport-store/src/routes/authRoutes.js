@@ -30,7 +30,8 @@ router.get('/test', (req, res) => {
 });
 
 // Auth routes
-router.post('/login', loginRateLimiter, validateLogin, login);
+// router.post('/login', loginRateLimiter, validateLogin, login); // Tạm thời tắt rate limit để test
+router.post('/login', validateLogin, login);
 router.post('/register', validateRegister, register);
 router.post('/forgot-password', validateForgotPassword, forgotPassword);
 router.post('/reset-password', validateResetPassword, resetPassword);
