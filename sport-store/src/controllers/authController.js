@@ -740,127 +740,13 @@ export const resetPassword = async (req, res) => {
 };
 
 export const googleAuth = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
-    try {
-        const { token } = req.body;
-        if (!token) {
-            logError(`[${requestId}] No Google token provided`);
-            return res.status(400).json({
-                success: false,
-                message: ERROR_MESSAGES.GOOGLE_AUTH_FAILED
-            });
-        }
-
-        // Verify Google token
-        const ticket = await verifyGoogleToken(token);
-        const payload = ticket.getPayload();
-        
-        // Find or create user
-        let user = await User.findOne({ email: payload.email });
-        if (!user) {
-            user = await User.create({
-                email: payload.email,
-                fullName: payload.name || "",
-                avatar: payload.picture || "",
-                isVerified: true,
-                googleId: payload.sub,
-                googleEmail: payload.email
-            });
-        }
-
-        // Generate tokens
-        const { accessToken, refreshToken } = generateTokens(user._id, user.email);
-        user.refreshToken = refreshToken;
-        await user.save();
-
-        // Set cookies
-        res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: env.NODE_ENV === "production",
-            sameSite: "Lax",
-            maxAge: TOKEN_CONFIG.REFRESH_TOKEN_EXPIRY * 1000
-        });
-
-        logInfo(`[${requestId}] Successfully authenticated with Google: ${user.email}`);
-        res.json({
-            success: true,
-            message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
-            data: {
-                accessToken,
-                user: {
-                    id: user._id,
-                    email: user.email,
-                    fullname: user.fullname,
-                    avatar: user.avatar,
-                    role: user.role,
-                    isVerified: user.isVerified
-                }
-            }
-        });
-    } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
-    }
+  // Tạm thời disable Google login để debug vòng lặp redirect
+  return res.status(501).json({ success: false, message: 'Google login temporarily disabled for debugging.' });
 };
 
 export const googleCallback = async (req, res) => {
-    try {
-        const { code } = req.query;
-        if (!code) {
-            return res.status(400).json({ message: ERROR_MESSAGES.INVALID_REQUEST });
-        }
-
-        // Lấy thông tin user từ Google
-        const googleUser = await getGoogleUser(code);
-        if (!googleUser) {
-            return res.status(400).json({ message: ERROR_MESSAGES.INVALID_GOOGLE_TOKEN });
-        }
-
-        // Kiểm tra email đã tồn tại chưa
-        let user = await User.findOne({ email: googleUser.email });
-        
-        if (!user) {
-            // Tạo user mới nếu chưa tồn tại, chỉ truyền các trường tối thiểu
-            user = await User.create({
-                email: googleUser.email,
-                fullName: googleUser.name || "",
-                avatar: googleUser.picture || "",
-                isVerified: true,
-                googleId: googleUser.id,
-                googleEmail: googleUser.email
-                // Các trường khác để mặc định theo schema
-            });
-        } else {
-            // Nếu user đã tồn tại, liên kết Google nếu chưa có
-            let updated = false;
-            if (!user.googleId) {
-                user.googleId = googleUser.id;
-                updated = true;
-            }
-            if (!user.googleEmail) {
-                user.googleEmail = googleUser.email;
-                updated = true;
-            }
-            if (updated) await user.save();
-        }
-
-        // Tạo tokens
-        const { accessToken, refreshToken } = generateTokens(user._id, user.email);
-
-        // Set cookies đăng nhập
-        setAuthCookies(res, accessToken, refreshToken, user);
-
-        // Redirect về FE theo role
-        if (user.role === 'admin') {
-            res.redirect(`${process.env.FRONTEND_URL}/admin/dashboard`);
-        } else {
-            res.redirect(`${process.env.FRONTEND_URL}/user`);
-        }
-    } catch (error) {
-        logError('Google callback error:', error);
-        res.redirect(`${process.env.FRONTEND_URL}/auth/error`);
-    }
+  // Tạm thời disable Google callback để debug vòng lặp redirect
+  return res.status(501).json({ success: false, message: 'Google callback temporarily disabled for debugging.' });
 };
 
 export const getProfile = async (req, res) => {
