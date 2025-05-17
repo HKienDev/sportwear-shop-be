@@ -244,28 +244,13 @@ export const checkAuth = async (req, res) => {
             }
         }
 
-        // Format user data
-        const userData = {
-            _id: user._id,
-            email: user.email,
-            role: user.role,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            phone: user.phone,
-            address: user.address,
-            avatar: user.avatar,
-            isVerified: user.isVerified,
-            authStatus: user.authStatus,
-            createdAt: user.createdAt,
-            updatedAt: user.updatedAt
-        };
-
+        // Chuẩn hóa trả về user cho FE
+        const userData = formatUserResponse(user);
         // Cache user data
         if (redis) {
             const cacheKey = `user:${user._id}`;
             await redis.set(cacheKey, JSON.stringify(userData), 'EX', 300); // Cache 5 phút
         }
-
         logInfo(`[${requestId}] Successfully processed auth check for user: ${user._id}`);
         return res.json({
             success: true,
