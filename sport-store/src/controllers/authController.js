@@ -851,8 +851,12 @@ export const googleCallback = async (req, res) => {
         // Set cookies đăng nhập
         setAuthCookies(res, accessToken, refreshToken, user);
 
-        // Redirect về FE
-        res.redirect(`${process.env.FRONTEND_URL}/user`);
+        // Redirect về FE theo role
+        if (user.role === 'admin') {
+            res.redirect(`${process.env.FRONTEND_URL}/admin/dashboard`);
+        } else {
+            res.redirect(`${process.env.FRONTEND_URL}/user`);
+        }
     } catch (error) {
         logError('Google callback error:', error);
         res.redirect(`${process.env.FRONTEND_URL}/auth/error`);
