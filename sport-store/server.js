@@ -85,7 +85,7 @@ app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use(cookieParser()); // Parse cookies
 app.use(morgan("dev")); // Logging
 app.use(requestId); // Thêm request ID
-app.use(apiLimiter); // Áp dụng rate limit chung
+// app.use(apiLimiter); // Tạm thời tắt rate limit để kiểm tra lỗi 429
 
 // Static files
 app.use("/uploads", express.static(join(__dirname, "uploads")));
