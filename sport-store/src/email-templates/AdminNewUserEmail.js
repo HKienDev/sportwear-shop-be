@@ -1,0 +1,5 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const jsx_runtime_1 = require("react/jsx-runtime");
+const AdminNewUserEmail = ({ userName, userEmail, registerTime, }) => ((0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("h2", { children: "Ng\u01B0\u1EDDi d\u00F9ng m\u1EDBi \u0111\u0103ng k\u00FD" }), (0, jsx_runtime_1.jsx)("p", { children: "M\u1ED9t ng\u01B0\u1EDDi d\u00F9ng m\u1EDBi v\u1EEBa \u0111\u0103ng k\u00FD t\u00E0i kho\u1EA3n." }), (0, jsx_runtime_1.jsxs)("p", { children: [(0, jsx_runtime_1.jsx)("strong", { children: "T\u00EAn ng\u01B0\u1EDDi d\u00F9ng:" }), " ", userName] }), (0, jsx_runtime_1.jsxs)("p", { children: [(0, jsx_runtime_1.jsx)("strong", { children: "Email:" }), " ", userEmail] }), (0, jsx_runtime_1.jsxs)("p", { children: [(0, jsx_runtime_1.jsx)("strong", { children: "Th\u1EDDi gian \u0111\u0103ng k\u00FD:" }), " ", registerTime] }), (0, jsx_runtime_1.jsx)("p", { children: "Vui l\u00F2ng ki\u1EC3m tra \u0111\u1EC3 ph\u00E1t hi\u1EC7n bot ho\u1EB7c spam n\u1EBFu c\u00F3 d\u1EA5u hi\u1EC7u b\u1EA5t th\u01B0\u1EDDng." })] }));
+exports.default = AdminNewUserEmail;
