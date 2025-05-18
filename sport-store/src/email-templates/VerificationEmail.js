@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import * as React from "react";
+
 // src/email-templates/VerificationEmail.tsx
 import {
   Body,

@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import * as React from "react";
+
 // src/email-templates/AdminProductLowStockEmail.tsx
 import { Html, Head, Preview, Body, Container, Section, Heading, Text, Hr } from "@react-email/components";
 import { jsx, jsxs } from "react/jsx-runtime";
