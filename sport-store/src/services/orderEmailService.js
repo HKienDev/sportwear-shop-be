@@ -1,6 +1,8 @@
 import { sendEmail } from '../utils/sendEmail.js';
 import { render } from '@react-email/render';
-import NewOrderEmail from '../email-templates/NewOrderEmail.js';
+import * as NewOrderEmailModule from '../email-templates/NewOrderEmail.js';
+
+const NewOrderEmail = NewOrderEmailModule.default || NewOrderEmailModule.NewOrderEmail || NewOrderEmailModule;
 
 /**
  * Gửi email xác nhận đơn hàng mới cho khách hàng

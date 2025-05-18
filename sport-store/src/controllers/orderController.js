@@ -223,7 +223,7 @@ export const createOrder = async (req, res) => {
             try {
                 const user = await User.findById(savedOrder.user);
                 if (user && user.email) {
-                    // Chuẩn bị dữ liệu cho template
+                    // Chuẩn bị dữ liệu cho template (đồng bộ với FE UI/UX)
                     const orderEmailData = {
                         shortId: savedOrder._id.toString().slice(-6).toUpperCase(),
                         fullName: user.fullName || user.name || 'Khách hàng',
