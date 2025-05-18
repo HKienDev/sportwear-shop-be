@@ -12,13 +12,21 @@ const NewOrderEmail = NewOrderEmailModule.default || NewOrderEmailModule.NewOrde
  * @param {Object} params.order - Thông tin đơn hàng (đúng cấu trúc NewOrderEmailProps)
  */
 export async function sendOrderConfirmationEmail({ to, requestId, order }) {
-  // order phải có đủ các trường như NewOrderEmailProps
-  const html = render(NewOrderEmail(order));
-
-  return sendEmail({
-    to,
-    subject: `Xác nhận đơn hàng #${order.shortId} từ Sport Store`,
-    html,
-    requestId,
-  });
+  try {
+    console.log('[EMAIL DEBUG]', { step: 'typeof NewOrderEmail', type: typeof NewOrderEmail });
+    console.log('[EMAIL DEBUG]', { step: 'NewOrderEmail', value: NewOrderEmail });
+    const reactElement = NewOrderEmail(order);
+    console.log('[EMAIL DEBUG]', { step: 'reactElement', value: reactElement });
+    const html = render(reactElement);
+    console.log('[EMAIL DEBUG]', { step: 'html', value: html, type: typeof html });
+    return sendEmail({
+      to,
+      subject: `Xác nhận đơn hàng #${order.shortId} từ Sport Store`,
+      html,
+      requestId,
+    });
+  } catch (err) {
+    console.error('[EMAIL DEBUG] Error rendering or sending email:', err);
+    throw err;
+  }
 } 
