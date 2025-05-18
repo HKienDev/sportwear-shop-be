@@ -275,15 +275,17 @@ export const createOrder = async (req, res) => {
 
                 // Gửi email cho admin
                 const adminOrderData = {
-                    customerName: savedOrder.shippingAddress.fullName,
-                    orderId: savedOrder.shortId,
-                    totalAmount: savedOrder.totalPrice.toLocaleString('vi-VN'),
-                    orderTime: new Date(savedOrder.createdAt).toLocaleString('vi-VN'),
-                    products: savedOrder.items.map(item => ({
-                        name: item.name,
-                        quantity: item.quantity,
-                        price: item.price.toLocaleString('vi-VN')
-                    }))
+                    shortId: savedOrder.shortId,
+                    shippingAddress: savedOrder.shippingAddress,
+                    items: savedOrder.items,
+                    createdAt: savedOrder.createdAt,
+                    subtotal: savedOrder.subtotal,
+                    directDiscount: savedOrder.directDiscount,
+                    couponDiscount: savedOrder.couponDiscount,
+                    shippingFee: savedOrder.shippingFee,
+                    totalPrice: savedOrder.totalPrice,
+                    paymentMethod: savedOrder.paymentMethod,
+                    paymentStatus: savedOrder.paymentStatus,
                 };
                 const sendAdminEmailPromise = sendAdminNewOrderEmail({
                     body: { orderData: adminOrderData },
