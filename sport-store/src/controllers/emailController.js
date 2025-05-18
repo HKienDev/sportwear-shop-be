@@ -1,7 +1,15 @@
 import { sendEmail } from '../utils/sendEmail.js';
-import { getEmailTemplate } from '../utils/sendEmail.js';
 import { logError } from '../utils/logger.js';
 import { ERROR_MESSAGES } from '../utils/constants.js';
+import { render } from '@react-email/render';
+import AdminNewOrderEmail from '../email-templates/AdminNewOrderEmail.js';
+import AdminCancelRequestEmail from '../email-templates/AdminCancelRequestEmail.js';
+import AdminPaymentErrorEmail from '../email-templates/AdminPaymentErrorEmail.js';
+import AdminNewUserEmail from '../email-templates/AdminNewUserEmail.js';
+import AdminProductLowStockEmail from '../email-templates/AdminProductLowStockEmail.js';
+import AdminCouponUsedEmail from '../email-templates/AdminCouponUsedEmail.js';
+import AdminPeriodicReportEmail from '../email-templates/AdminPeriodicReportEmail.js';
+import AdminSecurityAlertEmail from '../email-templates/AdminSecurityAlertEmail.js';
 
 const ADMIN_EMAIL = 'notify.vjusport@gmail.com';
 
@@ -97,8 +105,9 @@ export const sendAdminNewOrderEmail = async (req, res) => {
     const { orderData } = req.body;
     const requestId = req.id || 'unknown';
     try {
-        // Sử dụng template HTML thuần giống user
-        const { subject, html } = await getEmailTemplate('newOrder', orderData);
+        // Render React template cho admin
+        const html = render(<AdminNewOrderEmail {...orderData} />);
+        const subject = `Đơn hàng mới #${orderData.shortId} từ Sport Store`;
         const result = await sendEmail({
             to: ADMIN_EMAIL,
             subject,
@@ -114,31 +123,143 @@ export const sendAdminNewOrderEmail = async (req, res) => {
 };
 
 export const sendAdminCancelRequestEmail = async (req, res) => {
-    return res.status(501).json({ success: false, message: 'Chức năng chưa hỗ trợ gửi email HTML thuần cho admin (CancelRequest)' });
+    const { data } = req.body;
+    const requestId = req.id || 'unknown';
+    try {
+        const html = render(<AdminCancelRequestEmail {...data} />);
+        const subject = data.subject || 'Yêu cầu hủy đơn hàng mới từ Sport Store';
+        const result = await sendEmail({
+            to: ADMIN_EMAIL,
+            subject,
+            html,
+            requestId
+        });
+        return res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        console.error('Error in sendAdminCancelRequestEmail:', error);
+        logError(requestId, `Error in sendAdminCancelRequestEmail: ${error.message}`);
+        return res.status(500).json({ success: false, message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR });
+    }
 };
 
 export const sendAdminPaymentErrorEmail = async (req, res) => {
-    return res.status(501).json({ success: false, message: 'Chức năng chưa hỗ trợ gửi email HTML thuần cho admin (PaymentError)' });
+    const { data } = req.body;
+    const requestId = req.id || 'unknown';
+    try {
+        const html = render(<AdminPaymentErrorEmail {...data} />);
+        const subject = data.subject || 'Lỗi thanh toán đơn hàng từ Sport Store';
+        const result = await sendEmail({
+            to: ADMIN_EMAIL,
+            subject,
+            html,
+            requestId
+        });
+        return res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        console.error('Error in sendAdminPaymentErrorEmail:', error);
+        logError(requestId, `Error in sendAdminPaymentErrorEmail: ${error.message}`);
+        return res.status(500).json({ success: false, message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR });
+    }
 };
 
 export const sendAdminNewUserEmail = async (req, res) => {
-    return res.status(501).json({ success: false, message: 'Chức năng chưa hỗ trợ gửi email HTML thuần cho admin (NewUser)' });
+    const { data } = req.body;
+    const requestId = req.id || 'unknown';
+    try {
+        const html = render(<AdminNewUserEmail {...data} />);
+        const subject = data.subject || 'Người dùng mới đăng ký trên Sport Store';
+        const result = await sendEmail({
+            to: ADMIN_EMAIL,
+            subject,
+            html,
+            requestId
+        });
+        return res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        console.error('Error in sendAdminNewUserEmail:', error);
+        logError(requestId, `Error in sendAdminNewUserEmail: ${error.message}`);
+        return res.status(500).json({ success: false, message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR });
+    }
 };
 
 export const sendAdminProductLowStockEmail = async (req, res) => {
-    return res.status(501).json({ success: false, message: 'Chức năng chưa hỗ trợ gửi email HTML thuần cho admin (ProductLowStock)' });
+    const { data } = req.body;
+    const requestId = req.id || 'unknown';
+    try {
+        const html = render(<AdminProductLowStockEmail {...data} />);
+        const subject = data.subject || 'Cảnh báo sản phẩm sắp hết hàng';
+        const result = await sendEmail({
+            to: ADMIN_EMAIL,
+            subject,
+            html,
+            requestId
+        });
+        return res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        console.error('Error in sendAdminProductLowStockEmail:', error);
+        logError(requestId, `Error in sendAdminProductLowStockEmail: ${error.message}`);
+        return res.status(500).json({ success: false, message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR });
+    }
 };
 
 export const sendAdminCouponUsedEmail = async (req, res) => {
-    return res.status(501).json({ success: false, message: 'Chức năng chưa hỗ trợ gửi email HTML thuần cho admin (CouponUsed)' });
+    const { data } = req.body;
+    const requestId = req.id || 'unknown';
+    try {
+        const html = render(<AdminCouponUsedEmail {...data} />);
+        const subject = data.subject || 'Mã giảm giá đã được sử dụng';
+        const result = await sendEmail({
+            to: ADMIN_EMAIL,
+            subject,
+            html,
+            requestId
+        });
+        return res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        console.error('Error in sendAdminCouponUsedEmail:', error);
+        logError(requestId, `Error in sendAdminCouponUsedEmail: ${error.message}`);
+        return res.status(500).json({ success: false, message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR });
+    }
 };
 
 export const sendAdminPeriodicReportEmail = async (req, res) => {
-    return res.status(501).json({ success: false, message: 'Chức năng chưa hỗ trợ gửi email HTML thuần cho admin (PeriodicReport)' });
+    const { data } = req.body;
+    const requestId = req.id || 'unknown';
+    try {
+        const html = render(<AdminPeriodicReportEmail {...data} />);
+        const subject = data.subject || 'Báo cáo định kỳ từ Sport Store';
+        const result = await sendEmail({
+            to: ADMIN_EMAIL,
+            subject,
+            html,
+            requestId
+        });
+        return res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        console.error('Error in sendAdminPeriodicReportEmail:', error);
+        logError(requestId, `Error in sendAdminPeriodicReportEmail: ${error.message}`);
+        return res.status(500).json({ success: false, message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR });
+    }
 };
 
 export const sendAdminSecurityAlertEmail = async (req, res) => {
-    return res.status(501).json({ success: false, message: 'Chức năng chưa hỗ trợ gửi email HTML thuần cho admin (SecurityAlert)' });
+    const { data } = req.body;
+    const requestId = req.id || 'unknown';
+    try {
+        const html = render(<AdminSecurityAlertEmail {...data} />);
+        const subject = data.subject || 'Cảnh báo bảo mật từ Sport Store';
+        const result = await sendEmail({
+            to: ADMIN_EMAIL,
+            subject,
+            html,
+            requestId
+        });
+        return res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        console.error('Error in sendAdminSecurityAlertEmail:', error);
+        logError(requestId, `Error in sendAdminSecurityAlertEmail: ${error.message}`);
+        return res.status(500).json({ success: false, message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR });
+    }
 };
 
 /**

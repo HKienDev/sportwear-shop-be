@@ -11,7 +11,7 @@ import { handleError } from "../utils/helpers.js";
 import { Coupon } from "../models/Coupon.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { clearDashboardCacheUtil } from './dashboardController.js';
-import { sendAdminNewOrderEmail } from './emailController.js';
+import { sendAdminNewOrderEmail, sendAdminCancelRequestEmail } from './emailController.js';
 
 const stripeInstance = stripe(env.STRIPE_SECRET_KEY);
 
@@ -453,6 +453,23 @@ export const cancelOrder = async (req, res) => {
 
         order.status = ORDER_STATUS.CANCELLED;
         await order.save();
+
+        // Gửi email cho admin khi user hủy đơn hàng
+        try {
+            await sendAdminCancelRequestEmail({
+                body: {
+                    cancelData: {
+                        orderId: order.shortId,
+                        customerName: order.shippingAddress.fullName,
+                        reason: req.body.reason || 'Người dùng không cung cấp lý do',
+                        time: new Date().toLocaleString('vi-VN')
+                    }
+                },
+                id: requestId
+            }, { status: () => ({ json: () => {} }) });
+        } catch (err) {
+            logError(`[${requestId}] Error sending admin cancel order email: ${err.message}`);
+        }
 
         // Xóa cache sau khi hủy đơn hàng
         await clearDashboardCacheUtil(requestId);

@@ -1,0 +1,28 @@
+import { Html, Head, Preview, Body, Container, Section, Heading, Text, Hr } from '@react-email/components';
+import * as React from 'react';
+const AdminCouponUsedEmail = ({ couponCode, customerName, orderId, time }) => (React.createElement(Html, null,
+    React.createElement(Head, null),
+    React.createElement(Preview, null,
+        "M\u00E3 gi\u1EA3m gi\u00E1 \u0111\u00E3 \u0111\u01B0\u1EE3c s\u1EED d\u1EE5ng: ",
+        couponCode),
+    React.createElement(Body, { style: { background: '#f9f9f9', fontFamily: 'Arial, sans-serif' } },
+        React.createElement(Container, { style: { maxWidth: 600, margin: '0 auto', background: '#fff', borderRadius: 8, padding: 24 } },
+            React.createElement(Section, { style: { textAlign: 'center' } },
+                React.createElement(Heading, null, "M\u00E3 gi\u1EA3m gi\u00E1 \u0111\u00E3 \u0111\u01B0\u1EE3c s\u1EED d\u1EE5ng"),
+                React.createElement(Text, null,
+                    "M\u00E3 coupon: ",
+                    React.createElement("b", null, couponCode)),
+                React.createElement(Text, null,
+                    "Kh\u00E1ch h\u00E0ng: ",
+                    React.createElement("b", null, customerName)),
+                React.createElement(Text, null,
+                    "\u0110\u01A1n h\u00E0ng li\u00EAn quan: ",
+                    orderId),
+                React.createElement(Text, null,
+                    "Th\u1EDDi gian s\u1EED d\u1EE5ng: ",
+                    time)),
+            React.createElement(Hr, null),
+            React.createElement(Section, null,
+                React.createElement(Text, { style: { fontSize: 12, color: '#888' } }, "Vui l\u00F2ng ki\u1EC3m tra l\u1ECBch s\u1EED s\u1EED d\u1EE5ng m\u00E3 gi\u1EA3m gi\u00E1 tr\u00EAn h\u1EC7 th\u1ED1ng."),
+                React.createElement(Text, { style: { fontSize: 12, color: '#888' } }, "M\u1ECDi th\u1EAFc m\u1EAFc li\u00EAn h\u1EC7: support@sportstore.com"))))));
+export default AdminCouponUsedEmail;

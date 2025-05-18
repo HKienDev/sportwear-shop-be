@@ -1,0 +1,27 @@
+import { Html, Head, Preview, Body, Container, Section, Heading, Text, Hr } from '@react-email/components';
+import * as React from 'react';
+const AdminPeriodicReportEmail = ({ reportType, time, description }) => (React.createElement(Html, null,
+    React.createElement(Head, null),
+    React.createElement(Preview, null,
+        "B\u00E1o c\u00E1o \u0111\u1ECBnh k\u1EF3: ",
+        reportType),
+    React.createElement(Body, { style: { background: '#f9f9f9', fontFamily: 'Arial, sans-serif' } },
+        React.createElement(Container, { style: { maxWidth: 600, margin: '0 auto', background: '#fff', borderRadius: 8, padding: 24 } },
+            React.createElement(Section, { style: { textAlign: 'center' } },
+                React.createElement(Heading, null, "B\u00E1o c\u00E1o \u0111\u1ECBnh k\u1EF3 h\u1EC7 th\u1ED1ng"),
+                React.createElement(Text, null,
+                    "Lo\u1EA1i b\u00E1o c\u00E1o: ",
+                    React.createElement("b", null, reportType)),
+                React.createElement(Text, null,
+                    "Th\u1EDDi gian: ",
+                    time)),
+            React.createElement(Section, null,
+                React.createElement(Text, null,
+                    React.createElement("b", null, "M\u00F4 t\u1EA3:"),
+                    " ",
+                    description)),
+            React.createElement(Hr, null),
+            React.createElement(Section, null,
+                React.createElement(Text, { style: { fontSize: 12, color: '#888' } }, "Vui l\u00F2ng ki\u1EC3m tra chi ti\u1EBFt b\u00E1o c\u00E1o tr\u00EAn h\u1EC7 th\u1ED1ng qu\u1EA3n tr\u1ECB."),
+                React.createElement(Text, { style: { fontSize: 12, color: '#888' } }, "M\u1ECDi th\u1EAFc m\u1EAFc li\u00EAn h\u1EC7: support@sportstore.com"))))));
+export default AdminPeriodicReportEmail;

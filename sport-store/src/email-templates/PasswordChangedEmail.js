@@ -1,0 +1,40 @@
+import { Body, Container, Head, Heading, Html, Img, Preview, Section, Text, Link, Hr, } from '@react-email/components';
+import { Tailwind } from '@react-email/tailwind';
+import * as React from 'react';
+const PasswordChangedEmail = ({ name = 'Khách hàng', time = new Date().toLocaleString('vi-VN'), }) => {
+    return (React.createElement(Html, null,
+        React.createElement(Head, null),
+        React.createElement(Preview, null, "M\u1EADt kh\u1EA9u c\u1EE7a b\u1EA1n \u0111\u00E3 \u0111\u01B0\u1EE3c thay \u0111\u1ED5i th\u00E0nh c\u00F4ng"),
+        React.createElement(Tailwind, null,
+            React.createElement(Body, { className: "bg-gray-100 font-sans" },
+                React.createElement(Container, { className: "mx-auto my-10 max-w-[600px] rounded-lg bg-white p-8 shadow-lg" },
+                    React.createElement(Section, { className: "text-center" },
+                        React.createElement(Img, { src: "https://sport-store.vercel.app/vju-logo-main.png", width: "160", height: "auto", alt: "Sport Store Logo", className: "mx-auto mb-6" }),
+                        React.createElement(Heading, { className: "text-2xl font-bold text-gray-900" }, "M\u1EADt kh\u1EA9u \u0111\u00E3 \u0111\u01B0\u1EE3c thay \u0111\u1ED5i"),
+                        React.createElement(Text, { className: "text-gray-600" },
+                            "Xin ch\u00E0o ",
+                            React.createElement("span", { className: "font-semibold" }, name),
+                            ","),
+                        React.createElement(Text, { className: "mt-2 text-gray-600" },
+                            "Ch\u00FAng t\u00F4i x\u00E1c nh\u1EADn r\u1EB1ng m\u1EADt kh\u1EA9u t\u00E0i kho\u1EA3n Sport Store c\u1EE7a b\u1EA1n \u0111\u00E3 \u0111\u01B0\u1EE3c thay \u0111\u1ED5i th\u00E0nh c\u00F4ng v\u00E0o l\u00FAc ",
+                            time,
+                            ".")),
+                    React.createElement(Section, { className: "mt-8 rounded-lg bg-green-50 p-6" },
+                        React.createElement(Text, { className: "text-center text-green-700" },
+                            React.createElement("strong", null, "Thay \u0111\u1ED5i m\u1EADt kh\u1EA9u th\u00E0nh c\u00F4ng!")),
+                        React.createElement(Text, { className: "mt-2 text-center text-sm text-green-700" }, "B\u00E2y gi\u1EDD b\u1EA1n c\u00F3 th\u1EC3 \u0111\u0103ng nh\u1EADp b\u1EB1ng m\u1EADt kh\u1EA9u m\u1EDBi c\u1EE7a m\u00ECnh.")),
+                    React.createElement(Section, { className: "mt-8 rounded-lg bg-blue-50 p-4" },
+                        React.createElement(Text, { className: "text-sm text-blue-700" },
+                            React.createElement("strong", null, "L\u1EDDi khuy\u00EAn b\u1EA3o m\u1EADt:"),
+                            " Lu\u00F4n ch\u1ECDn m\u1EADt kh\u1EA9u m\u1EA1nh v\u00E0 kh\u00F4ng s\u1EED d\u1EE5ng l\u1EA1i m\u1EADt kh\u1EA9u tr\u00EAn nhi\u1EC1u trang web kh\u00E1c nhau.")),
+                    React.createElement(Section, { className: "mt-8 text-center" },
+                        React.createElement(Link, { href: "https://sport-store.vercel.app/auth/login", className: "inline-block rounded-lg bg-blue-600 px-6 py-3 text-center font-medium text-white shadow-sm hover:bg-blue-700" }, "\u0110\u0103ng nh\u1EADp ngay"),
+                        React.createElement(Text, { className: "mt-6 text-sm text-gray-600" },
+                            "N\u1EBFu b\u1EA1n kh\u00F4ng th\u1EF1c hi\u1EC7n thay \u0111\u1ED5i n\u00E0y, vui l\u00F2ng li\u00EAn h\u1EC7 ngay v\u1EDBi ch\u00FAng t\u00F4i qua email: ",
+                            React.createElement(Link, { href: "mailto:support@sportstore.com", className: "text-blue-600 underline" }, "support@sportstore.com"))),
+                    React.createElement(Hr, { className: "my-8 border-gray-200" }),
+                    React.createElement(Section, { className: "text-center" },
+                        React.createElement(Text, { className: "text-xs text-gray-500" }, "\u00A9 2025 Sport Store. T\u1EA5t c\u1EA3 c\u00E1c quy\u1EC1n \u0111\u01B0\u1EE3c b\u1EA3o l\u01B0u."),
+                        React.createElement(Text, { className: "mt-1 text-xs text-gray-500" }, "\u0110\u1ECBa ch\u1EC9: 97 \u0110\u01B0\u1EDDng V\u00F5 V\u0103n T\u1EA7n, Ph\u01B0\u1EDDng 6, Qu\u1EADn 3, Th\u00E0nh ph\u1ED1 H\u1ED3 Ch\u00ED Minh")))))));
+};
+export default PasswordChangedEmail;
