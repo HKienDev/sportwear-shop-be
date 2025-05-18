@@ -168,25 +168,6 @@ export const register = async (req, res) => {
         savedUser.customId = customId;
         await savedUser.save();
 
-        try {
-            // Gửi email thông báo đăng ký thành công
-            await sendEmail({
-                to: savedUser.email,
-                template: 'register_success',
-                data: {
-                    fullname: savedUser.fullname,
-                    email: savedUser.email,
-                    phone: savedUser.phone,
-                    customId: savedUser.customId
-                },
-                requestId
-            });
-            logInfo(`[${requestId}] Successfully sent registration email to: ${savedUser.email}`);
-        } catch (emailError) {
-            logError(`[${requestId}] Failed to send registration email: ${emailError.message}`);
-            // Không trả về lỗi cho client nếu gửi email thất bại
-        }
-
         logInfo(`[${requestId}] Successfully registered user: ${savedUser.email}`);
         res.status(201).json({
             success: true,
