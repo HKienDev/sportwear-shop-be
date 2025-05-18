@@ -17,7 +17,7 @@ export async function sendOrderConfirmationEmail({ to, requestId, order }) {
     console.log('[EMAIL DEBUG]', { step: 'NewOrderEmail', value: NewOrderEmail });
     const reactElement = NewOrderEmail(order);
     console.log('[EMAIL DEBUG]', { step: 'reactElement', value: reactElement });
-    const html = render(reactElement);
+    const html = await render(reactElement);
     console.log('[EMAIL DEBUG]', { step: 'html', value: html, type: typeof html });
     return sendEmail({
       to,
