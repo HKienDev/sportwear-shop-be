@@ -5,7 +5,6 @@ import helmet from "helmet";
 import compression from "compression";
 import mongoose from "mongoose";
 import cookieParser from "cookie-parser";
-import rateLimit from 'express-rate-limit';
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { createServer } from 'http';
@@ -31,6 +30,7 @@ import dashboardRoutes from "./src/routes/dashboardRoutes.js";
 import couponRoutes from "./src/routes/couponRoutes.js";
 import cartRoutes from "./src/routes/cartRoutes.js";
 import stripeRoutes from "./src/routes/stripeRoutes.js";
+import emailRoutes from "./src/routes/emailRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -43,16 +43,6 @@ app.set('trust proxy', 1);
 
 // Khởi tạo Socket.IO
 initSocket(httpServer);
-
-// Rate limiter chung cho toàn bộ API
-const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    message: 'Quá nhiều yêu cầu từ IP này. Vui lòng thử lại sau.',
-    standardHeaders: true,
-    legacyHeaders: false,
-    skipSuccessfulRequests: true
-});
 
 // Middleware
 app.use(helmet({
@@ -85,7 +75,6 @@ app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use(cookieParser()); // Parse cookies
 app.use(morgan("dev")); // Logging
 app.use(requestId); // Thêm request ID
-// app.use(apiLimiter); // Tạm thời tắt rate limit để kiểm tra lỗi 429
 
 // Static files
 app.use("/uploads", express.static(join(__dirname, "uploads")));
@@ -102,6 +91,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/coupons", couponRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/stripe", stripeRoutes);
+app.use("/api/email", emailRoutes);
 
 // Error handling
 app.use(notFoundHandler);

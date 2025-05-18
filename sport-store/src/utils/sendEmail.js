@@ -14,7 +14,7 @@ const resend = new Resend(env.RESEND_API_KEY);
  * @returns {Promise<Object>} Kết quả gửi email
  */
 export const sendEmail = async ({ to, subject, html, requestId }) => {
-    console.log('=== DEBUG SEND EMAIL ===');
+    console.log('=== [SEND EMAIL UTILS] Bắt đầu gửi email ===');
     console.log('Request ID:', requestId);
     console.log('To:', to);
     console.log('Subject:', subject);
@@ -24,10 +24,11 @@ export const sendEmail = async ({ to, subject, html, requestId }) => {
     try {
         // Validate required fields
         if (!to || !subject || !html) {
+            console.log('[SEND EMAIL UTILS] Thiếu trường bắt buộc:', { to, subject, htmlLength: html?.length });
             throw new Error('Missing required fields: to, subject, and html are required');
         }
 
-        console.log('Sending email via Resend...');
+        console.log('[SEND EMAIL UTILS] Gọi resend.emails.send...');
         const result = await resend.emails.send({
             from: 'Sport Store <no-reply@vjusport.com>',
             reply_to: 'support@sportstore.com',
@@ -40,11 +41,11 @@ export const sendEmail = async ({ to, subject, html, requestId }) => {
             ]
         });
 
-        console.log('Resend API Response:', result);
+        console.log('[SEND EMAIL UTILS] Resend API Response:', result);
         logInfo(requestId, `Email sent successfully to ${to}`);
         return result;
     } catch (error) {
-        console.error('Resend API Error:', error);
+        console.error('[SEND EMAIL UTILS] Resend API Error:', error);
         logError(requestId, `Error sending email: ${error.message}`);
         throw error;
     }

@@ -219,6 +219,81 @@ export const createOrder = async (req, res) => {
             // Clear cache
             await clearOrderCache(requestId);
 
+            // Lấy thông tin user để lấy email
+            let userEmail = '';
+            let userFullName = '';
+            try {
+                const user = await User.findById(savedOrder.user);
+                userEmail = user?.email || '';
+                userFullName = user?.fullname || '';
+            } catch (e) {
+                logError(`[${requestId}] Không lấy được thông tin user để gửi email xác nhận đơn hàng: ${e.message}`);
+            }
+
+            // Gửi email xác nhận đơn hàng cho user
+            if (userEmail) {
+                try {
+                    const orderItemsHtml = savedOrder.items.map(item =>
+                        `<li>${item.name} (x${item.quantity}) - ${item.price.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' })}</li>`
+                    ).join('');
+                    const address = [
+                        savedOrder.shippingAddress?.address?.street,
+                        savedOrder.shippingAddress?.address?.ward?.name,
+                        savedOrder.shippingAddress?.address?.district?.name,
+                        savedOrder.shippingAddress?.address?.province?.name
+                    ].filter(Boolean).join(', ');
+                    const html = `
+                        <h2>Xin chào ${userFullName},</h2>
+                        <p>Bạn vừa đặt thành công đơn hàng <b>#${savedOrder.shortId}</b> tại Sport Store.</p>
+                        <p><b>Thông tin đơn hàng:</b></p>
+                        <ul>
+                            <li><b>Mã đơn hàng:</b> ${savedOrder.shortId}</li>
+                            <li><b>Ngày đặt:</b> ${savedOrder.createdAt?.toLocaleString('vi-VN')}</li>
+                            <li><b>Người nhận:</b> ${savedOrder.shippingAddress?.fullName}</li>
+                            <li><b>Địa chỉ:</b> ${address}</li>
+                            <li><b>Số điện thoại:</b> ${savedOrder.shippingAddress?.phone}</li>
+                            <li><b>Phương thức thanh toán:</b> ${savedOrder.paymentMethod}</li>
+                            <li><b>Phí vận chuyển:</b> ${savedOrder.shippingFee?.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' })}</li>
+                            <li><b>Tổng tiền:</b> ${savedOrder.totalPrice?.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' })}</li>
+                        </ul>
+                        <p><b>Sản phẩm:</b></p>
+                        <ul>${orderItemsHtml}</ul>
+                        <p>Cảm ơn bạn đã mua sắm tại Sport Store!</p>
+                    `;
+                    await sendEmail({
+                        to: userEmail,
+                        subject: `Xác nhận đơn hàng #${savedOrder.shortId} từ Sport Store`,
+                        html,
+                        requestId
+                    });
+                    logInfo(`[${requestId}] Đã gửi email xác nhận đơn hàng cho user: ${userEmail}`);
+
+                    // Gửi email cho admin
+                    const adminEmail = 'notify.vjusport@gmail.com';
+                    const adminHtml = `
+                        <h2>Thông báo: Có đơn hàng mới từ khách hàng ${userFullName}</h2>
+                        <p><b>Mã đơn hàng:</b> ${savedOrder.shortId}</p>
+                        <p><b>Ngày đặt:</b> ${savedOrder.createdAt?.toLocaleString('vi-VN')}</p>
+                        <p><b>Khách hàng:</b> ${userFullName} (${userEmail})</p>
+                        <p><b>Số điện thoại:</b> ${savedOrder.shippingAddress?.phone}</p>
+                        <p><b>Địa chỉ giao hàng:</b> ${address}</p>
+                        <p><b>Phương thức thanh toán:</b> ${savedOrder.paymentMethod}</p>
+                        <p><b>Tổng tiền:</b> ${savedOrder.totalPrice?.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' })}</p>
+                        <p><b>Sản phẩm:</b></p>
+                        <ul>${orderItemsHtml}</ul>
+                    `;
+                    await sendEmail({
+                        to: adminEmail,
+                        subject: `Đơn hàng mới #${savedOrder.shortId} từ khách hàng ${userFullName}`,
+                        html: adminHtml,
+                        requestId
+                    });
+                    logInfo(`[${requestId}] Đã gửi email thông báo đơn hàng mới cho admin: ${adminEmail}`);
+                } catch (emailErr) {
+                    logError(`[${requestId}] Lỗi gửi email xác nhận đơn hàng: ${emailErr.message}`);
+                }
+            }
+
             // Nếu thanh toán qua Stripe, trả về orderId để client tạo payment intent
             if (paymentMethod === PAYMENT_METHODS.STRIPE) {
                 return res.status(200).json({
