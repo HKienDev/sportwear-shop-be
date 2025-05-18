@@ -11,7 +11,6 @@ import { handleError } from "../utils/helpers.js";
 import { Coupon } from "../models/Coupon.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { clearDashboardCacheUtil } from './dashboardController.js';
-import { sendAdminNewOrderEmail, sendAdminCancelRequestEmail } from './emailController.js';
 
 const stripeInstance = stripe(env.STRIPE_SECRET_KEY);
 
@@ -273,27 +272,8 @@ export const createOrder = async (req, res) => {
                     requestId
                 });
 
-                // Gửi email cho admin
-                const adminOrderData = {
-                    shortId: savedOrder.shortId,
-                    shippingAddress: savedOrder.shippingAddress,
-                    items: savedOrder.items,
-                    createdAt: savedOrder.createdAt,
-                    subtotal: savedOrder.subtotal,
-                    directDiscount: savedOrder.directDiscount,
-                    couponDiscount: savedOrder.couponDiscount,
-                    shippingFee: savedOrder.shippingFee,
-                    totalPrice: savedOrder.totalPrice,
-                    paymentMethod: savedOrder.paymentMethod,
-                    paymentStatus: savedOrder.paymentStatus,
-                };
-                const sendAdminEmailPromise = sendAdminNewOrderEmail({
-                    body: { orderData: adminOrderData },
-                    id: requestId
-                }, { status: () => ({ json: () => {} }) }); // fake res for internal call
-
                 await Promise.race([
-                    Promise.all([sendEmailPromise, sendAdminEmailPromise]),
+                    sendEmailPromise,
                     new Promise((_, reject) => 
                         setTimeout(() => reject(new Error('Timeout sending email')), 5000)
                     )
@@ -453,23 +433,6 @@ export const cancelOrder = async (req, res) => {
 
         order.status = ORDER_STATUS.CANCELLED;
         await order.save();
-
-        // Gửi email cho admin khi user hủy đơn hàng
-        try {
-            await sendAdminCancelRequestEmail({
-                body: {
-                    cancelData: {
-                        orderId: order.shortId,
-                        customerName: order.shippingAddress.fullName,
-                        reason: req.body.reason || 'Người dùng không cung cấp lý do',
-                        time: new Date().toLocaleString('vi-VN')
-                    }
-                },
-                id: requestId
-            }, { status: () => ({ json: () => {} }) });
-        } catch (err) {
-            logError(`[${requestId}] Error sending admin cancel order email: ${err.message}`);
-        }
 
         // Xóa cache sau khi hủy đơn hàng
         await clearDashboardCacheUtil(requestId);
