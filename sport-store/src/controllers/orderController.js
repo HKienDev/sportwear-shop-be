@@ -10,6 +10,7 @@ import { ERROR_MESSAGES, SUCCESS_MESSAGES, ORDER_STATUS, PAYMENT_METHODS, SHIPPI
 import { handleError } from "../utils/helpers.js";
 import { Coupon } from "../models/Coupon.js";
 import { clearDashboardCacheUtil } from './dashboardController.js';
+import { sendOrderConfirmationEmail } from '../services/orderEmailService.js';
 
 const stripeInstance = stripe(env.STRIPE_SECRET_KEY);
 
@@ -218,10 +219,40 @@ export const createOrder = async (req, res) => {
             // Clear cache
             await clearOrderCache(requestId);
 
-            // Gửi email xác nhận đơn hàng cho user và admin
-            // (Đã chuẩn hóa: BE chỉ gửi, không render template)
-            // FE sẽ gọi API /api/email/send (user) và /api/email/send-admin (admin) với subject, to, html đã render
-            // => Xóa toàn bộ logic render HTML email ở đây
+            // Gửi email xác nhận đơn hàng cho khách hàng
+            try {
+                const user = await User.findById(savedOrder.user);
+                if (user && user.email) {
+                    // Chuẩn bị dữ liệu cho template
+                    const orderEmailData = {
+                        shortId: savedOrder._id.toString().slice(-6).toUpperCase(),
+                        fullName: user.fullName || user.name || 'Khách hàng',
+                        createdAt: savedOrder.createdAt ? savedOrder.createdAt.toISOString() : new Date().toISOString(),
+                        deliveryDate: savedOrder.shippingMethod?.expectedDate ? savedOrder.shippingMethod.expectedDate.toISOString() : '',
+                        items: savedOrder.items.map(item => ({
+                            name: item.name,
+                            price: item.price?.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' }) || '',
+                            image: item.image || '',
+                            quantity: item.quantity
+                        })),
+                        subtotal: savedOrder.subtotal?.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' }) || '',
+                        directDiscount: savedOrder.directDiscount?.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' }) || '',
+                        couponDiscount: savedOrder.couponDiscount?.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' }) || '',
+                        shippingFee: savedOrder.shippingFee?.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' }) || '',
+                        totalPrice: savedOrder.totalPrice?.toLocaleString('vi-VN', { style: 'currency', currency: 'VND' }) || '',
+                        shippingAddress: `${savedOrder.shippingAddress.fullName}, ${savedOrder.shippingAddress.phone}, ${savedOrder.shippingAddress.address?.detail || ''}, ${savedOrder.shippingAddress.address?.ward?.name || ''}, ${savedOrder.shippingAddress.address?.district?.name || ''}, ${savedOrder.shippingAddress.address?.province?.name || ''}`,
+                        paymentMethod: savedOrder.paymentMethod,
+                        paymentStatus: savedOrder.paymentStatus
+                    };
+                    await sendOrderConfirmationEmail({
+                        to: user.email,
+                        requestId,
+                        order: orderEmailData
+                    });
+                }
+            } catch (emailError) {
+                logError(`[${requestId}] Error sending order confirmation email: ${emailError.message}`);
+            }
 
             // Nếu thanh toán qua Stripe, trả về orderId để client tạo payment intent
             if (paymentMethod === PAYMENT_METHODS.STRIPE) {
