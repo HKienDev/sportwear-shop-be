@@ -251,37 +251,6 @@ export const createOrder = async (req, res) => {
                 logError(`[${requestId}] Error updating stock: ${stockError.message}`);
             }
 
-            // Gửi email xác nhận đơn hàng
-            try {
-                const sendEmailPromise = sendEmail({
-                    to: req.user.email,
-                    template: 'newOrder',
-                    data: {
-                        shortId: savedOrder.shortId,
-                        shippingAddress: savedOrder.shippingAddress,
-                        items: savedOrder.items,
-                        createdAt: savedOrder.createdAt,
-                        subtotal: savedOrder.subtotal,
-                        directDiscount: savedOrder.directDiscount,
-                        couponDiscount: savedOrder.couponDiscount,
-                        shippingFee: savedOrder.shippingFee,
-                        totalPrice: savedOrder.totalPrice,
-                        paymentMethod: savedOrder.paymentMethod,
-                        paymentStatus: savedOrder.paymentStatus,
-                    },
-                    requestId
-                });
-
-                await Promise.race([
-                    sendEmailPromise,
-                    new Promise((_, reject) => 
-                        setTimeout(() => reject(new Error('Timeout sending email')), 5000)
-                    )
-                ]);
-            } catch (emailError) {
-                logError(`[${requestId}] Error sending order confirmation email: ${emailError.message}`);
-            }
-
             res.status(200).json({
                 success: true,
                 message: SUCCESS_MESSAGES.ORDER_CREATED,
