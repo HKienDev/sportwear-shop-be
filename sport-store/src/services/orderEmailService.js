@@ -1,8 +1,10 @@
 import { sendEmail } from '../utils/sendEmail.js';
 import { render } from '@react-email/render';
 import * as NewOrderEmailModule from '../email-templates/NewOrderEmail.js';
+import * as AdminNewOrderEmailModule from '../email-templates/AdminNewOrderEmail.js';
 
 const NewOrderEmail = NewOrderEmailModule.default || NewOrderEmailModule.NewOrderEmail || NewOrderEmailModule;
+const AdminNewOrderEmail = AdminNewOrderEmailModule.default || AdminNewOrderEmailModule.AdminNewOrderEmail || AdminNewOrderEmailModule;
 
 /**
  * Gửi email xác nhận đơn hàng mới cho khách hàng
@@ -27,6 +29,22 @@ export async function sendOrderConfirmationEmail({ to, requestId, order }) {
     });
   } catch (err) {
     console.error('[EMAIL DEBUG] Error rendering or sending email:', err);
+    throw err;
+  }
+}
+
+export async function sendOrderNotificationToAdmin({ order, requestId }) {
+  try {
+    // Chuẩn bị props cho template admin (giữ đúng cấu trúc object cho shippingAddress, items...)
+    const html = await render(AdminNewOrderEmail(order));
+    return sendEmail({
+      to: 'notify.vjusport@gmail.com',
+      subject: `Đơn hàng mới #${order.shortId} từ khách hàng ${order.shippingAddress?.fullName || ''}`,
+      html,
+      requestId,
+    });
+  } catch (err) {
+    console.error('[EMAIL ADMIN DEBUG] Error rendering or sending admin order email:', err);
     throw err;
   }
 } 

@@ -10,7 +10,7 @@ import { ERROR_MESSAGES, SUCCESS_MESSAGES, ORDER_STATUS, PAYMENT_METHODS, SHIPPI
 import { handleError } from "../utils/helpers.js";
 import { Coupon } from "../models/Coupon.js";
 import { clearDashboardCacheUtil } from './dashboardController.js';
-import { sendOrderConfirmationEmail } from '../services/orderEmailService.js';
+import { sendOrderConfirmationEmail, sendOrderNotificationToAdmin } from '../services/orderEmailService.js';
 
 const stripeInstance = stripe(env.STRIPE_SECRET_KEY);
 
@@ -248,6 +248,24 @@ export const createOrder = async (req, res) => {
                         to: user.email,
                         requestId,
                         order: orderEmailData
+                    });
+                    // Gửi email cho admin
+                    const adminOrderData = {
+                        shortId: orderEmailData.shortId,
+                        createdAt: orderEmailData.createdAt,
+                        shippingAddress: savedOrder.shippingAddress, // object
+                        items: savedOrder.items.map(item => ({
+                            name: item.name,
+                            price: item.price,
+                            quantity: item.quantity
+                        })),
+                        totalPrice: savedOrder.totalPrice,
+                        paymentMethod: savedOrder.paymentMethod,
+                        paymentStatus: savedOrder.paymentStatus
+                    };
+                    await sendOrderNotificationToAdmin({
+                        order: adminOrderData,
+                        requestId
                     });
                 }
             } catch (emailError) {

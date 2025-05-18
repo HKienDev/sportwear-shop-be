@@ -30,7 +30,7 @@ var AdminNewOrderEmail = ({
       /* @__PURE__ */ jsx(
         Img,
         {
-          src: "https://sport-store.vercel.app/vju-logo-main.png",
+          src: "https://sport-store.vercel.app/Logo_vju.png",
           width: "160",
           height: "auto",
           alt: "Sport Store Logo",
