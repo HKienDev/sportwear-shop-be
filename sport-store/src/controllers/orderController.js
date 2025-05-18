@@ -11,6 +11,7 @@ import { handleError } from "../utils/helpers.js";
 import { Coupon } from "../models/Coupon.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { clearDashboardCacheUtil } from './dashboardController.js';
+import { sendAdminNewOrderEmail } from './emailController.js';
 
 const stripeInstance = stripe(env.STRIPE_SECRET_KEY);
 
@@ -272,8 +273,25 @@ export const createOrder = async (req, res) => {
                     requestId
                 });
 
+                // Gửi email cho admin
+                const adminOrderData = {
+                    customerName: savedOrder.shippingAddress.fullName,
+                    orderId: savedOrder.shortId,
+                    totalAmount: savedOrder.totalPrice.toLocaleString('vi-VN'),
+                    orderTime: new Date(savedOrder.createdAt).toLocaleString('vi-VN'),
+                    products: savedOrder.items.map(item => ({
+                        name: item.name,
+                        quantity: item.quantity,
+                        price: item.price.toLocaleString('vi-VN')
+                    }))
+                };
+                const sendAdminEmailPromise = sendAdminNewOrderEmail({
+                    body: { orderData: adminOrderData },
+                    id: requestId
+                }, { status: () => ({ json: () => {} }) }); // fake res for internal call
+
                 await Promise.race([
-                    sendEmailPromise,
+                    Promise.all([sendEmailPromise, sendAdminEmailPromise]),
                     new Promise((_, reject) => 
                         setTimeout(() => reject(new Error('Timeout sending email')), 5000)
                     )

@@ -1,6 +1,18 @@
 import { Resend } from "resend";
 import { logInfo, logError } from "./logger.js";
 import env from "../config/env.js";
+import { render as renderEmail } from '@react-email/render';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Đường dẫn tới các template React (giả sử đã copy sang BE tại src/email-templates)
+import AdminNewOrderEmail from '../email-templates/AdminNewOrderEmail.js';
+import AdminPaymentErrorEmail from '../email-templates/AdminPaymentErrorEmail.js';
+import AdminNewUserEmail from '../email-templates/AdminNewUserEmail.js';
+import AdminProductLowStockEmail from '../email-templates/AdminProductLowStockEmail.js';
+import AdminCouponUsedEmail from '../email-templates/AdminCouponUsedEmail.js';
+import AdminPeriodicReportEmail from '../email-templates/AdminPeriodicReportEmail.js';
+import AdminSecurityAlertEmail from '../email-templates/AdminSecurityAlertEmail.js';
 
 const resend = new Resend(env.RESEND_API_KEY);
 
@@ -305,6 +317,41 @@ async function getEmailTemplate(template, data) {
                 `
             };
         }
+        case 'admin_new_order':
+            return {
+                subject: 'Thông báo đơn hàng mới',
+                html: renderEmail(AdminNewOrderEmail(data))
+            };
+        case 'admin_payment_error':
+            return {
+                subject: 'Thông báo lỗi thanh toán',
+                html: renderEmail(AdminPaymentErrorEmail(data))
+            };
+        case 'admin_new_user':
+            return {
+                subject: 'Người dùng mới đăng ký',
+                html: renderEmail(AdminNewUserEmail(data))
+            };
+        case 'admin_product_low_stock':
+            return {
+                subject: 'Cảnh báo sản phẩm sắp hết hàng',
+                html: renderEmail(AdminProductLowStockEmail(data))
+            };
+        case 'admin_coupon_used':
+            return {
+                subject: 'Mã giảm giá đã được sử dụng',
+                html: renderEmail(AdminCouponUsedEmail(data))
+            };
+        case 'admin_periodic_report':
+            return {
+                subject: 'Báo cáo định kỳ hệ thống',
+                html: renderEmail(AdminPeriodicReportEmail(data))
+            };
+        case 'admin_security_alert':
+            return {
+                subject: 'Cảnh báo bảo mật hệ thống',
+                html: renderEmail(AdminSecurityAlertEmail(data))
+            };
         default:
             throw new Error(`Template ${template} not found`);
     }
