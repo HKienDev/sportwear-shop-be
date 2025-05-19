@@ -7,17 +7,16 @@ import { jsx, jsxs } from "react/jsx-runtime";
 var AdminNewUserEmail = ({ userName, email, time }) => /* @__PURE__ */ jsxs(Html, { children: [
   /* @__PURE__ */ jsx(Head, {}),
   /* @__PURE__ */ jsxs(Preview, { children: [
-    "Ng\u01B0\u1EDDi d\xF9ng m\u1EDBi \u0111\u0103ng k\xFD: ",
+    "Người dùng mới đăng ký: ",
     userName
   ] }),
   /* @__PURE__ */ jsx(Body, { style: { background: "#f9f9f9", fontFamily: "Arial, sans-serif" }, children: /* @__PURE__ */ jsxs(Container, { style: { maxWidth: 600, margin: "0 auto", background: "#fff", borderRadius: 8, padding: 24 }, children: [
     /* @__PURE__ */ jsxs(Section, { style: { background: "linear-gradient(90deg, #2563eb 0%, #60a5fa 100%)", borderRadius: 12, padding: "24px 0 12px 0", marginBottom: 24, textAlign: "center" }, children: [
-      /* @__PURE__ */ jsx("img", { src: "https://sport-store.vercel.app/vju-logo-main.png", width: "140", alt: "Sport Store Logo", style: { display: "block", margin: "0 auto 8px auto" } }),
-      /* @__PURE__ */ jsx(Heading, { style: { color: "#fff", fontWeight: 700, fontSize: 22, margin: 0 }, children: "Ng\u01B0\u1EDDi d\xF9ng m\u1EDBi \u0111\u0103ng k\xFD" })
+      /* @__PURE__ */ jsx(Heading, { style: { color: "#fff", fontWeight: 700, fontSize: 22, margin: 0 }, children: "Người dùng mới đăng ký" })
     ] }),
     /* @__PURE__ */ jsxs(Section, { style: { border: "2px solid #2563eb", borderRadius: 10, boxShadow: "0 2px 8px 0 #2563eb22", background: "#f3f4f6", padding: 20, textAlign: "center" }, children: [
       /* @__PURE__ */ jsxs(Text, { children: [
-        "T\xEAn: ",
+        "Tên: ",
         /* @__PURE__ */ jsx(Text, { style: { fontWeight: "bold", display: "inline" }, children: userName })
       ] }),
       /* @__PURE__ */ jsxs(Text, { children: [
@@ -25,7 +24,7 @@ var AdminNewUserEmail = ({ userName, email, time }) => /* @__PURE__ */ jsxs(Html
         /* @__PURE__ */ jsx(Text, { style: { fontWeight: "bold", display: "inline" }, children: email })
       ] }),
       /* @__PURE__ */ jsxs(Text, { children: [
-        "Th\u1EDDi gian \u0111\u0103ng k\xFD: ",
+        "Thời gian đăng ký: ",
         time
       ] })
     ] }),

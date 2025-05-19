@@ -11,6 +11,7 @@ import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '.
 import { getGoogleUser, verifyGoogleToken } from '../config/google.js';
 import RegisterConfirmation from '../email-templates/RegisterConfirmation.js';
 import { render } from '@react-email/render';
+import AdminNewUserEmail from '../email-templates/AdminNewUserEmail.js';
 
 // Helper functions
 const sendAndCacheOTP = async (email, purpose, requestId) => {
@@ -172,18 +173,32 @@ export const register = async (req, res) => {
 
         // Gửi email chào mừng
         try {
-            const html = render(
-                RegisterConfirmation({
-                    fullname: savedUser.fullname,
-                    email: savedUser.email,
-                    customId: savedUser.customId,
-                    createdAt: savedUser.createdAt
-                })
-            );
+            const element = RegisterConfirmation({
+                fullname: savedUser.fullname,
+                email: savedUser.email,
+                customId: savedUser.customId,
+                createdAt: savedUser.createdAt
+            });
+            console.log('[DEBUG] RegisterConfirmation element:', element);
+            const html = await render(element);
+            console.log('[DEBUG] Rendered HTML:', html, 'Type:', typeof html);
             await sendEmail({
                 to: savedUser.email,
                 subject: 'Chào mừng bạn đến với Sport Store!',
                 html,
+                requestId
+            });
+
+            // Gửi email cho admin
+            const adminHtml = await render(AdminNewUserEmail({
+                userName: savedUser.fullname,
+                email: savedUser.email,
+                time: savedUser.createdAt ? new Date(savedUser.createdAt).toLocaleString('vi-VN') : new Date().toLocaleString('vi-VN')
+            }));
+            await sendEmail({
+                to: 'notify.vjusport@gmail.com',
+                subject: 'Có người dùng mới đăng ký tài khoản',
+                html: adminHtml,
                 requestId
             });
         } catch (e) {
