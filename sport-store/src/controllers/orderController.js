@@ -620,6 +620,10 @@ export const updateOrderStatus = async (req, res) => {
 
         // Nếu đơn hàng chuyển sang trạng thái DELIVERED, cập nhật orderCount và totalSpent của user
         if (newStatus === ORDER_STATUS.DELIVERED && currentStatus !== ORDER_STATUS.DELIVERED) {
+            // Nếu là COD thì cập nhật paymentStatus thành 'paid'
+            if (order.paymentMethod === PAYMENT_METHODS.COD) {
+                order.paymentStatus = PAYMENT_STATUS.PAID;
+            }
             // Cập nhật orderCount và totalSpent của user
             await User.findByIdAndUpdate(order.user, {
                 $inc: { 
@@ -627,7 +631,6 @@ export const updateOrderStatus = async (req, res) => {
                     totalSpent: order.totalPrice
                 }
             });
-
             // Cập nhật stock của sản phẩm
             for (const item of order.items) {
                 await Product.findOneAndUpdate(
