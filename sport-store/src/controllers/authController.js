@@ -173,12 +173,12 @@ export const register = async (req, res) => {
         // Gửi email chào mừng
         try {
             const html = render(
-                <RegisterConfirmation
-                    fullname={savedUser.fullname}
-                    email={savedUser.email}
-                    customId={savedUser.customId}
-                    createdAt={savedUser.createdAt}
-                />
+                RegisterConfirmation({
+                    fullname: savedUser.fullname,
+                    email: savedUser.email,
+                    customId: savedUser.customId,
+                    createdAt: savedUser.createdAt
+                })
             );
             await sendEmail({
                 to: savedUser.email,
