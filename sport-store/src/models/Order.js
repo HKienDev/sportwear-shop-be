@@ -88,6 +88,11 @@ const orderSchema = new mongoose.Schema({
         required: [true, "Tổng tiền thanh toán là bắt buộc"],
         min: [0, "Tổng tiền thanh toán không thể âm"]
     },
+    originalTotal: {
+        type: Number,
+        required: [true, "Tổng giá gốc là bắt buộc"],
+        min: [0, "Tổng giá gốc không thể âm"]
+    },
     paymentMethod: {
         type: String,
         enum: Object.values(PAYMENT_METHODS),

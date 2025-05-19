@@ -73,6 +73,7 @@ export const createOrder = async (req, res) => {
         }
 
         // Calculate total and validate stock
+        let originalTotal = 0;
         let subtotal = 0;
         let directDiscount = 0;
         const orderItems = [];
@@ -118,7 +119,8 @@ export const createOrder = async (req, res) => {
             const itemTotal = price * quantity;
             const itemDirectDiscount = (originalPrice - price) * quantity;
 
-            subtotal += originalPrice * quantity;
+            originalTotal += originalPrice * quantity;
+            subtotal += price * quantity;
             directDiscount += itemDirectDiscount;
 
             orderItems.push({
@@ -140,7 +142,7 @@ export const createOrder = async (req, res) => {
         // Apply shipping fee
         const shippingFee = SHIPPING_FEES[shippingMethod] || 0;
         // Tính tổng tiền trước khi áp dụng coupon
-        let totalPrice = subtotal - directDiscount + shippingFee;
+        let totalPrice = subtotal + shippingFee;
 
         // Apply coupon if provided
         let couponDiscount = 0;
@@ -187,6 +189,7 @@ export const createOrder = async (req, res) => {
                 trackingId: nanoid(10).toUpperCase()
             },
             shippingFee,
+            originalTotal,
             subtotal,
             directDiscount,
             couponDiscount,
