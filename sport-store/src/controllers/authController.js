@@ -9,6 +9,8 @@ import { ERROR_MESSAGES, SUCCESS_MESSAGES, TOKEN_CONFIG, AUTH_CONFIG } from "../
 import { hashPassword, formatUserResponse, handleError, generateOTP, setAuthCookies } from "../utils/helpers.js";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt.js';
 import { getGoogleUser, verifyGoogleToken } from '../config/google.js';
+import RegisterConfirmation from '../email-templates/RegisterConfirmation.js';
+import { render } from '@react-email/render';
 
 // Helper functions
 const sendAndCacheOTP = async (email, purpose, requestId) => {
@@ -167,6 +169,24 @@ export const register = async (req, res) => {
         const customId = generateCustomId('VJUSPORTUSER', savedUser._id.toString());
         savedUser.customId = customId;
         await savedUser.save();
+
+        // Gửi email chào mừng
+        try {
+            const html = render(RegisterConfirmation({
+                fullname: savedUser.fullname,
+                email: savedUser.email,
+                customId: savedUser.customId,
+                createdAt: savedUser.createdAt
+            }));
+            await sendEmail({
+                to: savedUser.email,
+                subject: 'Chào mừng bạn đến với Sport Store!',
+                html,
+                requestId
+            });
+        } catch (e) {
+            logError(`[${requestId}] Gửi email chào mừng thất bại: ${e.message}`);
+        }
 
         logInfo(`[${requestId}] Successfully registered user: ${savedUser.email}`);
         res.status(201).json({

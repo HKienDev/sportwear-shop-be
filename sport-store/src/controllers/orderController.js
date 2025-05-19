@@ -228,7 +228,7 @@ export const createOrder = async (req, res) => {
                 if (user && user.email) {
                     // Chuẩn bị dữ liệu cho template (đồng bộ với FE UI/UX)
                     const orderEmailData = {
-                        shortId: savedOrder._id.toString().slice(-6).toUpperCase(),
+                        shortId: savedOrder.shortId,
                         fullName: user.fullName || user.name || 'Khách hàng',
                         createdAt: savedOrder.createdAt ? savedOrder.createdAt.toISOString() : new Date().toISOString(),
                         deliveryDate: savedOrder.shippingMethod?.expectedDate ? savedOrder.shippingMethod.expectedDate.toISOString() : '',
@@ -254,7 +254,7 @@ export const createOrder = async (req, res) => {
                     });
                     // Gửi email cho admin
                     const adminOrderData = {
-                        shortId: orderEmailData.shortId,
+                        shortId: savedOrder.shortId,
                         createdAt: orderEmailData.createdAt,
                         shippingAddress: savedOrder.shippingAddress, // object
                         items: savedOrder.items.map(item => ({
