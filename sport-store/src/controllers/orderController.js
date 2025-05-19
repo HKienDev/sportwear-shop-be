@@ -197,11 +197,11 @@ export const createOrder = async (req, res) => {
             paymentMethod,
             coupon: appliedCoupon,
             status: initialStatus,
-            paymentStatus: paymentMethod === PAYMENT_METHODS.STRIPE ? PAYMENT_STATUS.PENDING : PAYMENT_STATUS.PAID,
+            paymentStatus: paymentMethod === PAYMENT_METHODS.STRIPE ? PAYMENT_STATUS.PENDING : PAYMENT_STATUS.PENDING,
             payment: {
                 amount: totalPrice,
                 currency: 'vnd',
-                status: paymentMethod === PAYMENT_METHODS.STRIPE ? 'pending' : 'completed',
+                status: paymentMethod === PAYMENT_METHODS.STRIPE ? 'pending' : 'pending',
                 method: paymentMethod,
                 updatedAt: new Date()
             }
