@@ -7,8 +7,6 @@ VJU Sport Store Backend là hệ thống API phục vụ cho nền tảng thươ
 ## 🚀 Demo & API Docs
 
 - **Lưu ý:** Dự án backend chỉ chạy local hoặc deploy server riêng.
-- API Docs (Swagger): *(bổ sung link nếu có, ví dụ: http://localhost:4000/api-docs)*
-
 ---
 
 ## 🌟 Tính năng nổi bật
