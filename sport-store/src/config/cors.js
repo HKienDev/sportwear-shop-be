@@ -1,9 +1,9 @@
 const allowedOrigins = [
   'http://localhost:3000',
-  'https://sport-store-fe-graduation.vercel.app',
+  'https://sportwear-shop-fe.vercel.app',
   'https://www.vjusport.com',
   'https://vjusport.com',
-  'https://sport-store-be-graduation-production.up.railway.app'
+  'https://sportwear-shop-be-production.up.railway.app'
 ];
 
 const corsOptions = {
