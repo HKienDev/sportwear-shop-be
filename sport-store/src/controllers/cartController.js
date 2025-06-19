@@ -6,7 +6,7 @@ import { handleError } from '../utils/errorHandler.js';
 // Lấy giỏ hàng của user
 export const getCart = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user?._id || null;
 
     let cart = await Cart.findOne({ userId });
     
@@ -25,7 +25,7 @@ export const getCart = async (req, res) => {
 export const addToCart = async (req, res) => {
   try {
     const { sku, color = "Mặc Định", size, quantity = 1 } = req.body;
-    const userId = req.user._id;
+    const userId = req.user?._id || null;
 
     // Kiểm tra sản phẩm tồn tại
     const product = await Product.findOne({ sku });
