@@ -12,6 +12,7 @@ import { getGoogleUser, verifyGoogleToken } from '../config/google.js';
 import RegisterConfirmation from '../email-templates/RegisterConfirmation.js';
 import { render } from '@react-email/render';
 import AdminNewUserEmail from '../email-templates/AdminNewUserEmail.js';
+import ForgotPasswordEmail from '../email-templates/ForgotPasswordEmail.js';
 
 // Helper functions
 const sendAndCacheOTP = async (email, purpose, requestId) => {
@@ -22,14 +23,47 @@ const sendAndCacheOTP = async (email, purpose, requestId) => {
     const otpKey = `otp:${purpose}:${email}`;
     await redis.set(otpKey, otp, 'EX', AUTH_CONFIG.OTP_EXPIRY);
 
-    await sendEmail({
-        to: email,
-        template: purpose,
-        data: { otp },
-        requestId
-    });
+    try {
+        let emailTemplate;
+        let subject;
+        
+        // Chọn template email dựa trên purpose
+        switch (purpose) {
+            case 'forgot_password':
+                emailTemplate = ForgotPasswordEmail;
+                subject = 'Mã OTP đặt lại mật khẩu - Sport Store';
+                break;
+            case 'register':
+                emailTemplate = RegisterConfirmation;
+                subject = 'Xác thực tài khoản - Sport Store';
+                break;
+            default:
+                emailTemplate = ForgotPasswordEmail;
+                subject = 'Mã OTP - Sport Store';
+        }
 
-    return otp;
+        // Render email template
+        const element = emailTemplate({
+            otp,
+            name: 'Khách hàng' // Có thể lấy từ database nếu cần
+        });
+        
+        const html = await render(element);
+        
+        // Gửi email với tham số đúng
+        await sendEmail({
+            to: email,
+            subject: subject,
+            html: html,
+            requestId: requestId
+        });
+
+        console.log(`[sendAndCacheOTP] Email sent successfully to ${email} for purpose: ${purpose}`);
+        return otp;
+    } catch (error) {
+        console.error(`[sendAndCacheOTP] Error sending email:`, error);
+        throw error;
+    }
 };
 
 // Helper function để tạo ID tùy chỉnh
@@ -292,13 +326,41 @@ export const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
+        // Validation: Kiểm tra email và password có được cung cấp không
         if (!email || !password) {
             logError(`[${requestId}] Missing email or password`);
+            const missingField = !email ? 'email' : 'password';
+            const message = !email ? 'Email là bắt buộc' : 'Mật khẩu là bắt buộc';
             return res.status(400).json({
                 success: false,
-                message: ERROR_MESSAGES.INVALID_CREDENTIALS,
+                message: message,
                 errors: [
-                    { field: !email ? 'email' : 'password', message: 'Vui lòng nhập đầy đủ thông tin' }
+                    { field: missingField, message: message }
+                ]
+            });
+        }
+
+        // Validation: Kiểm tra format email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            logError(`[${requestId}] Invalid email format: ${email}`);
+            return res.status(400).json({
+                success: false,
+                message: 'Email không đúng định dạng',
+                errors: [
+                    { field: 'email', message: 'Email không đúng định dạng' }
+                ]
+            });
+        }
+
+        // Validation: Kiểm tra độ dài password
+        if (password.length < 6) {
+            logError(`[${requestId}] Password too short: ${email}`);
+            return res.status(400).json({
+                success: false,
+                message: 'Mật khẩu phải có ít nhất 6 ký tự',
+                errors: [
+                    { field: 'password', message: 'Mật khẩu phải có ít nhất 6 ký tự' }
                 ]
             });
         }
@@ -311,18 +373,19 @@ export const login = async (req, res) => {
             logError(`[${requestId}] Error finding user: ${error.message}`);
             return res.status(500).json({
                 success: false,
-                message: ERROR_MESSAGES.SERVER_ERROR,
+                message: 'Lỗi máy chủ khi tìm kiếm người dùng',
                 errors: [{ message: 'Lỗi khi tìm kiếm người dùng' }]
             });
         }
 
+        // Kiểm tra user có tồn tại không
         if (!user) {
             logError(`[${requestId}] User not found: ${email}`);
-            return res.status(401).json({
+            return res.status(404).json({
                 success: false,
-                message: ERROR_MESSAGES.INVALID_CREDENTIALS,
+                message: 'Email không tồn tại trong hệ thống',
                 errors: [
-                    { field: 'email', message: 'Email hoặc mật khẩu không chính xác' }
+                    { field: 'email', message: 'Email không tồn tại trong hệ thống' }
                 ]
             });
         }
@@ -335,7 +398,7 @@ export const login = async (req, res) => {
             logError(`[${requestId}] Error comparing password: ${error.message}`);
             return res.status(500).json({
                 success: false,
-                message: ERROR_MESSAGES.SERVER_ERROR,
+                message: 'Lỗi máy chủ khi xác thực mật khẩu',
                 errors: [{ message: 'Lỗi khi xác thực mật khẩu' }]
             });
         }
@@ -344,9 +407,9 @@ export const login = async (req, res) => {
             logError(`[${requestId}] Invalid password for user: ${email}`);
             return res.status(401).json({
                 success: false,
-                message: ERROR_MESSAGES.INVALID_CREDENTIALS,
+                message: 'Mật khẩu không chính xác',
                 errors: [
-                    { field: 'password', message: 'Email hoặc mật khẩu không chính xác' }
+                    { field: 'password', message: 'Mật khẩu không chính xác' }
                 ]
             });
         }
@@ -356,7 +419,7 @@ export const login = async (req, res) => {
             logError(`[${requestId}] Account is inactive: ${email}`);
             return res.status(403).json({
                 success: false,
-                message: ERROR_MESSAGES.ACCOUNT_INACTIVE,
+                message: 'Tài khoản đã bị khóa',
                 errors: [
                     { message: 'Tài khoản đã bị khóa' }
                 ]
@@ -368,7 +431,7 @@ export const login = async (req, res) => {
             logError(`[${requestId}] Account not verified: ${email}`);
             return res.status(403).json({
                 success: false,
-                message: ERROR_MESSAGES.ACCOUNT_NOT_VERIFIED,
+                message: 'Tài khoản chưa được xác thực',
                 errors: [
                     { message: 'Tài khoản chưa được xác thực' }
                 ]
@@ -379,7 +442,7 @@ export const login = async (req, res) => {
             logError(`[${requestId}] Account is blocked: ${email}`);
             return res.status(403).json({
                 success: false,
-                message: ERROR_MESSAGES.ACCOUNT_BLOCKED,
+                message: 'Tài khoản đã bị chặn',
                 errors: [
                     { message: 'Tài khoản đã bị chặn' }
                 ]
@@ -405,7 +468,7 @@ export const login = async (req, res) => {
             logError(`[${requestId}] Error saving refresh token: ${error.message}`);
             return res.status(500).json({
                 success: false,
-                message: ERROR_MESSAGES.SERVER_ERROR,
+                message: 'Lỗi máy chủ khi lưu token',
                 errors: [{ message: 'Lỗi khi lưu token' }]
             });
         }
@@ -413,7 +476,7 @@ export const login = async (req, res) => {
         // Set cookies
         setAuthCookies(res, accessToken, refreshToken, user);
 
-        // Trả về response
+        // Trả về response thành công
         return res.status(200).json({
             success: true,
             message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
@@ -427,7 +490,7 @@ export const login = async (req, res) => {
         logError(`[${requestId}] Unexpected error in login: ${error.message}`);
         return res.status(500).json({
             success: false,
-            message: ERROR_MESSAGES.SERVER_ERROR,
+            message: 'Lỗi máy chủ nội bộ',
             errors: [{ message: 'Lỗi máy chủ nội bộ' }]
         });
     }
@@ -658,11 +721,13 @@ export const resetPassword = async (req, res) => {
         // Tìm email dựa vào OTP
         const keys = await redis.keys('otp:forgot_password:*');
         let userEmail = null;
+        let otpKey = null;
         
         for (const key of keys) {
             const storedOTP = await redis.get(key);
             if (storedOTP === otp) {
                 userEmail = key.split(':')[2];
+                otpKey = key;
                 break;
             }
         }
@@ -675,8 +740,15 @@ export const resetPassword = async (req, res) => {
             });
         }
 
-        // Xác thực OTP
-        const user = await verifyOTPHelper(userEmail, otp, 'forgot_password');
+        // Tìm user trong database
+        const user = await User.findOne({ email: userEmail });
+        if (!user) {
+            logError(`[${requestId}] User not found: ${userEmail}`);
+            return res.status(404).json({
+                success: false,
+                message: ERROR_MESSAGES.USER_NOT_FOUND
+            });
+        }
 
         // Kiểm tra trạng thái tài khoản
         if (!user.isActive) {
@@ -694,6 +766,10 @@ export const resetPassword = async (req, res) => {
                 message: ERROR_MESSAGES.ACCOUNT_BLOCKED
             });
         }
+
+        // Xóa OTP sau khi xác thực thành công
+        await redis.del(otpKey);
+        logInfo(`[${requestId}] OTP verified and deleted for: ${userEmail}`);
 
         // Đặt lại mật khẩu
         const hashedPassword = await hashPassword(newPassword);

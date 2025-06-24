@@ -81,6 +81,7 @@ export const SUCCESS_MESSAGES = {
     ADMIN_CREATED: "Tạo tài khoản admin thành công",
     PASSWORD_CHANGED: "Đổi mật khẩu thành công",
     PASSWORD_RESET: "Đặt lại mật khẩu thành công",
+    PASSWORD_RESET_OTP_SENT: "Mã OTP đặt lại mật khẩu đã được gửi đến email của bạn",
     PROFILE_UPDATED: "Cập nhật thông tin cá nhân thành công",
     MEMBERSHIP_UPDATED: "Cập nhật hạng thành viên thành công",
     REGISTER_SUCCESS: "Đăng ký thành công! Vui lòng kiểm tra email để xác nhận OTP.",
@@ -171,7 +172,7 @@ export const PAYMENT_METHODS = {
 
 // Auth specific constants
 export const AUTH_CONFIG = {
-    OTP_EXPIRY: 60, // 60 seconds
+    OTP_EXPIRY: 600, // 600 seconds = 10 minutes
     MAX_LOGIN_ATTEMPTS: 5,
     LOCKOUT_DURATION: 30 * 60 * 1000, // 30 minutes in milliseconds
     PASSWORD_MIN_LENGTH: 8,
