@@ -24,7 +24,10 @@ const requiredEnvVars = [
     "RATE_LIMIT_WINDOW_MS",
     "RATE_LIMIT_MAX_REQUESTS",
     "CORS_ORIGIN",
-    "STRIPE_SECRET_KEY"
+    "STRIPE_SECRET_KEY",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_REDIRECT_URI"
 ];
 
 // Thêm STRIPE_WEBHOOK_SECRET vào danh sách bắt buộc nếu đang ở môi trường production
@@ -73,6 +76,12 @@ const env = {
     // Stripe
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+    
+    // Google OAuth
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+    GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI,
+    GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL || process.env.GOOGLE_REDIRECT_URI,
     
     // Paths
     UPLOAD_DIR: join(__dirname, "../../uploads"),

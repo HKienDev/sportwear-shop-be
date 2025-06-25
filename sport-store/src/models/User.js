@@ -58,7 +58,7 @@ const userSchema = new mongoose.Schema({
     },
     phone: { 
         type: String, 
-        required: true,
+        required: function () { return !this.googleId; },
         trim: true,
         match: [/^[0-9]{10}$/, 'Số điện thoại không hợp lệ']
     },

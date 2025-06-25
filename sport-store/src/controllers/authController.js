@@ -824,8 +824,110 @@ export const googleAuth = async (req, res) => {
 };
 
 export const googleCallback = async (req, res) => {
-  // Tạm thời disable Google callback để debug vòng lặp redirect
-  return res.status(501).json({ success: false, message: 'Google callback temporarily disabled for debugging.' });
+  const requestId = req.id || 'unknown';
+  
+  try {
+    const { code } = req.query;
+    
+    // Log để debug
+    console.log(`[${requestId}] Google callback received:`, {
+      code: code ? `${code.substring(0, 20)}...` : 'null',
+      codeLength: code ? code.length : 0,
+      queryParams: Object.keys(req.query),
+      userAgent: req.headers['user-agent']
+    });
+    
+    if (!code) {
+      logError(`[${requestId}] Google callback missing authorization code`);
+      return res.status(400).json({
+        success: false,
+        message: 'Authorization code is required'
+      });
+    }
+
+    // Kiểm tra xem code có phải là Google OAuth code không (thường bắt đầu bằng 4/)
+    if (!code.startsWith('4/')) {
+      logError(`[${requestId}] Invalid Google OAuth code format. Expected code starting with '4/', got: ${code.substring(0, 20)}...`);
+      const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:3000';
+      const errorRedirectUrl = `${frontendUrl}/auth/login?error=invalid_oauth_code`;
+      return res.redirect(errorRedirectUrl);
+    }
+
+    // Lấy thông tin user từ Google
+    const googleUser = await getGoogleUser(code);
+    
+    if (!googleUser || !googleUser.email) {
+      logError(`[${requestId}] Failed to get user info from Google`);
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to get user information from Google'
+      });
+    }
+
+    // Kiểm tra user có tồn tại không
+    let user = await User.findOne({ email: googleUser.email });
+    
+    if (user) {
+      // User đã tồn tại, cập nhật googleId nếu chưa có
+      if (!user.googleId) {
+        user.googleId = googleUser.googleId;
+        await user.save();
+        logInfo(`[${requestId}] Updated googleId for existing user: ${user.email}`);
+      }
+    } else {
+      // Tạo user mới từ Google OAuth
+      // Không tạo số điện thoại tạm thời, để user cập nhật sau
+      user = new User({
+        email: googleUser.email,
+        fullname: googleUser.fullName || 'Google User', // Sử dụng fullName từ Google hoặc default
+        phone: null, // Để user cập nhật sau
+        avatar: googleUser.avatar,
+        googleId: googleUser.googleId,
+        isVerified: true, // Google users được verify sẵn
+        authStatus: 'verified',
+        role: 'user',
+        // Các trường khác sẽ dùng default values
+        address: { province: "", district: "", ward: "", street: "" },
+        dob: null,
+        gender: "other",
+        membershipLevel: "Hạng Sắt",
+        totalSpent: 0,
+        orderCount: 0
+      });
+      
+      await user.save();
+      logInfo(`[${requestId}] Created new user from Google: ${user.email}`);
+    }
+
+    // Tạo JWT tokens
+    const { accessToken, refreshToken } = generateTokens(user._id, user.email);
+    
+    // Lưu refresh token vào Redis
+    const redis = getRedisClient();
+    if (redis) {
+      const refreshKey = `refresh_token:${user._id}`;
+      // Chuyển đổi REFRESH_TOKEN_EXPIRY từ "7d" sang số giây
+      const refreshTokenExpirySeconds = 7 * 24 * 60 * 60; // 7 ngày = 604800 giây
+      await redis.set(refreshKey, refreshToken, 'EX', refreshTokenExpirySeconds);
+    }
+
+    logInfo(`[${requestId}] Google login successful for user: ${user.email}`);
+    
+    // Redirect về frontend với token
+    const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:3000';
+    const redirectUrl = `${frontendUrl}/auth/googleSuccess?token=${accessToken}`;
+    
+    res.redirect(redirectUrl);
+    
+  } catch (error) {
+    logError(`[${requestId}] Google callback error: ${error.message}`);
+    
+    // Redirect về trang login với error
+    const frontendUrl = process.env.CORS_ORIGIN || 'http://localhost:3000';
+    const errorRedirectUrl = `${frontendUrl}/auth/login?error=google_auth_failed`;
+    
+    res.redirect(errorRedirectUrl);
+  }
 };
 
 export const getProfile = async (req, res) => {

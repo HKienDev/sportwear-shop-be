@@ -21,8 +21,18 @@ import { verifyUser } from '../middlewares/authMiddleware.js';
 import { validateLogin, validateRegister, validateForgotPassword, validateResetPassword } from '../middlewares/validationMiddleware.js';
 import { loginRateLimiter } from '../middlewares/rateLimit.js';
 import { getGoogleAuthURL } from '../config/google.js';
+import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
+
+// Rate limiter cho Google callback
+const googleCallbackLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 phút
+    max: 5, // Tối đa 5 requests mỗi phút
+    message: 'Quá nhiều requests Google OAuth. Vui lòng thử lại sau.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 // Public routes
 router.get('/test', (req, res) => {
@@ -58,6 +68,6 @@ router.get('/google', (req, res) => {
   const url = getGoogleAuthURL();
   res.redirect(url);
 });
-router.get('/google/callback', googleCallback);
+router.get('/google/callback', googleCallbackLimiter, googleCallback);
 
 export default router; 
