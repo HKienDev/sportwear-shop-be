@@ -7,6 +7,7 @@ VJU Sport Store Backend là hệ thống API phục vụ cho nền tảng thươ
 ## 🚀 Demo & API Docs
 
 - **Lưu ý:** Dự án backend chỉ chạy local hoặc deploy server riêng.
+
 ---
 
 ## 🌟 Tính năng nổi bật
@@ -29,6 +30,7 @@ VJU Sport Store Backend là hệ thống API phục vụ cho nền tảng thươ
 - **Phiên bản hiện tại:** v1.0.0 (Beta)
 - **Tình trạng:** Đang phát triển, đã hoàn thiện các API chính.
 - **Kế hoạch tương lai:**
+
   - Tích hợp thêm phương thức thanh toán (PayPal, Momo)
   - Cải thiện hiệu suất tìm kiếm với Elasticsearch
   - Thêm tính năng đa ngôn ngữ (i18n)
@@ -80,75 +82,3 @@ sport-store-be-graduation/
     .env.example        # Mẫu biến môi trường
     README.md           # Tài liệu dự án
     ...
-```
-
----
-
-## ⚡️ Hướng dẫn cài đặt & chạy dự án
-
-### 1. Clone repo:
-
-```bash
-git clone https://github.com/HKienDev/sport-store-be-graduation.git
-cd sport-store-be-graduation/sport-store
-```
-
-### 2. Cài đặt dependencies:
-
-```bash
-npm install
-```
-
-### 3. Cấu hình biến môi trường (`.env` hoặc `.env.local`):
-
-Tạo file `.env.local` (hoặc copy từ `.env.example`) với nội dung mẫu:
-
-```env
-# Server Configuration
-PORT=4000
-NODE_ENV=development
-
-# MongoDB
-MONGODB_URI=mongodb://localhost:27017/sport-store
-
-# JWT Configuration
-JWT_SECRET=your_jwt_secret_key_here
-JWT_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=7d
-
-# Email Configuration (Resend)
-RESEND_API_KEY=your_resend_api_key
-EMAIL_FROM=noreply@yourdomain.com
-
-# File Upload
-MAX_FILE_SIZE=5242880
-ALLOWED_FILE_TYPES=image/jpeg,image/png,image/gif,image/webp
-
-# Rate Limiting
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
-
-# CORS
-CORS_ORIGIN=http://localhost:3000
-
-# Redis (Optional)
-REDIS_URL=redis://localhost:6379
-
-# Stripe
-STRIPE_SECRET_KEY=your_stripe_secret_key
-STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
-
-# Google OAuth (Bắt buộc cho tính năng đăng nhập Google)
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-GOOGLE_REDIRECT_URI=http://localhost:4000/api/auth/google/callback
-```
-
-> **Lưu ý:** 
-> - Không commit file `.env.local` lên git!
-> - Để sử dụng Google OAuth, bạn cần tạo project trên Google Cloud Console và lấy Client ID, Client Secret
-> - Cấu hình Authorized redirect URIs trong Google Cloud Console: `http://localhost:4000/api/auth/google/callback`
-
-### 4. Chạy dev:
-
-```

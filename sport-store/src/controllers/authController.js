@@ -5,10 +5,10 @@ import User from '../models/User.js';
 import env from "../config/env.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { logInfo, logError } from "../utils/logger.js";
-import { ERROR_MESSAGES, SUCCESS_MESSAGES, TOKEN_CONFIG, AUTH_CONFIG } from "../utils/constants.js";
+import { ERROR_MESSAGES, SUCCESS_MESSAGES, AUTH_CONFIG } from "../utils/constants.js";
 import { hashPassword, formatUserResponse, handleError, generateOTP, setAuthCookies } from "../utils/helpers.js";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt.js';
-import { getGoogleUser, verifyGoogleToken } from '../config/google.js';
+import { getGoogleUser } from '../config/google.js';
 import RegisterConfirmation from '../email-templates/RegisterConfirmation.js';
 import { render } from '@react-email/render';
 import AdminNewUserEmail from '../email-templates/AdminNewUserEmail.js';
@@ -36,6 +36,10 @@ const sendAndCacheOTP = async (email, purpose, requestId) => {
             case 'register':
                 emailTemplate = RegisterConfirmation;
                 subject = 'Xác thực tài khoản - Sport Store';
+                break;
+            case 'profileUpdate':
+                emailTemplate = ForgotPasswordEmail;
+                subject = 'Mã OTP cập nhật thông tin - Sport Store';
                 break;
             default:
                 emailTemplate = ForgotPasswordEmail;
@@ -1117,6 +1121,9 @@ export const updateProfile = async (req, res) => {
     try {
         const { otp } = req.body;
         const userId = req.user._id;
+
+        // Debug log để kiểm tra OTP nhận được
+        logInfo(`[${requestId}] Received OTP in request: "${otp}" (type: ${typeof otp}, length: ${otp?.length})`);
 
         if (!otp) {
             logError(`[${requestId}] Missing OTP`);
