@@ -1119,20 +1119,8 @@ export const updateProfile = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { otp } = req.body;
+        const { otp, fullname, dob, gender, address } = req.body;
         const userId = req.user._id;
-
-        // Debug log để kiểm tra OTP nhận được
-        logInfo(`[${requestId}] Received OTP in request: "${otp}" (type: ${typeof otp}, length: ${otp?.length})`);
-
-        if (!otp) {
-            logError(`[${requestId}] Missing OTP`);
-            return res.status(400).json({
-                success: false,
-                message: ERROR_MESSAGES.MISSING_FIELDS,
-                errors: [{ field: 'otp', message: 'Mã OTP là bắt buộc' }]
-            });
-        }
 
         const user = await User.findById(userId);
         if (!user) {
@@ -1143,36 +1131,65 @@ export const updateProfile = async (req, res) => {
             });
         }
 
-        // Xác thực OTP
-        await verifyOTPHelper(user.email, otp, 'profileUpdate');
+        // Nếu có OTP, thực hiện cập nhật với xác thực OTP
+        if (otp) {
+            logInfo(`[${requestId}] Received OTP in request: "${otp}" (type: ${typeof otp}, length: ${otp?.length})`);
 
-        // Lấy thông tin cập nhật từ Redis
-        const redis = getRedisClient();
-        if (!redis) {
-            throw new Error('Redis connection not available');
+            // Xác thực OTP
+            await verifyOTPHelper(user.email, otp, 'profileUpdate');
+
+            // Lấy thông tin cập nhật từ Redis
+            const redis = getRedisClient();
+            if (!redis) {
+                throw new Error('Redis connection not available');
+            }
+
+            const updateKey = `profile_update:${user.email}`;
+            const updateDataStr = await redis.get(updateKey);
+            
+            if (!updateDataStr) {
+                logError(`[${requestId}] Update data not found for user: ${userId}`);
+                return res.status(400).json({
+                    success: false,
+                    message: 'Không tìm thấy thông tin cập nhật. Vui lòng thử lại.'
+                });
+            }
+
+            const updateData = JSON.parse(updateDataStr);
+
+            // Cập nhật thông tin user
+            Object.assign(user, updateData);
+            await user.save();
+
+            // Xóa dữ liệu cập nhật khỏi Redis
+            await redis.del(updateKey);
+
+            logInfo(`[${requestId}] Successfully updated profile with OTP for user: ${userId}`);
+        } else {
+            // Cập nhật trực tiếp không cần OTP (chỉ cho các trường không nhạy cảm)
+            const updateData = {};
+            
+            if (fullname !== undefined) updateData.fullname = fullname;
+            if (dob !== undefined) updateData.dob = dob;
+            if (gender !== undefined) updateData.gender = gender;
+            if (address !== undefined) updateData.address = address;
+
+            // Kiểm tra dữ liệu bắt buộc
+            if (!updateData.fullname) {
+                return res.status(400).json({
+                    success: false,
+                    message: ERROR_MESSAGES.MISSING_FIELDS,
+                    errors: [{ field: 'fullname', message: 'Họ tên là bắt buộc' }]
+                });
+            }
+
+            // Cập nhật thông tin user
+            Object.assign(user, updateData);
+            await user.save();
+
+            logInfo(`[${requestId}] Successfully updated profile directly for user: ${userId}`);
         }
 
-        const updateKey = `profile_update:${user.email}`;
-        const updateDataStr = await redis.get(updateKey);
-        
-        if (!updateDataStr) {
-            logError(`[${requestId}] Update data not found for user: ${userId}`);
-            return res.status(400).json({
-                success: false,
-                message: 'Không tìm thấy thông tin cập nhật. Vui lòng thử lại.'
-            });
-        }
-
-        const updateData = JSON.parse(updateDataStr);
-
-        // Cập nhật thông tin user
-        Object.assign(user, updateData);
-        await user.save();
-
-        // Xóa dữ liệu cập nhật khỏi Redis
-        await redis.del(updateKey);
-
-        logInfo(`[${requestId}] Successfully updated profile for user: ${userId}`);
         res.json({
             success: true,
             message: SUCCESS_MESSAGES.PROFILE_UPDATED,
