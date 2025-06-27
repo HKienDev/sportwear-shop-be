@@ -26,8 +26,8 @@ const requiredEnvVars = [
     "CORS_ORIGIN",
     "STRIPE_SECRET_KEY",
     "GOOGLE_CLIENT_ID",
-    "GOOGLE_CLIENT_SECRET",
-    "GOOGLE_REDIRECT_URI"
+    "GOOGLE_CLIENT_SECRET"
+    // GOOGLE_REDIRECT_URI - Made optional for deployment
 ];
 
 // Thêm STRIPE_WEBHOOK_SECRET vào danh sách bắt buộc nếu đang ở môi trường production
@@ -80,8 +80,8 @@ const env = {
     // Google OAuth
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
-    GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI,
-    GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL || process.env.GOOGLE_REDIRECT_URI,
+    GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || (process.env.NODE_ENV === "production" ? `${process.env.CORS_ORIGIN}/api/auth/google/callback` : "http://localhost:4000/api/auth/google/callback"),
+    GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL || process.env.GOOGLE_REDIRECT_URI || (process.env.NODE_ENV === "production" ? `${process.env.CORS_ORIGIN}/api/auth/google/callback` : "http://localhost:4000/api/auth/google/callback"),
     
     // Paths
     UPLOAD_DIR: join(__dirname, "../../uploads"),
