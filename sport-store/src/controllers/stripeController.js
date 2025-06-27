@@ -27,76 +27,108 @@ async function retryWebhookHandler(event, attempt = 1) {
 
 export const createPaymentIntent = async (req, res) => {
   try {
-    const { orderId } = req.body;
+    const { orderId, amount } = req.body;
     
-    console.log('Creating payment intent for order:', orderId);
-    
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Không tìm thấy đơn hàng'
-      });
-    }
-
-    if (order.paymentStatus === PAYMENT_STATUS.PAID) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Đơn hàng đã được thanh toán' 
-      });
-    }
-
-    // Kiểm tra nếu đã có payment intent
-    if (order.paymentIntentId) {
-      try {
-        // Kiểm tra trạng thái của payment intent hiện tại
-        const existingIntent = await stripe.paymentIntents.retrieve(order.paymentIntentId);
-        
-        if (['succeeded', 'processing'].includes(existingIntent.status)) {
-          return res.status(400).json({
-            success: false,
-            message: 'Đơn hàng đang được xử lý thanh toán'
-          });
-        }
-
-        if (existingIntent.status !== 'canceled') {
-          // Hủy payment intent cũ nếu chưa bị hủy
-          await stripe.paymentIntents.cancel(order.paymentIntentId);
-        }
-      } catch (error) {
-        console.error('Error checking existing payment intent:', error);
+    // Nếu có orderId, sử dụng logic cũ
+    if (orderId) {
+      console.log('Creating payment intent for order:', orderId);
+      
+      const order = await Order.findById(orderId);
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: 'Không tìm thấy đơn hàng'
+        });
       }
-    }
 
-    const { clientSecret, paymentIntentId } = await stripeService.createPaymentIntent(
-      order.totalPrice,
-      orderId
-    );
+      if (order.paymentStatus === PAYMENT_STATUS.PAID) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Đơn hàng đã được thanh toán' 
+        });
+      }
 
-    // Cập nhật paymentIntentId vào order
-    await Order.findByIdAndUpdate(orderId, { 
-      paymentIntentId,
-      payment: {
+      // Kiểm tra nếu đã có payment intent
+      if (order.paymentIntentId) {
+        try {
+          // Kiểm tra trạng thái của payment intent hiện tại
+          const existingIntent = await stripe.paymentIntents.retrieve(order.paymentIntentId);
+          
+          if (['succeeded', 'processing'].includes(existingIntent.status)) {
+            return res.status(400).json({
+              success: false,
+              message: 'Đơn hàng đang được xử lý thanh toán'
+            });
+          }
+
+          if (existingIntent.status !== 'canceled') {
+            // Hủy payment intent cũ nếu chưa bị hủy
+            await stripe.paymentIntents.cancel(order.paymentIntentId);
+          }
+        } catch (error) {
+          console.error('Error checking existing payment intent:', error);
+        }
+      }
+
+      const { clientSecret, paymentIntentId } = await stripeService.createPaymentIntent(
+        order.totalPrice,
+        orderId
+      );
+
+      // Cập nhật paymentIntentId vào order
+      await Order.findByIdAndUpdate(orderId, { 
+        paymentIntentId,
+        payment: {
+          amount: order.totalPrice,
+          currency: 'vnd',
+          status: 'pending',
+          updatedAt: new Date()
+        }
+      });
+
+      console.log('Payment intent response:', {
+        clientSecret,
+        paymentIntentId,
+        amount: order.totalPrice
+      });
+
+      res.json({
+        success: true,
+        clientSecret,
+        paymentIntentId,
         amount: order.totalPrice,
-        currency: 'vnd',
-        status: 'pending',
-        updatedAt: new Date()
+        currency: 'vnd'
+      });
+    } else {
+      // Nếu không có orderId, tạo payment intent với amount trực tiếp
+      if (!amount) {
+        return res.status(400).json({
+          success: false,
+          message: 'Thiếu thông tin số tiền'
+        });
       }
-    });
 
-    console.log('Payment intent response:', {
-      clientSecret,
-      paymentIntentId,
-      amount: order.totalPrice
-    });
+      console.log('Creating payment intent for amount:', amount);
+      
+      const { clientSecret, paymentIntentId } = await stripeService.createPaymentIntent(
+        amount,
+        null // Không có orderId
+      );
 
-    res.json({
-      success: true,
-      clientSecret,
-      paymentIntentId,
-      amount: order.totalPrice,
-      currency: 'vnd'
-    });
+      console.log('Payment intent response (direct amount):', {
+        clientSecret,
+        paymentIntentId,
+        amount: amount
+      });
+
+      res.json({
+        success: true,
+        clientSecret,
+        paymentIntentId,
+        amount: amount,
+        currency: 'vnd'
+      });
+    }
   } catch (error) {
     console.error('Error creating payment intent:', error);
     res.status(500).json({

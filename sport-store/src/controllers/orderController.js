@@ -426,11 +426,16 @@ export const cancelOrder = async (req, res) => {
             });
         }
 
-        if (order.status !== ORDER_STATUS.PENDING) {
-            logError(`[${requestId}] Order cannot be cancelled: ${order._id}`);
+        // Kiểm tra xem đơn hàng có thể hủy không
+        const cancellableStatuses = [ORDER_STATUS.PENDING, ORDER_STATUS.CONFIRMED];
+        const cancellablePaymentStatuses = [PAYMENT_STATUS.PENDING, PAYMENT_STATUS.FAILED];
+        
+        if (!cancellableStatuses.includes(order.status) || 
+            !cancellablePaymentStatuses.includes(order.paymentStatus)) {
+            logError(`[${requestId}] Order cannot be cancelled: ${order._id} - Status: ${order.status}, Payment: ${order.paymentStatus}`);
             return res.status(400).json({
                 success: false,
-                message: ERROR_MESSAGES.ORDER_CANNOT_CANCEL
+                message: 'Chỉ có thể hủy đơn hàng khi đơn hàng chưa được xử lý hoặc đang chờ thanh toán'
             });
         }
 
@@ -456,7 +461,20 @@ export const cancelOrder = async (req, res) => {
             }
         }
 
+        // Cập nhật trạng thái đơn hàng và lý do hủy
         order.status = ORDER_STATUS.CANCELLED;
+        order.cancellationReason = req.body.reason || 'Khách hàng hủy đơn hàng';
+        order.cancelledAt = new Date();
+        order.cancelledBy = req.user._id;
+        
+        // Thêm vào lịch sử trạng thái
+        order.statusHistory.push({
+            status: ORDER_STATUS.CANCELLED,
+            updatedAt: new Date(),
+            updatedBy: req.user._id,
+            note: req.body.reason || 'Khách hàng hủy đơn hàng'
+        });
+        
         await order.save();
 
         // Xóa cache sau khi hủy đơn hàng

@@ -10,7 +10,8 @@ const stripeInstance = stripe(env.STRIPE_SECRET_KEY);
 class StripeService {
   async createPaymentIntent(amount, orderId) {
     try {
-      logInfo(`Payment activity [${orderId}] CREATE_INTENT_START: { amountVND: ${amount}, amountUSD: ${Math.floor(amount / 24500)}, amountCents: ${Math.floor(amount / 24500 * 100)} }`);
+      const logId = orderId || 'TEMP_' + Date.now();
+      logInfo(`Payment activity [${logId}] CREATE_INTENT_START: { amountVND: ${amount}, amountUSD: ${Math.floor(amount / 24500)}, amountCents: ${Math.floor(amount / 24500 * 100)} }`);
 
       const paymentIntent = await stripeInstance.paymentIntents.create({
         amount: Math.floor(amount / 24500 * 100), // Convert VND to USD cents
@@ -20,14 +21,14 @@ class StripeService {
           allow_redirects: 'always'
         },
         metadata: {
-          orderId,
+          orderId: orderId || 'temp',
           originalAmount: amount.toString(),
           currency: 'vnd'
         },
         capture_method: 'automatic_async'
       });
 
-      logInfo(`Payment activity [${orderId}] CREATE_INTENT_SUCCESS: {
+      logInfo(`Payment activity [${logId}] CREATE_INTENT_SUCCESS: {
         id: '${paymentIntent.id}',
         clientSecret: '${paymentIntent.client_secret}',
         amount: ${paymentIntent.amount},
@@ -39,7 +40,8 @@ class StripeService {
         paymentIntentId: paymentIntent.id
       };
     } catch (error) {
-      logError(`Payment activity [${orderId}] CREATE_INTENT_ERROR: {
+      const logId = orderId || 'TEMP_' + Date.now();
+      logError(`Payment activity [${logId}] CREATE_INTENT_ERROR: {
         error: '${error.message}',
         type: '${error.type}'
       }`);
@@ -51,6 +53,16 @@ class StripeService {
     const { type, data } = event;
     const paymentIntent = data.object;
     const orderId = paymentIntent.metadata.orderId;
+
+    // Bỏ qua webhook nếu orderId là 'temp' (payment intent tạm thời)
+    if (orderId === 'temp') {
+      logInfo(`Payment activity [TEMP] WEBHOOK_IGNORED: {
+        eventId: '${event.id}',
+        type: '${type}',
+        reason: 'Temporary payment intent'
+      }`);
+      return;
+    }
 
     logInfo(`Payment activity [${orderId}] WEBHOOK_${type.toUpperCase()}: {
       eventId: '${event.id}',

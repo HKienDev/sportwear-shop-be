@@ -10,7 +10,7 @@ dotenv.config();
 async function createAdmin() {
   try {
     // Kết nối tới MongoDB
-    await mongoose.connect(process.env.MONGODB_URI || "mongodb+srv://hoangtientrungkien2k3:Nguyensinhcung%401890@sportwear-prod-cluster.pubo397.mongodb.net/sport-store");
+    await mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/sport-store");
 
     // Kiểm tra xem đã có tài khoản admin chưa
     const existingAdmin = await User.findOne({ role: "admin" });
