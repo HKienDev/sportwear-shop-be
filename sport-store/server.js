@@ -31,6 +31,7 @@ import couponRoutes from "./src/routes/couponRoutes.js";
 import cartRoutes from "./src/routes/cartRoutes.js";
 import stripeRoutes from "./src/routes/stripeRoutes.js";
 import emailRoutes from "./src/routes/emailRoutes.js";
+import chatRoutes from "./src/routes/chatRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -92,6 +93,7 @@ app.use("/api/coupons", couponRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/stripe", stripeRoutes);
 app.use("/api/email", emailRoutes);
+app.use("/api/chat", chatRoutes);
 
 // Error handling
 app.use(notFoundHandler);

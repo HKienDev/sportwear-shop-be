@@ -872,3 +872,26 @@ export const logout = async (req, res) => {
         });
     }
 };
+
+// Lấy danh sách users cho admin
+export const getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find({ role: 'user' })
+            .select('_id fullname email phone createdAt')
+            .sort({ createdAt: -1 });
+
+        sendResponse(res, 200, true, 'Lấy danh sách users thành công', {
+            users: users.map(user => ({
+                _id: user._id,
+                id: user._id,
+                fullname: user.fullname,
+                email: user.email,
+                phone: user.phone,
+                createdAt: user.createdAt
+            }))
+        });
+    } catch (error) {
+        logError('Error in getAllUsers:', error);
+        sendResponse(res, 500, false, 'Lỗi server');
+    }
+};

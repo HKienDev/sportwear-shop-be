@@ -1,5 +1,7 @@
 import { Server } from 'socket.io';
 import { logInfo, logError } from '../utils/logger.js';
+import ChatMessage from '../models/ChatMessage.js';
+import User from '../models/User.js';
 
 let io;
 
@@ -27,14 +29,12 @@ export const initSocket = (server) => {
     const socketToUserId = new Map();
     // Lưu trữ thông tin user
     const userInfo = new Map();
-    // Lưu trữ lịch sử tin nhắn
-    const messageHistory = new Map();
 
     io.on('connection', (socket) => {
         logInfo(`Client connected: ${socket.id}`);
 
         // Xử lý khi client xác định danh tính
-        socket.on('identifyUser', (data) => {
+        socket.on('identifyUser', async (data) => {
             const { userId, userName, isAdmin } = data;
             
             if (isAdmin) {
@@ -55,24 +55,36 @@ export const initSocket = (server) => {
                 // Nếu là user, thêm vào danh sách user
                 connectedUsers.set(userId, socket.id);
                 socketToUserId.set(socket.id, userId);
-                // Lưu thông tin user
-                userInfo.set(userId, { name: userName || 'Unknown User' });
+                
+                // Lấy thông tin user từ database nếu có
+                let userData = { name: userName || 'Unknown User' };
+                if (userId && !userId.startsWith('temp_')) {
+                    try {
+                        const user = await User.findById(userId).select('fullname email phone');
+                        if (user) {
+                            userData = { 
+                                name: user.fullname || userName || 'Unknown User',
+                                email: user.email,
+                                phone: user.phone
+                            };
+                        }
+                    } catch (error) {
+                        logError(`Error fetching user ${userId}:`, error);
+                    }
+                }
+                
+                userInfo.set(userId, userData);
                 socket.join(`user_${userId}`);
-                logInfo(`User ${userId} (${userName || 'Unknown'}) identified with socket ${socket.id}`);
+                logInfo(`User ${userId} (${userData.name}) identified with socket ${socket.id}`);
                 
                 // Gửi xác nhận lại cho user
                 socket.emit('identified', { 
                     status: 'success', 
                     role: 'user',
                     userId: userId,
-                    socketId: socket.id
+                    socketId: socket.id,
+                    userInfo: userData
                 });
-                
-                // Gửi lịch sử tin nhắn cho user nếu có
-                if (messageHistory.has(userId)) {
-                    socket.emit('messageHistory', messageHistory.get(userId));
-                    logInfo(`Sent message history to user ${userId}`);
-                }
             }
         });
 
@@ -89,7 +101,7 @@ export const initSocket = (server) => {
         });
 
         // Xử lý khi client gửi tin nhắn
-        socket.on('sendMessage', (data) => {
+        socket.on('sendMessage', async (data) => {
             logInfo(`Message received from ${socket.id}:`, data);
             
             const { text, recipientId, userId, userName } = data;
@@ -105,14 +117,23 @@ export const initSocket = (server) => {
                         senderId: 'admin',
                         senderName: 'Admin',
                         text,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        isAdmin: true
                     };
                     
-                    // Lưu tin nhắn vào lịch sử
-                    if (!messageHistory.has(recipientId)) {
-                        messageHistory.set(recipientId, []);
+                    // Lưu tin nhắn vào database
+                    try {
+                        await ChatMessage.create({
+                            senderId: 'admin',
+                            senderName: 'Admin',
+                            recipientId: recipientId,
+                            text: text,
+                            isAdmin: true,
+                            sessionId: `admin_${recipientId}`
+                        });
+                    } catch (error) {
+                        logError('Error saving admin message to database:', error);
                     }
-                    messageHistory.get(recipientId).push(messageData);
                     
                     // Gửi tin nhắn đến user thông qua room
                     io.to(`user_${recipientId}`).emit('receiveMessage', messageData);
@@ -130,11 +151,26 @@ export const initSocket = (server) => {
                     // Cập nhật thông tin socket
                     connectedUsers.set(userId, socket.id);
                     socketToUserId.set(socket.id, userId);
-                    if (userName) {
-                        userInfo.set(userId, { name: userName });
-                    }
                     socket.join(`user_${userId}`);
-                    logInfo(`User ${userId} (${userName || 'Unknown'}) identified with socket ${socket.id}`);
+                    
+                    // Lấy thông tin user từ database nếu có
+                    let userData = { name: userName || 'Unknown User' };
+                    if (userId && !userId.startsWith('temp_')) {
+                        try {
+                            const user = await User.findById(userId).select('fullname email phone');
+                            if (user) {
+                                userData = { 
+                                    name: user.fullname || userName || 'Unknown User',
+                                    email: user.email,
+                                    phone: user.phone
+                                };
+                            }
+                        } catch (error) {
+                            logError(`Error fetching user ${userId}:`, error);
+                        }
+                    }
+                    userInfo.set(userId, userData);
+                    logInfo(`User ${userId} (${userData.name}) identified with socket ${socket.id}`);
                 }
                 
                 if (senderId) {
@@ -145,14 +181,24 @@ export const initSocket = (server) => {
                         senderId: senderId,
                         senderName: user.name,
                         text,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        isAdmin: false
                     };
                     
-                    // Lưu tin nhắn vào lịch sử
-                    if (!messageHistory.has(senderId)) {
-                        messageHistory.set(senderId, []);
+                    // Lưu tin nhắn vào database
+                    try {
+                        await ChatMessage.create({
+                            senderId: senderId,
+                            senderName: user.name,
+                            recipientId: 'admin',
+                            text: text,
+                            isAdmin: false,
+                            userId: senderId.startsWith('temp_') ? null : senderId,
+                            sessionId: `admin_${senderId}`
+                        });
+                    } catch (error) {
+                        logError('Error saving user message to database:', error);
                     }
-                    messageHistory.get(senderId).push(messageData);
                     
                     // Nếu người gửi là user, gửi tin nhắn đến tất cả admin
                     if (connectedAdmins.size > 0) {
@@ -179,14 +225,23 @@ export const initSocket = (server) => {
                         senderId: tempUserId,
                         senderName: tempUserName,
                         text,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        isAdmin: false
                     };
                     
-                    // Lưu tin nhắn vào lịch sử
-                    if (!messageHistory.has(tempUserId)) {
-                        messageHistory.set(tempUserId, []);
+                    // Lưu tin nhắn vào database
+                    try {
+                        await ChatMessage.create({
+                            senderId: tempUserId,
+                            senderName: tempUserName,
+                            recipientId: 'admin',
+                            text: text,
+                            isAdmin: false,
+                            sessionId: `admin_${tempUserId}`
+                        });
+                    } catch (error) {
+                        logError('Error saving temporary user message to database:', error);
                     }
-                    messageHistory.get(tempUserId).push(messageData);
                     
                     // Gửi tin nhắn đến tất cả admin
                     if (connectedAdmins.size > 0) {
@@ -202,14 +257,33 @@ export const initSocket = (server) => {
         });
 
         // Xử lý khi client yêu cầu lịch sử tin nhắn
-        socket.on('requestMessageHistory', (data) => {
+        socket.on('requestMessageHistory', async (data) => {
             const { userId } = data;
             
-            if (userId && messageHistory.has(userId)) {
-                socket.emit('messageHistory', messageHistory.get(userId));
-                logInfo(`Sent message history to client ${socket.id} for user ${userId}`);
+            if (userId) {
+                try {
+                    // Lấy tin nhắn từ database
+                    const messages = await ChatMessage.getMessagesBetweenUsers(userId, 'admin', 100);
+                    
+                    // Format tin nhắn
+                    const formattedMessages = messages.map(msg => ({
+                        senderId: msg.senderId,
+                        senderName: msg.senderName,
+                        text: msg.text,
+                        timestamp: msg.createdAt,
+                        isAdmin: msg.isAdmin,
+                        isRead: msg.isRead
+                    }));
+                    
+                    socket.emit('messageHistory', formattedMessages);
+                    logInfo(`Sent message history to client ${socket.id} for user ${userId}`);
+                } catch (error) {
+                    logError(`Error fetching message history for user ${userId}:`, error);
+                    socket.emit('messageHistory', []);
+                }
             } else {
-                logInfo(`No message history found for user ${userId}`);
+                logInfo(`No userId provided for message history request`);
+                socket.emit('messageHistory', []);
             }
         });
 
