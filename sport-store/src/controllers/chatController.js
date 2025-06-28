@@ -1,7 +1,7 @@
 import ChatMessage from '../models/ChatMessage.js';
 import User from '../models/User.js';
 import { logInfo, logError } from '../utils/logger.js';
-import { sendResponse } from '../utils/responseUtils.js';
+import { sendSuccessResponse, sendErrorResponse } from '../utils/responseUtils.js';
 
 // Lấy lịch sử tin nhắn theo session
 export const getMessageHistory = async (req, res) => {
@@ -9,7 +9,7 @@ export const getMessageHistory = async (req, res) => {
         const { sessionId, userId } = req.query;
         
         if (!sessionId && !userId) {
-            return sendResponse(res, 400, false, 'SessionId hoặc userId là bắt buộc');
+            return sendErrorResponse(res, 400, 'SessionId hoặc userId là bắt buộc');
         }
 
         let messages;
@@ -30,13 +30,13 @@ export const getMessageHistory = async (req, res) => {
             isRead: msg.isRead
         }));
 
-        sendResponse(res, 200, true, 'Lấy lịch sử tin nhắn thành công', {
+        return sendSuccessResponse(res, 200, 'Lấy lịch sử tin nhắn thành công', {
             messages: formattedMessages
         });
 
     } catch (error) {
         logError('Error in getMessageHistory:', error);
-        sendResponse(res, 500, false, 'Lỗi server');
+        return sendErrorResponse(res, 500, 'Lỗi server');
     }
 };
 
@@ -116,32 +116,125 @@ export const getConversations = async (req, res) => {
             })
         );
 
-        sendResponse(res, 200, true, 'Lấy danh sách cuộc trò chuyện thành công', {
+        return sendSuccessResponse(res, 200, 'Lấy danh sách cuộc trò chuyện thành công', {
             conversations: formattedConversations
         });
 
     } catch (error) {
         logError('Error in getConversations:', error);
-        sendResponse(res, 500, false, 'Lỗi server');
+        return sendErrorResponse(res, 500, 'Lỗi server');
     }
 };
 
-// Đánh dấu tin nhắn đã đọc
+// Lấy tin nhắn theo conversationId (userId)
+export const getMessagesByConversation = async (req, res) => {
+    try {
+        const { conversationId } = req.params;
+        
+        if (!conversationId) {
+            return sendErrorResponse(res, 400, 'ConversationId là bắt buộc');
+        }
+
+        // Lấy tin nhắn giữa user và admin
+        const messages = await ChatMessage.getMessagesBetweenUsers(conversationId, 'admin', 100);
+
+        // Format tin nhắn để gửi về client
+        const formattedMessages = messages.map(msg => ({
+            senderId: msg.senderId,
+            senderName: msg.senderName,
+            text: msg.text,
+            timestamp: msg.createdAt,
+            messageId: msg._id,
+            isAdmin: msg.isAdmin,
+            isRead: msg.isRead
+        }));
+
+        return sendSuccessResponse(res, 200, 'Lấy tin nhắn thành công', {
+            messages: formattedMessages
+        });
+
+    } catch (error) {
+        logError('Error in getMessagesByConversation:', error);
+        return sendErrorResponse(res, 500, 'Lỗi server');
+    }
+};
+
+// Gửi tin nhắn
+export const sendMessage = async (req, res) => {
+    try {
+        const { conversationId, message, senderId, senderName } = req.body;
+        
+        if (!conversationId || !message || !senderId) {
+            return sendErrorResponse(res, 400, 'ConversationId, message và senderId là bắt buộc');
+        }
+
+        // Tạo tin nhắn mới
+        const newMessage = new ChatMessage({
+            senderId: senderId,
+            recipientId: conversationId,
+            text: message,
+            senderName: senderName || senderId,
+            isAdmin: senderId === 'admin',
+            isRead: false
+        });
+
+        await newMessage.save();
+        
+        return sendSuccessResponse(res, 200, 'Gửi tin nhắn thành công', {
+            message: newMessage
+        });
+
+    } catch (error) {
+        logError('Error in sendMessage:', error);
+        return sendErrorResponse(res, 500, 'Lỗi server');
+    }
+};
+
+// Đánh dấu tin nhắn đã đọc (cũ)
 export const markAsRead = async (req, res) => {
     try {
         const { senderId, recipientId } = req.body;
         
         if (!senderId || !recipientId) {
-            return sendResponse(res, 400, false, 'SenderId và recipientId là bắt buộc');
+            return sendErrorResponse(res, 400, 'SenderId và recipientId là bắt buộc');
         }
 
         await ChatMessage.markAsRead(senderId, recipientId);
         
-        sendResponse(res, 200, true, 'Đánh dấu đã đọc thành công');
+        return sendSuccessResponse(res, 200, 'Đánh dấu đã đọc thành công');
 
     } catch (error) {
         logError('Error in markAsRead:', error);
-        sendResponse(res, 500, false, 'Lỗi server');
+        return sendErrorResponse(res, 500, 'Lỗi server');
+    }
+};
+
+// Đánh dấu tin nhắn đã đọc theo conversationId
+export const markAsReadByConversation = async (req, res) => {
+    try {
+        const { conversationId } = req.params;
+        
+        if (!conversationId) {
+            return sendErrorResponse(res, 400, 'ConversationId là bắt buộc');
+        }
+
+        // Đánh dấu tất cả tin nhắn từ user này đến admin là đã đọc
+        await ChatMessage.updateMany(
+            {
+                senderId: conversationId,
+                recipientId: 'admin',
+                isRead: false
+            },
+            {
+                isRead: true
+            }
+        );
+        
+        return sendSuccessResponse(res, 200, 'Đánh dấu đã đọc thành công');
+
+    } catch (error) {
+        logError('Error in markAsReadByConversation:', error);
+        return sendErrorResponse(res, 500, 'Lỗi server');
     }
 };
 
@@ -151,18 +244,18 @@ export const getUnreadCount = async (req, res) => {
         const { recipientId } = req.params;
         
         if (!recipientId) {
-            return sendResponse(res, 400, false, 'RecipientId là bắt buộc');
+            return sendErrorResponse(res, 400, 'RecipientId là bắt buộc');
         }
 
         const unreadCount = await ChatMessage.getUnreadCount(recipientId);
         
-        sendResponse(res, 200, true, 'Lấy số tin nhắn chưa đọc thành công', {
+        return sendSuccessResponse(res, 200, 'Lấy số tin nhắn chưa đọc thành công', {
             unreadCount
         });
 
     } catch (error) {
         logError('Error in getUnreadCount:', error);
-        sendResponse(res, 500, false, 'Lỗi server');
+        return sendErrorResponse(res, 500, 'Lỗi server');
     }
 };
 
@@ -172,7 +265,7 @@ export const deleteConversation = async (req, res) => {
         const { userId } = req.params;
         
         if (!userId) {
-            return sendResponse(res, 400, false, 'UserId là bắt buộc');
+            return sendErrorResponse(res, 400, 'UserId là bắt buộc');
         }
 
         // Xóa tất cả tin nhắn liên quan đến user này
@@ -183,10 +276,10 @@ export const deleteConversation = async (req, res) => {
             ]
         });
         
-        sendResponse(res, 200, true, 'Xóa cuộc trò chuyện thành công');
+        return sendSuccessResponse(res, 200, 'Xóa cuộc trò chuyện thành công');
 
     } catch (error) {
         logError('Error in deleteConversation:', error);
-        sendResponse(res, 500, false, 'Lỗi server');
+        return sendErrorResponse(res, 500, 'Lỗi server');
     }
 }; 

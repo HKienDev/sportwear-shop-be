@@ -10,7 +10,9 @@ router.get("/unread/:recipientId", chatController.getUnreadCount);
 
 // Admin routes (require admin authentication)
 router.get("/conversations", verifyAdmin, chatController.getConversations);
-router.put("/mark-read", verifyAdmin, chatController.markAsRead);
+router.get("/messages/:conversationId", verifyAdmin, chatController.getMessagesByConversation);
+router.put("/mark-read/:conversationId", verifyAdmin, chatController.markAsReadByConversation);
+router.post("/send", verifyAdmin, chatController.sendMessage);
 router.delete("/conversation/:userId", verifyAdmin, chatController.deleteConversation);
 
 export default router;

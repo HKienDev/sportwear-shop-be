@@ -18,7 +18,8 @@ export const initSocket = (server) => {
         },
         pingTimeout: 60000,
         pingInterval: 25000,
-        transports: ['websocket', 'polling']
+        transports: ['websocket', 'polling'],
+        allowEIO3: true // Cho phép Engine.IO v3
     });
 
     // Lưu trữ thông tin user đã kết nối
@@ -35,55 +36,72 @@ export const initSocket = (server) => {
 
         // Xử lý khi client xác định danh tính
         socket.on('identifyUser', async (data) => {
-            const { userId, userName, isAdmin } = data;
-            
-            if (isAdmin) {
-                // Nếu là admin, thêm vào danh sách admin
-                connectedAdmins.add(socket.id);
-                logInfo(`Admin identified with socket ${socket.id}`);
+            try {
+                const { userId, userName, isAdmin } = data;
+                logInfo(`IdentifyUser request from ${socket.id}:`, { userId, userName, isAdmin });
                 
-                // Gửi xác nhận lại cho admin
-                socket.emit('identified', { 
-                    status: 'success', 
-                    role: 'admin',
-                    socketId: socket.id
-                });
-                
-                // Log số lượng admin hiện tại
-                logInfo(`Current admin count: ${connectedAdmins.size}`);
-            } else if (userId) {
-                // Nếu là user, thêm vào danh sách user
-                connectedUsers.set(userId, socket.id);
-                socketToUserId.set(socket.id, userId);
-                
-                // Lấy thông tin user từ database nếu có
-                let userData = { name: userName || 'Unknown User' };
-                if (userId && !userId.startsWith('temp_')) {
-                    try {
-                        const user = await User.findById(userId).select('fullname email phone');
-                        if (user) {
-                            userData = { 
-                                name: user.fullname || userName || 'Unknown User',
-                                email: user.email,
-                                phone: user.phone
-                            };
+                if (isAdmin) {
+                    // Nếu là admin, thêm vào danh sách admin
+                    connectedAdmins.add(socket.id);
+                    logInfo(`Admin identified with socket ${socket.id}`);
+                    
+                    // Gửi xác nhận lại cho admin
+                    socket.emit('identified', { 
+                        status: 'success', 
+                        role: 'admin',
+                        socketId: socket.id
+                    });
+                    
+                    // Log số lượng admin hiện tại
+                    logInfo(`Current admin count: ${connectedAdmins.size}`);
+                } else if (userId) {
+                    // Nếu là user, thêm vào danh sách user
+                    connectedUsers.set(userId, socket.id);
+                    socketToUserId.set(socket.id, userId);
+                    
+                    // Lấy thông tin user từ database nếu có
+                    let userData = { name: userName || 'Unknown User' };
+                    if (userId && !userId.startsWith('temp_')) {
+                        try {
+                            const user = await User.findById(userId).select('fullname email phone');
+                            if (user) {
+                                userData = { 
+                                    name: user.fullname || userName || 'Unknown User',
+                                    email: user.email,
+                                    phone: user.phone
+                                };
+                            }
+                        } catch (error) {
+                            logError(`Error fetching user ${userId}:`, error);
                         }
-                    } catch (error) {
-                        logError(`Error fetching user ${userId}:`, error);
                     }
+                    
+                    userInfo.set(userId, userData);
+                    const roomName = `user_${userId}`;
+                    socket.join(roomName);
+                    logInfo(`✅ User ${userId} (${userData.name}) joined room: ${roomName}`);
+                    logInfo(`🔍 Current rooms for socket ${socket.id}:`, Array.from(socket.rooms));
+                    
+                    // Gửi xác nhận lại cho user
+                    socket.emit('identified', { 
+                        status: 'success', 
+                        role: 'user',
+                        userId: userId,
+                        socketId: socket.id,
+                        userInfo: userData
+                    });
+                } else {
+                    logError(`Invalid identifyUser data from ${socket.id}:`, data);
+                    socket.emit('identified', { 
+                        status: 'error', 
+                        message: 'Invalid data provided'
+                    });
                 }
-                
-                userInfo.set(userId, userData);
-                socket.join(`user_${userId}`);
-                logInfo(`User ${userId} (${userData.name}) identified with socket ${socket.id}`);
-                
-                // Gửi xác nhận lại cho user
+            } catch (error) {
+                logError(`Error in identifyUser for socket ${socket.id}:`, error);
                 socket.emit('identified', { 
-                    status: 'success', 
-                    role: 'user',
-                    userId: userId,
-                    socketId: socket.id,
-                    userInfo: userData
+                    status: 'error', 
+                    message: 'Internal server error'
                 });
             }
         });
@@ -106,41 +124,64 @@ export const initSocket = (server) => {
             
             const { text, recipientId, userId, userName } = data;
             
+            // Kiểm tra text có tồn tại và không rỗng
+            if (!text || typeof text !== 'string' || text.trim().length === 0) {
+                logError(`Invalid text received from ${socket.id}:`, { text, data });
+                socket.emit('messageError', { message: 'Tin nhắn không được để trống' });
+                return;
+            }
+            
             // Kiểm tra xem người gửi có phải là admin không
             const isAdmin = connectedAdmins.has(socket.id);
             
             if (isAdmin && recipientId) {
                 // Nếu người gửi là admin và có recipientId, gửi tin nhắn đến user cụ thể
-                const recipientSocketId = connectedUsers.get(recipientId);
-                if (recipientSocketId) {
-                    const messageData = {
+                logInfo(`🔍 Admin sending message to user ${recipientId}`);
+                logInfo(`🔍 Connected users:`, Array.from(connectedUsers.keys()));
+                logInfo(`🔍 User rooms:`, Array.from(connectedUsers.keys()).map(id => `user_${id}`));
+                
+                const messageData = {
+                    senderId: 'admin',
+                    senderName: 'Admin',
+                    text,
+                    timestamp: new Date().toISOString(),
+                    isAdmin: true
+                };
+                
+                // Lưu tin nhắn vào database
+                try {
+                    await ChatMessage.create({
                         senderId: 'admin',
                         senderName: 'Admin',
-                        text,
-                        timestamp: new Date().toISOString(),
-                        isAdmin: true
-                    };
-                    
-                    // Lưu tin nhắn vào database
-                    try {
-                        await ChatMessage.create({
-                            senderId: 'admin',
-                            senderName: 'Admin',
-                            recipientId: recipientId,
-                            text: text,
-                            isAdmin: true,
-                            sessionId: `admin_${recipientId}`
-                        });
-                    } catch (error) {
-                        logError('Error saving admin message to database:', error);
-                    }
-                    
-                    // Gửi tin nhắn đến user thông qua room
-                    io.to(`user_${recipientId}`).emit('receiveMessage', messageData);
-                    logInfo(`Admin message forwarded to user ${recipientId}`);
-                } else {
-                    logInfo(`User ${recipientId} not found`);
+                        recipientId: recipientId,
+                        text: text,
+                        isAdmin: true,
+                        sessionId: `admin_${recipientId}`
+                    });
+                    logInfo(`✅ Admin message saved to database for user ${recipientId}`);
+                } catch (error) {
+                    logError('Error saving admin message to database:', error);
                 }
+                
+                // Gửi tin nhắn đến user thông qua room (không cần kiểm tra socket ID)
+                const roomName = `user_${recipientId}`;
+                logInfo(`🔍 Emitting to room: ${roomName}`);
+                
+                // Kiểm tra xem có ai trong room không
+                const room = io.sockets.adapter.rooms.get(roomName);
+                if (room) {
+                    logInfo(`🔍 Room ${roomName} has ${room.size} members:`, Array.from(room));
+                } else {
+                    logInfo(`⚠️ Room ${roomName} is empty or doesn't exist`);
+                }
+                
+                io.to(roomName).emit('receiveMessage', messageData);
+                logInfo(`✅ Admin message sent to room ${roomName}`);
+                
+                // Cũng gửi lại cho admin để confirm
+                socket.emit('receiveMessage', messageData);
+                logInfo(`✅ Admin message confirmation sent back to admin`);
+                
             } else {
                 // Kiểm tra xem người gửi có phải là user không
                 let senderId = socketToUserId.get(socket.id);
