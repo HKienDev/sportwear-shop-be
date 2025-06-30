@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 import User from '../models/User.js';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
-import stripe from "stripe";
 import { nanoid } from "nanoid";
 import { logInfo, logError } from "../utils/logger.js";
 import env from "../config/env.js";
@@ -11,8 +10,6 @@ import { handleError } from "../utils/helpers.js";
 import { Coupon } from "../models/Coupon.js";
 import { clearDashboardCacheUtil } from './dashboardController.js';
 import { sendOrderConfirmationEmail, sendOrderNotificationToAdmin } from '../services/orderEmailService.js';
-
-const stripeInstance = stripe(env.STRIPE_SECRET_KEY);
 
 // Helper functions
 // empty
@@ -175,7 +172,7 @@ export const createOrder = async (req, res) => {
         }
 
         // Create order with initial status
-        const initialStatus = paymentMethod === PAYMENT_METHODS.STRIPE ? ORDER_STATUS.PENDING_PAYMENT : ORDER_STATUS.PROCESSING;
+        const initialStatus = ORDER_STATUS.PROCESSING;
         
         const order = new Order({
             user: userId,
@@ -197,11 +194,11 @@ export const createOrder = async (req, res) => {
             paymentMethod,
             coupon: appliedCoupon,
             status: initialStatus,
-            paymentStatus: paymentMethod === PAYMENT_METHODS.STRIPE ? PAYMENT_STATUS.PENDING : PAYMENT_STATUS.PENDING,
+            paymentStatus: PAYMENT_STATUS.PENDING,
             payment: {
                 amount: totalPrice,
                 currency: 'vnd',
-                status: paymentMethod === PAYMENT_METHODS.STRIPE ? 'pending' : 'pending',
+                status: 'pending',
                 method: paymentMethod,
                 updatedAt: new Date()
             }
@@ -275,20 +272,7 @@ export const createOrder = async (req, res) => {
                 logError(`[${requestId}] Error sending order confirmation email: ${emailError.message}`);
             }
 
-            // Nếu thanh toán qua Stripe, trả về orderId để client tạo payment intent
-            if (paymentMethod === PAYMENT_METHODS.STRIPE) {
-                return res.status(200).json({
-                    success: true,
-                    message: SUCCESS_MESSAGES.ORDER_CREATED,
-                    data: {
-                        orderId: savedOrder._id,
-                        requiresPayment: true,
-                        amount: totalPrice
-                    }
-                });
-            }
-
-            // Nếu thanh toán COD, cập nhật stock và gửi email
+            // Cập nhật stock sản phẩm
             const updateStockPromises = orderItems.map(item => 
                 Product.findOneAndUpdate(
                     { sku: item.sku },
@@ -793,70 +777,6 @@ export const deleteOrder = async (req, res) => {
             success: true,
             message: SUCCESS_MESSAGES.ORDER_DELETED
         });
-    } catch (error) {
-        const errorResponse = handleError(error, requestId);
-        res.status(500).json(errorResponse);
-    }
-};
-
-export const stripeWebhook = async (req, res) => {
-    const requestId = req.id || 'unknown';
-    
-    try {
-        const sig = req.headers['stripe-signature'];
-        const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-        let event;
-
-        try {
-            event = stripeInstance.webhooks.constructEvent(req.body, sig, endpointSecret);
-        } catch (err) {
-            logError(`[${requestId}] Webhook signature verification failed: ${err.message}`);
-            return res.status(400).send(`Webhook Error: ${err.message}`);
-        }
-
-        // Handle the event
-        switch (event.type) {
-            case 'payment_intent.succeeded': {
-                const paymentIntent = event.data.object;
-                const orderId = paymentIntent.metadata.orderId;
-
-                logInfo(`[${requestId}] Processing successful payment for order: ${orderId}`);
-
-                const order = await Order.findById(orderId);
-                if (order) {
-                    order.paymentStatus = PAYMENT_STATUS.PAID;
-                    order.status = ORDER_STATUS.PROCESSING;
-                    order.paymentIntentId = paymentIntent.id;
-                    order.statusHistory.push({
-                        status: ORDER_STATUS.PROCESSING,
-                        updatedBy: order.user,
-                        note: 'Thanh toán thành công qua Stripe',
-                        updatedAt: new Date()
-                    });
-
-                    // Cập nhật stock sản phẩm
-                    const updateStockPromises = order.items.map(item => 
-                        Product.findOneAndUpdate(
-                            { sku: item.sku },
-                            { $inc: { quantity: -item.quantity } }
-                        ).exec()
-                    );
-
-                    await Promise.all([
-                        order.save(),
-                        ...updateStockPromises
-                    ]);
-
-                    logInfo(`[${requestId}] Updated payment status and stock for order: ${orderId}`);
-                }
-                break;
-            }
-            default:
-                logInfo(`[${requestId}] Unhandled event type: ${event.type}`);
-        }
-
-        res.json({ received: true });
     } catch (error) {
         const errorResponse = handleError(error, requestId);
         res.status(500).json(errorResponse);

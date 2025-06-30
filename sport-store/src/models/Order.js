@@ -281,10 +281,6 @@ orderSchema.methods.updateStatus = function(newStatus, updatedBy, note = '') {
     }
 };
 
-orderSchema.methods.isPaymentMethodStripe = function() {
-    return this.paymentMethod === PAYMENT_METHODS.STRIPE;
-};
-
 // Static methods
 orderSchema.statics.findByShortId = function(shortId) {
     return this.findOne({ shortId: shortId.toUpperCase() });

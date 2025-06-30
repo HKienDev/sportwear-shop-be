@@ -166,8 +166,7 @@ export const PAYMENT_STATUS = {
 };
 
 export const PAYMENT_METHODS = {
-    COD: "COD",
-    STRIPE: "Stripe"
+    COD: "COD"
 };
 
 // Auth specific constants

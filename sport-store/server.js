@@ -16,7 +16,6 @@ import { notFoundHandler } from "./src/middlewares/notFoundHandler.js";
 import { initSocket } from "./src/config/socket.js";
 import { connectRedis } from "./src/config/redis.js";
 import corsOptions from './src/config/cors.js';
-import { stripeController } from "./src/controllers/stripeController.js";
 
 // Import routes
 import authRoutes from "./src/routes/authRoutes.js";
@@ -29,7 +28,6 @@ import uploadRoutes from "./src/routes/uploadRoutes.js";
 import dashboardRoutes from "./src/routes/dashboardRoutes.js";
 import couponRoutes from "./src/routes/couponRoutes.js";
 import cartRoutes from "./src/routes/cartRoutes.js";
-import stripeRoutes from "./src/routes/stripeRoutes.js";
 import emailRoutes from "./src/routes/emailRoutes.js";
 import chatRoutes from "./src/routes/chatRoutes.js";
 
@@ -54,23 +52,6 @@ app.use(helmet({
 app.use(compression()); // Nén response
 app.use(cors(corsOptions));
 
-// Đặt route webhook Stripe trước middleware express.json()
-app.post("/api/stripe/webhook", 
-  express.raw({type: 'application/json'}),
-  (req, res, next) => {
-    // Log webhook request
-    console.log('Stripe webhook request:', {
-      method: req.method,
-      path: req.path,
-      contentType: req.headers['content-type'],
-      signature: req.headers['stripe-signature'] ? 'Present' : 'Missing',
-      bodySize: req.body ? Buffer.byteLength(req.body) : 0
-    });
-    next();
-  },
-  stripeController.handleWebhook
-);
-
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use(cookieParser()); // Parse cookies
@@ -91,7 +72,6 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/coupons", couponRoutes);
 app.use("/api/cart", cartRoutes);
-app.use("/api/stripe", stripeRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/chat", chatRoutes);
 

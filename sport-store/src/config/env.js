@@ -24,16 +24,10 @@ const requiredEnvVars = [
     "RATE_LIMIT_WINDOW_MS",
     "RATE_LIMIT_MAX_REQUESTS",
     "CORS_ORIGIN",
-    "STRIPE_SECRET_KEY",
     "GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET"
     // GOOGLE_REDIRECT_URI - Made optional for deployment
 ];
-
-// Thêm STRIPE_WEBHOOK_SECRET vào danh sách bắt buộc nếu đang ở môi trường production
-if (process.env.NODE_ENV === "production") {
-    requiredEnvVars.push("STRIPE_WEBHOOK_SECRET");
-}
 
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
@@ -72,10 +66,6 @@ const env = {
     
     // Redis (Optional)
     REDIS_URL: process.env.REDIS_URL,
-    
-    // Stripe
-    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
-    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     
     // Google OAuth
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
