@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import { logInfo, logError } from '../utils/logger.js';
 import ChatMessage from '../models/ChatMessage.js';
 import User from '../models/User.js';
+import mongoose from 'mongoose';
 
 let io;
 
@@ -61,7 +62,7 @@ export const initSocket = (server) => {
                     
                     // Lấy thông tin user từ database nếu có
                     let userData = { name: userName || 'Unknown User' };
-                    if (userId && !userId.startsWith('temp_')) {
+                    if (userId && !userId.startsWith('temp_') && mongoose.Types.ObjectId.isValid(userId)) {
                         try {
                             const user = await User.findById(userId).select('fullname email phone');
                             if (user) {
@@ -196,7 +197,7 @@ export const initSocket = (server) => {
                     
                     // Lấy thông tin user từ database nếu có
                     let userData = { name: userName || 'Unknown User' };
-                    if (userId && !userId.startsWith('temp_')) {
+                    if (userId && !userId.startsWith('temp_') && mongoose.Types.ObjectId.isValid(userId)) {
                         try {
                             const user = await User.findById(userId).select('fullname email phone');
                             if (user) {

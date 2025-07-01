@@ -56,12 +56,13 @@ export const generateOTP = (length = 6) => {
 };
 
 export const setAuthCookies = (res, accessToken, refreshToken, userData) => {
+    const isProd = env.NODE_ENV === "production";
     const cookieOptions = {
         httpOnly: true,
-        secure: env.NODE_ENV === "production",
-        sameSite: "none",
+        secure: isProd,
+        sameSite: "lax",
         path: '/',
-        domain: env.NODE_ENV === "production" ? ".vjusport.com" : "localhost"
+        ...(isProd ? { domain: ".vjusport.com" } : {})
     };
 
     // Set access token cookie
@@ -112,14 +113,13 @@ export const setAuthCookies = (res, accessToken, refreshToken, userData) => {
 
 // Thêm hàm mới để xóa cookies
 export const clearAuthCookies = (res) => {
+    const isProd = env.NODE_ENV === "production";
     const cookieOptions = {
         httpOnly: true,
-        secure: env.NODE_ENV === "production",
+        secure: isProd,
         sameSite: "lax",
         path: '/',
-        domain: env.NODE_ENV === "production" 
-            ? ".vjusport.com" 
-            : "localhost"
+        ...(isProd ? { domain: ".vjusport.com" } : {})
     };
 
     res.clearCookie("accessToken", cookieOptions);
