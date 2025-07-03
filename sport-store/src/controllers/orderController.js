@@ -86,20 +86,7 @@ export const createOrder = async (req, res) => {
                 });
             }
 
-            // Validate color and size
-            if (item.color && !product.colors.includes(item.color)) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Màu sắc ${item.color} không có sẵn cho sản phẩm này`
-                });
-            }
-
-            if (item.size && !product.sizes.includes(item.size)) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Kích thước ${item.size} không có sẵn cho sản phẩm này`
-                });
-            }
+            // Màu và size sẽ được lấy từ product, không cần validate từ frontend
 
             // Validate quantity
             if (item.quantity > product.quantity) {
@@ -128,8 +115,8 @@ export const createOrder = async (req, res) => {
                 originalPrice: originalPrice,
                 salePrice: salePrice,
                 quantity: quantity,
-                color: item.color || 'Mặc định',
-                size: item.size || 'Mặc định',
+                color: product.colors && product.colors.length > 0 ? product.colors[0] : 'Mặc định',
+                size: product.sizes && product.sizes.length > 0 ? product.sizes[0] : 'Mặc định',
                 image: product.images && product.images.length > 0 ? product.images[0] : null,
                 total: itemTotal,
                 directDiscount: itemDirectDiscount
@@ -291,11 +278,13 @@ export const createOrder = async (req, res) => {
                 logError(`[${requestId}] Error updating stock: ${stockError.message}`);
             }
 
+            logInfo(`[${requestId}] Order created successfully: ${savedOrder._id}, ShortId: ${savedOrder.shortId}`);
             res.status(200).json({
                 success: true,
                 message: SUCCESS_MESSAGES.ORDER_CREATED,
                 data: {
                     orderId: savedOrder._id,
+                    shortId: savedOrder.shortId,
                     requiresPayment: false
                 }
             });
@@ -369,12 +358,24 @@ export const getMyOrderById = async (req, res) => {
 
         logInfo(`[${requestId}] Fetching order ${id} for user: ${userId}`);
 
-        const order = await Order.findOne({ _id: id, user: userId })
-            .populate('items.product')
-            .lean();
+        // Kiểm tra xem id có phải là ObjectId hợp lệ không
+        const isObjectId = mongoose.Types.ObjectId.isValid(id);
+        logInfo(`[${requestId}] Order ID: ${id}, Is ObjectId: ${isObjectId}`);
+
+        let order;
+        if (isObjectId) {
+            order = await Order.findOne({ _id: id, user: userId })
+                .populate('items.product')
+                .lean();
+        } else {
+            // Thử tìm bằng shortId
+            order = await Order.findOne({ shortId: id, user: userId })
+                .populate('items.product')
+                .lean();
+        }
 
         if (!order) {
-            logError(`[${requestId}] Order not found: ${id}`);
+            logError(`[${requestId}] Order not found: ${id} for user: ${userId}`);
             return res.status(404).json({
                 success: false,
                 message: "Không tìm thấy đơn hàng"
@@ -382,6 +383,17 @@ export const getMyOrderById = async (req, res) => {
         }
 
         logInfo(`[${requestId}] Successfully fetched order: ${id}`);
+        logInfo(`[${requestId}] Order data:`, { 
+            _id: order._id, 
+            shortId: order.shortId, 
+            itemsCount: order.items?.length,
+            hasItems: !!order.items,
+            firstItem: order.items?.[0] ? {
+                product: order.items[0].product,
+                hasProduct: !!order.items[0].product,
+                productType: typeof order.items[0].product
+            } : null
+        });
         res.json({
             success: true,
             data: order

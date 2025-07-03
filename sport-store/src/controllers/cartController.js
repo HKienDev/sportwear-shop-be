@@ -2,6 +2,7 @@ import Cart from '../models/Cart.js';
 import Product from '../models/Product.js';
 import { sendSuccessResponse, sendErrorResponse } from '../utils/responseUtils.js';
 import { handleError } from '../utils/errorHandler.js';
+import mongoose from 'mongoose';
 
 // Lấy giỏ hàng của user
 export const getCart = async (req, res) => {
@@ -14,7 +15,66 @@ export const getCart = async (req, res) => {
       cart = await Cart.create({ userId, items: [] });
     }
 
-    return sendSuccessResponse(res, 200, "Lấy giỏ hàng thành công", cart);
+    // Debug logs
+    console.log('Backend getCart - Raw cart:', cart);
+    console.log('Backend getCart - Cart items:', cart.items);
+    console.log('Backend getCart - Items type:', typeof cart.items);
+    console.log('Backend getCart - Items is array:', Array.isArray(cart.items));
+    console.log('Backend getCart - Items length:', cart.items?.length || 0);
+
+    // Debug từng item
+    if (cart.items && cart.items.length > 0) {
+      cart.items.forEach((item, index) => {
+        console.log(`Backend getCart - Item ${index}:`, {
+          _id: item._id,
+          quantity: item.quantity,
+          quantityType: typeof item.quantity,
+          color: item.color,
+          size: item.size,
+          product: item.product
+        });
+      });
+    }
+
+    // Sử dụng toObject() với options để đảm bảo dữ liệu đúng format
+    const cartWithIds = cart.toObject({
+      transform: (doc, ret) => {
+        console.log('Backend getCart - Transform function called with:', ret);
+        // Đảm bảo mỗi item có _id
+        if (ret.items && Array.isArray(ret.items)) {
+          ret.items = ret.items.map(item => {
+            console.log('Backend getCart - Transforming item:', item);
+            return {
+              ...item,
+              _id: item._id || new mongoose.Types.ObjectId()
+            };
+          });
+        }
+        console.log('Backend getCart - Transformed result:', ret);
+        return ret;
+      }
+    });
+
+    console.log('Backend getCart - Cart with IDs:', cartWithIds);
+    console.log('Backend getCart - Items with IDs:', cartWithIds.items);
+    console.log('Backend getCart - Items with IDs type:', typeof cartWithIds.items);
+    console.log('Backend getCart - Items with IDs is array:', Array.isArray(cartWithIds.items));
+
+    // Debug từng item sau khi map
+    if (cartWithIds.items && cartWithIds.items.length > 0) {
+      cartWithIds.items.forEach((item, index) => {
+        console.log(`Backend getCart - Mapped Item ${index}:`, {
+          _id: item._id,
+          quantity: item.quantity,
+          quantityType: typeof item.quantity,
+          color: item.color,
+          size: item.size,
+          product: item.product
+        });
+      });
+    }
+
+    return sendSuccessResponse(res, 200, "Lấy giỏ hàng thành công", cartWithIds);
   } catch (error) {
     const errorResponse = handleError(error, req.requestId);
     return sendErrorResponse(res, errorResponse.statusCode, errorResponse.message, error, req.requestId);
@@ -24,7 +84,7 @@ export const getCart = async (req, res) => {
 // Thêm sản phẩm vào giỏ hàng
 export const addToCart = async (req, res) => {
   try {
-    const { sku, color = "Mặc Định", size, quantity = 1 } = req.body;
+    let { sku, color = "Mặc Định", size, quantity = 1 } = req.body;
     const userId = req.user?._id || null;
 
     // Kiểm tra sản phẩm tồn tại
@@ -33,14 +93,24 @@ export const addToCart = async (req, res) => {
       return sendErrorResponse(res, 404, "Không tìm thấy sản phẩm", null, req.requestId);
     }
 
-    // Kiểm tra màu sắc hợp lệ
-    if (!product.colors.includes(color)) {
-      return sendErrorResponse(res, 400, "Màu sắc không hợp lệ", null, req.requestId);
+    // Kiểm tra màu sắc hợp lệ (nếu sản phẩm có colors)
+    if (product.colors && product.colors.length > 0) {
+      if (!product.colors.includes(color)) {
+        return sendErrorResponse(res, 400, "Màu sắc không hợp lệ", null, req.requestId);
+      }
+    } else {
+      // Nếu sản phẩm không có colors, sử dụng màu mặc định
+      color = "Mặc Định";
     }
 
-    // Kiểm tra kích thước hợp lệ
-    if (!product.sizes.includes(size)) {
-      return sendErrorResponse(res, 400, "Kích thước không hợp lệ", null, req.requestId);
+    // Kiểm tra kích thước hợp lệ (nếu sản phẩm có sizes)
+    if (product.sizes && product.sizes.length > 0) {
+      if (!product.sizes.includes(size)) {
+        return sendErrorResponse(res, 400, "Kích thước không hợp lệ", null, req.requestId);
+      }
+    } else {
+      // Nếu sản phẩm không có sizes, sử dụng size mặc định
+      size = "Mặc Định";
     }
 
     // Kiểm tra số lượng tồn kho
@@ -88,7 +158,16 @@ export const addToCart = async (req, res) => {
 
     await cart.save();
 
-    return sendSuccessResponse(res, 200, "Đã thêm sản phẩm vào giỏ hàng");
+    // Đảm bảo trả về cart với _id cho từng item
+    const cartWithIds = cart.toObject();
+    if (cartWithIds.items) {
+      cartWithIds.items = cartWithIds.items.map(item => ({
+        ...item,
+        _id: item._id || new mongoose.Types.ObjectId()
+      }));
+    }
+
+    return sendSuccessResponse(res, 200, "Đã thêm sản phẩm vào giỏ hàng", cartWithIds);
   } catch (error) {
     const errorResponse = handleError(error, req.requestId);
     return sendErrorResponse(res, errorResponse.statusCode, errorResponse.message, error, req.requestId);
@@ -126,7 +205,16 @@ export const updateCartItemQuantity = async (req, res) => {
 
     await cart.save();
 
-    return sendSuccessResponse(res, 200, "Đã cập nhật số lượng sản phẩm");
+    // Đảm bảo trả về cart với _id cho từng item
+    const cartWithIds = cart.toObject();
+    if (cartWithIds.items) {
+      cartWithIds.items = cartWithIds.items.map(item => ({
+        ...item,
+        _id: item._id || new mongoose.Types.ObjectId()
+      }));
+    }
+
+    return sendSuccessResponse(res, 200, "Đã cập nhật số lượng sản phẩm", cartWithIds);
   } catch (error) {
     const errorResponse = handleError(error, req.requestId);
     return sendErrorResponse(res, errorResponse.statusCode, errorResponse.message, error, req.requestId);
@@ -150,7 +238,16 @@ export const removeFromCart = async (req, res) => {
 
     await cart.save();
 
-    return sendSuccessResponse(res, 200, "Đã xóa sản phẩm khỏi giỏ hàng");
+    // Đảm bảo trả về cart với _id cho từng item
+    const cartWithIds = cart.toObject();
+    if (cartWithIds.items) {
+      cartWithIds.items = cartWithIds.items.map(item => ({
+        ...item,
+        _id: item._id || new mongoose.Types.ObjectId()
+      }));
+    }
+
+    return sendSuccessResponse(res, 200, "Đã xóa sản phẩm khỏi giỏ hàng", cartWithIds);
   } catch (error) {
     const errorResponse = handleError(error, req.requestId);
     return sendErrorResponse(res, errorResponse.statusCode, errorResponse.message, error, req.requestId);
@@ -166,22 +263,13 @@ export const clearCart = async (req, res) => {
     const cart = await Cart.findOneAndDelete({ userId });
 
     if (!cart) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy giỏ hàng"
-      });
+      return sendErrorResponse(res, 404, "Không tìm thấy giỏ hàng", null, req.requestId);
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "Đã xóa giỏ hàng thành công"
-    });
+    return sendSuccessResponse(res, 200, "Đã xóa giỏ hàng thành công");
 
   } catch (error) {
-    console.error("Lỗi khi xóa giỏ hàng:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Lỗi server khi xóa giỏ hàng"
-    });
+    const errorResponse = handleError(error, req.requestId);
+    return sendErrorResponse(res, errorResponse.statusCode, errorResponse.message, error, req.requestId);
   }
 }; 
