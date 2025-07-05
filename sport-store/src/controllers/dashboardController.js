@@ -776,7 +776,7 @@ export const getBestSellingProducts = async (req, res) => {
                         totalCancelled: { $sum: '$items.quantity' }
                     }
                 }
-            ]).exec()
+            ]).exec(),
         ]);
 
         // Log dữ liệu để debug
