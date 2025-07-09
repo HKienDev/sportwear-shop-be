@@ -69,6 +69,34 @@ const productSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    isFeatured: {
+        type: Boolean,
+        default: false,
+        description: 'Đánh dấu sản phẩm nổi bật để hiển thị trong carousel'
+    },
+    featuredConfig: {
+        countdownEndDate: {
+            type: Date,
+            description: 'Thời gian kết thúc countdown'
+        },
+        soldCount: {
+            type: Number,
+            default: 0,
+            min: 0,
+            description: 'Số lượng đã bán'
+        },
+        remainingStock: {
+            type: Number,
+            default: 0,
+            min: 0,
+            description: 'Số lượng còn lại'
+        },
+        isActive: {
+            type: Boolean,
+            default: false,
+            description: 'Trạng thái hiển thị countdown'
+        }
+    },
     mainImage: {
         type: String,
         required: [true, 'Hình ảnh chính là bắt buộc']
@@ -239,6 +267,20 @@ productSchema.statics.findMostViewed = function(limit = 10) {
         .limit(limit);
 };
 
+productSchema.statics.findFeatured = function(limit = 6) {
+    return this.find({ 
+        isActive: true, 
+        isFeatured: true 
+    })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .populate({
+            path: 'categoryId',
+            select: 'name slug categoryId',
+            match: { isActive: true }
+        });
+};
+
 // Pre-save middleware
 productSchema.pre('save', async function(next) {
     // Tạo slug từ tên sản phẩm nếu chưa có
@@ -310,6 +352,7 @@ productSchema.index({ brand: 1 });
 productSchema.index({ sku: 1 }, { unique: true });
 productSchema.index({ slug: 1 }, { unique: true });
 productSchema.index({ isActive: 1 });
+productSchema.index({ isActive: 1, isFeatured: 1 });
 productSchema.index({ originalPrice: 1, isActive: 1 });
 productSchema.index({ createdAt: -1, isActive: 1 });
 productSchema.index({ rating: -1, isActive: 1 });

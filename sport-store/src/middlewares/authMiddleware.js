@@ -6,15 +6,15 @@ import User from '../models/User.js';
 
 // Helper functions
 const extractToken = (req) => {
-    // Kiểm tra token từ cookie trước
-    const accessToken = req.cookies?.accessToken;
-    if (accessToken) return accessToken;
-
-    // Nếu không có token trong cookie, kiểm tra header
+    // Ưu tiên kiểm tra token từ Authorization header trước
     const authHeader = req.header("Authorization");
     if (authHeader?.startsWith("Bearer ")) {
         return authHeader.split(" ")[1];
     }
+
+    // Nếu không có token trong header, kiểm tra cookie
+    const accessToken = req.cookies?.accessToken;
+    if (accessToken) return accessToken;
 
     return null;
 };

@@ -84,7 +84,7 @@ export const getCart = async (req, res) => {
 // Thêm sản phẩm vào giỏ hàng
 export const addToCart = async (req, res) => {
   try {
-    let { sku, color = "Mặc Định", size, quantity = 1 } = req.body;
+    let { sku, color, size, quantity = 1 } = req.body;
     const userId = req.user?._id || null;
 
     // Kiểm tra sản phẩm tồn tại
@@ -95,7 +95,10 @@ export const addToCart = async (req, res) => {
 
     // Kiểm tra màu sắc hợp lệ (nếu sản phẩm có colors)
     if (product.colors && product.colors.length > 0) {
-      if (!product.colors.includes(color)) {
+      // Nếu frontend không gửi color, lấy color đầu tiên
+      if (!color) {
+        color = product.colors[0];
+      } else if (!product.colors.includes(color)) {
         return sendErrorResponse(res, 400, "Màu sắc không hợp lệ", null, req.requestId);
       }
     } else {
@@ -105,7 +108,10 @@ export const addToCart = async (req, res) => {
 
     // Kiểm tra kích thước hợp lệ (nếu sản phẩm có sizes)
     if (product.sizes && product.sizes.length > 0) {
-      if (!product.sizes.includes(size)) {
+      // Nếu frontend không gửi size, lấy size đầu tiên
+      if (!size) {
+        size = product.sizes[0];
+      } else if (!product.sizes.includes(size)) {
         return sendErrorResponse(res, 400, "Kích thước không hợp lệ", null, req.requestId);
       }
     } else {

@@ -172,6 +172,47 @@ export const getProductsByCategory = async (req, res) => {
     }
 };
 
+// GET /api/products/featured - Lấy danh sách sản phẩm nổi bật
+export const getFeaturedProducts = async (req, res) => {
+    const requestId = generateRequestId();
+    try {
+        const { limit = 6 } = req.query;
+        
+        console.log(`[${requestId}] Getting featured products with limit: ${limit}`);
+        
+        const products = await Product.findFeatured(parseInt(limit));
+        
+        console.log(`[${requestId}] Found ${products.length} featured products`);
+        
+        // Transform products to match frontend expected format
+        const transformedProducts = products.map(product => ({
+            id: product._id.toString(),
+            name: product.name,
+            price: product.salePrice || product.originalPrice,
+            originalPrice: product.originalPrice,
+            sold: product.featuredConfig?.soldCount || product.soldCount || 0,
+            total: (product.featuredConfig?.remainingStock || product.stock) + (product.featuredConfig?.soldCount || product.soldCount || 0),
+            rating: product.rating || 0,
+            image: product.mainImage,
+            sku: product.sku,
+            brand: product.brand,
+            category: product.categoryId?.name || 'Unknown Category',
+            featuredConfig: product.featuredConfig || null
+        }));
+
+        logInfo(`[${requestId}] Successfully retrieved ${transformedProducts.length} featured products`);
+        
+        return sendSuccessResponse(res, 200, 'Featured products retrieved successfully', {
+            products: transformedProducts,
+            count: transformedProducts.length
+        }, requestId);
+    } catch (error) {
+        console.error(`[${requestId}] Error in getFeaturedProducts:`, error);
+        logError(`[${requestId}] Error getting featured products:`, error.message || error);
+        return sendErrorResponse(res, 500, 'Error getting featured products', error, requestId);
+    }
+};
+
 // Hàm tạo slug từ tên sản phẩm
 const generateSlug = (name) => {
     return slugify(name, {
@@ -625,6 +666,155 @@ export const updateProductStatus = async (req, res) => {
         }, requestId);
     } catch (error) {
         console.error(`[${requestId}] Error in updateProductStatus:`, error);
+        return sendErrorResponse(res, 500, 'Internal server error', {}, requestId);
+    }
+};
+
+// PATCH /api/products/:sku/featured - Đổi trạng thái nổi bật (featured/not featured)
+export const updateProductFeaturedStatus = async (req, res) => {
+    const requestId = generateRequestId();
+    try {
+        // Debug: Log request params and body
+        console.log(`[${requestId}] Request params:`, JSON.stringify(req.params, null, 2));
+        console.log(`[${requestId}] Request body:`, JSON.stringify(req.body, null, 2));
+
+        const { sku } = req.params;
+        
+        // Kiểm tra dữ liệu đầu vào
+        if (!req.body || typeof req.body.isFeatured !== 'boolean') {
+            console.log(`[${requestId}] Invalid request body: isFeatured must be a boolean`);
+            return sendErrorResponse(res, 400, 'Invalid request body: isFeatured must be a boolean', {}, requestId);
+        }
+
+        // Check if product exists
+        console.log(`[${requestId}] Checking if product exists with SKU: ${sku}`);
+        const product = await Product.findOne({ sku });
+        if (!product) {
+            console.log(`[${requestId}] Product not found with SKU: ${sku}`);
+            return sendErrorResponse(res, 404, 'Product not found', {}, requestId);
+        }
+
+        // Update product featured status
+        console.log(`[${requestId}] Updating product featured status`);
+        const updatedProduct = await Product.findOneAndUpdate(
+            { sku },
+            { $set: { isFeatured: req.body.isFeatured } },
+            { new: true }
+        );
+
+        console.log(`[${requestId}] Product featured status updated successfully:`, updatedProduct._id);
+        
+        // Xóa cache dashboard
+        await clearDashboardCacheUtil();
+        
+        // Log success
+        logInfo(`[${requestId}] Product featured status updated successfully: ${updatedProduct?.name || 'Unknown'}`);
+        
+        // Return success response
+        return sendSuccessResponse(res, 200, 'Product featured status updated successfully', { 
+            product: {
+                _id: updatedProduct._id,
+                sku: updatedProduct.sku,
+                name: updatedProduct.name,
+                slug: updatedProduct.slug,
+                categoryId: updatedProduct.categoryId,
+                brand: updatedProduct.brand,
+                originalPrice: updatedProduct.originalPrice,
+                salePrice: updatedProduct.salePrice,
+                stock: updatedProduct.stock,
+                mainImage: updatedProduct.mainImage,
+                subImages: updatedProduct.subImages,
+                colors: updatedProduct.colors,
+                sizes: updatedProduct.sizes,
+                tags: updatedProduct.tags,
+                isActive: updatedProduct.isActive,
+                isFeatured: updatedProduct.isFeatured,
+                updatedAt: updatedProduct.updatedAt
+            }
+        }, requestId);
+    } catch (error) {
+        console.error(`[${requestId}] Error in updateProductFeaturedStatus:`, error);
+        return sendErrorResponse(res, 500, 'Internal server error', {}, requestId);
+    }
+};
+
+// PATCH /api/products/:sku/featured-config - Setup countdown và thông tin bán hàng cho sản phẩm nổi bật
+export const updateProductFeaturedConfig = async (req, res) => {
+    const requestId = generateRequestId();
+    try {
+        // Debug: Log request params and body
+        console.log(`[${requestId}] Request params:`, JSON.stringify(req.params, null, 2));
+        console.log(`[${requestId}] Request body:`, JSON.stringify(req.body, null, 2));
+
+        const { sku } = req.params;
+        const { countdownEndDate, soldCount, remainingStock, isActive } = req.body;
+        
+        // Validate required fields
+        if (!countdownEndDate) {
+            return sendErrorResponse(res, 400, 'Thời gian kết thúc là bắt buộc', {}, requestId);
+        }
+        
+        if (typeof soldCount !== 'number' || soldCount < 0) {
+            return sendErrorResponse(res, 400, 'Số lượng đã bán không hợp lệ', {}, requestId);
+        }
+        
+        if (typeof remainingStock !== 'number' || remainingStock < 0) {
+            return sendErrorResponse(res, 400, 'Số lượng còn lại không hợp lệ', {}, requestId);
+        }
+        
+        if (typeof isActive !== 'boolean') {
+            return sendErrorResponse(res, 400, 'Trạng thái hiển thị không hợp lệ', {}, requestId);
+        }
+
+        // Check if product exists and is featured
+        console.log(`[${requestId}] Checking if product exists with SKU: ${sku}`);
+        const product = await Product.findOne({ sku });
+        if (!product) {
+            console.log(`[${requestId}] Product not found with SKU: ${sku}`);
+            return sendErrorResponse(res, 404, 'Product not found', {}, requestId);
+        }
+        
+        if (!product.isFeatured) {
+            console.log(`[${requestId}] Product is not featured: ${sku}`);
+            return sendErrorResponse(res, 400, 'Product must be featured to setup countdown', {}, requestId);
+        }
+
+        // Update product featured config
+        console.log(`[${requestId}] Updating product featured config`);
+        const updatedProduct = await Product.findOneAndUpdate(
+            { sku },
+            { 
+                $set: { 
+                    featuredConfig: {
+                        countdownEndDate: new Date(countdownEndDate),
+                        soldCount,
+                        remainingStock,
+                        isActive
+                    }
+                } 
+            },
+            { new: true }
+        );
+
+        console.log(`[${requestId}] Product featured config updated successfully:`, updatedProduct._id);
+        
+        // Xóa cache dashboard
+        await clearDashboardCacheUtil();
+        
+        // Log success
+        logInfo(`[${requestId}] Product featured config updated successfully: ${updatedProduct?.name || 'Unknown'}`);
+        
+        // Return success response
+        return sendSuccessResponse(res, 200, 'Featured product config updated successfully', { 
+            product: {
+                _id: updatedProduct._id,
+                sku: updatedProduct.sku,
+                name: updatedProduct.name,
+                featuredConfig: updatedProduct.featuredConfig
+            }
+        }, requestId);
+    } catch (error) {
+        console.error(`[${requestId}] Error in updateProductFeaturedConfig:`, error);
         return sendErrorResponse(res, 500, 'Internal server error', {}, requestId);
     }
 };

@@ -6,7 +6,10 @@ import {
     updateProduct,
     deleteProduct,
     updateProductStatus,
-    getProductsByCategory
+    getProductsByCategory,
+    getFeaturedProducts,
+    updateProductFeaturedStatus,
+    updateProductFeaturedConfig
 } from '../controllers/productController.js';
 import { verifyUser, verifyAdmin } from '../middlewares/authMiddleware.js';
 import { upload } from '../middlewares/uploadMiddleware.js';
@@ -29,6 +32,7 @@ router.get("/test", (req, res) => {
 // Product routes - Public
 router.get("/", getProducts);
 router.get("/search", validateRequest(searchProductSchema), getProducts);
+router.get("/featured", getFeaturedProducts);
 router.get("/sku/:sku", getProductBySku);
 router.get("/category/:categoryId", getProductsByCategory);
 
@@ -46,6 +50,18 @@ router.post("/", upload.array('images', 5), validateRequest(createProductSchema)
 router.put("/:sku", upload.array('images', 5), validateRequest(updateProductSchema), updateProduct);
 router.delete("/:sku", deleteProduct);
 router.patch("/:sku/status", validateRequest(productStatusSchema), updateProductStatus);
+router.patch("/:sku/featured", updateProductFeaturedStatus);
+router.patch("/sku/:sku/featured-config", updateProductFeaturedConfig);
+
+// Route mới: /new-arrivals
+router.get('/new-arrivals', (req, res) => {
+  res.json({ products: [], message: 'Chưa có logic new-arrivals, trả về mảng rỗng.' });
+});
+
+// Route mới: /sale
+router.get('/sale', (req, res) => {
+  res.json({ products: [], message: 'Chưa có logic sale, trả về mảng rỗng.' });
+});
 
 // Lấy chi tiết sản phẩm theo SKU (phải đặt sau các route khác để tránh xung đột)
 router.get("/:sku", getProductBySku);
