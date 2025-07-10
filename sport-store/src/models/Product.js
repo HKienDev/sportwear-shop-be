@@ -121,6 +121,57 @@ const productSchema = new mongoose.Schema({
         type: String,
         trim: true
     }],
+    // Thông số kỹ thuật
+    specifications: {
+        material: {
+            type: String,
+            trim: true,
+            default: "Đang cập nhật",
+            description: "Chất liệu sản phẩm"
+        },
+        weight: {
+            type: String,
+            trim: true,
+            default: "Đang cập nhật",
+            description: "Trọng lượng sản phẩm"
+        },
+        stretch: {
+            type: String,
+            trim: true,
+            default: "Đang cập nhật",
+            description: "Độ co giãn của sản phẩm"
+        },
+        absorbency: {
+            type: String,
+            trim: true,
+            default: "Đang cập nhật",
+            description: "Khả năng thấm hút"
+        },
+        warranty: {
+            type: String,
+            trim: true,
+            default: "Đang cập nhật",
+            description: "Thời gian bảo hành"
+        },
+        origin: {
+            type: String,
+            trim: true,
+            default: "Đang cập nhật",
+            description: "Xuất xứ sản phẩm"
+        },
+        fabricTechnology: {
+            type: String,
+            trim: true,
+            default: "Đang cập nhật",
+            description: "Công nghệ vải"
+        },
+        careInstructions: {
+            type: String,
+            trim: true,
+            default: "Đang cập nhật",
+            description: "Hướng dẫn giặt"
+        }
+    },
     rating: {
         type: Number,
         default: 0,

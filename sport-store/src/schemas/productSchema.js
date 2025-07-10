@@ -15,6 +15,18 @@ const productSizeSchema = z.object({
   isAvailable: z.boolean().optional().default(true)
 });
 
+// Schema cho thông số kỹ thuật
+const specificationsSchema = z.object({
+  material: z.string().optional(),
+  weight: z.string().optional(),
+  stretch: z.string().optional(),
+  absorbency: z.string().optional(),
+  warranty: z.string().optional(),
+  origin: z.string().optional(),
+  fabricTechnology: z.string().optional(),
+  careInstructions: z.string().optional()
+}).optional();
+
 // Schema cho tạo sản phẩm mới
 export const createProductSchema = z.object({
   name: z.string().min(1, 'Tên sản phẩm không được để trống'),
@@ -41,6 +53,7 @@ export const createProductSchema = z.object({
     z.array(productSizeSchema)
   ]).optional(),
   tags: z.array(z.string().min(1, 'Tag không được để trống')).optional(),
+  specifications: specificationsSchema,
   isActive: z.boolean().optional(),
   slug: z.string().optional()
 }).refine(
@@ -74,6 +87,7 @@ export const updateProductSchema = z.object({
     z.array(productSizeSchema)
   ]).optional(),
   tags: z.array(z.string().min(1, 'Tag không được để trống')).optional(),
+  specifications: specificationsSchema,
   isActive: z.boolean().optional(),
   slug: z.string().optional(),
   sku: z.string().optional()

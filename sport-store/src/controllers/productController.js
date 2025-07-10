@@ -347,6 +347,42 @@ export const createProduct = async (req, res) => {
         const slug = generateSlug(processedBody.name);
         console.log(`[${requestId}] Generated slug: ${slug}`);
 
+        // Xử lý specifications nếu có
+        if (processedBody.specifications) {
+            console.log(`[${requestId}] Processing specifications:`, JSON.stringify(processedBody.specifications, null, 2));
+            
+            // Đảm bảo specifications là một object
+            if (typeof processedBody.specifications === 'object' && processedBody.specifications !== null) {
+                // Xử lý từng trường trong specifications
+                const specifications = {};
+                const specFields = ['material', 'weight', 'stretch', 'absorbency', 'warranty', 'origin', 'fabricTechnology', 'careInstructions'];
+                
+                for (const field of specFields) {
+                    if (processedBody.specifications[field] !== undefined && processedBody.specifications[field] !== null) {
+                        // Trim và kiểm tra không rỗng
+                        const value = String(processedBody.specifications[field]).trim();
+                        if (value !== '') {
+                            specifications[field] = value;
+                        }
+                    }
+                }
+                
+                // Chỉ thêm specifications nếu có ít nhất một trường
+                if (Object.keys(specifications).length > 0) {
+                    processedBody.specifications = specifications;
+                    console.log(`[${requestId}] Processed specifications:`, JSON.stringify(specifications, null, 2));
+                } else {
+                    // Nếu không có trường nào hợp lệ, xóa specifications
+                    delete processedBody.specifications;
+                    console.log(`[${requestId}] No valid specifications found, removing from request`);
+                }
+            } else {
+                // Nếu specifications không phải object hợp lệ, xóa nó
+                delete processedBody.specifications;
+                console.log(`[${requestId}] Invalid specifications format, removing from request`);
+            }
+        }
+
         // Tạo sản phẩm với dữ liệu đã được xử lý
         console.log(`[${requestId}] Creating product with data:`, JSON.stringify(processedBody, null, 2));
         const productData = {
@@ -386,6 +422,7 @@ export const createProduct = async (req, res) => {
                 colors: savedProduct.colors,
                 sizes: savedProduct.sizes,
                 tags: savedProduct.tags,
+                specifications: savedProduct.specifications,
                 isActive: savedProduct.isActive,
                 createdAt: savedProduct.createdAt
             }
@@ -541,6 +578,42 @@ export const updateProduct = async (req, res) => {
             console.log(`[${requestId}] Filtered subImages:`, JSON.stringify(updateData.subImages, null, 2));
         }
 
+        // Xử lý cập nhật specifications nếu có
+        if (updateData.specifications) {
+            console.log(`[${requestId}] Processing specifications update:`, JSON.stringify(updateData.specifications, null, 2));
+            
+            // Đảm bảo specifications là một object
+            if (typeof updateData.specifications === 'object' && updateData.specifications !== null) {
+                // Xử lý từng trường trong specifications
+                const specifications = {};
+                const specFields = ['material', 'weight', 'stretch', 'absorbency', 'warranty', 'origin', 'fabricTechnology', 'careInstructions'];
+                
+                for (const field of specFields) {
+                    if (updateData.specifications[field] !== undefined && updateData.specifications[field] !== null) {
+                        // Trim và kiểm tra không rỗng
+                        const value = String(updateData.specifications[field]).trim();
+                        if (value !== '') {
+                            specifications[field] = value;
+                        }
+                    }
+                }
+                
+                // Chỉ thêm specifications nếu có ít nhất một trường
+                if (Object.keys(specifications).length > 0) {
+                    updateData.specifications = specifications;
+                    console.log(`[${requestId}] Processed specifications update:`, JSON.stringify(specifications, null, 2));
+                } else {
+                    // Nếu không có trường nào hợp lệ, xóa specifications
+                    delete updateData.specifications;
+                    console.log(`[${requestId}] No valid specifications found, removing from update`);
+                }
+            } else {
+                // Nếu specifications không phải object hợp lệ, xóa nó
+                delete updateData.specifications;
+                console.log(`[${requestId}] Invalid specifications format, removing from update`);
+            }
+        }
+
         // Update product
         console.log(`[${requestId}] Updating product with data:`, JSON.stringify(updateData, null, 2));
         
@@ -611,6 +684,7 @@ export const updateProduct = async (req, res) => {
                     colors: updatedProduct.colors,
                     sizes: updatedProduct.sizes,
                     tags: updatedProduct.tags,
+                    specifications: updatedProduct.specifications,
                     isActive: updatedProduct.isActive,
                     updatedAt: updatedProduct.updatedAt
                 }
