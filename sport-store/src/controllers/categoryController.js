@@ -139,6 +139,71 @@ export const getCategoryById = async (req, res) => {
     }
 };
 
+export const getCategoryBySlug = async (req, res) => {
+    try {
+        const { slug } = req.params;
+        console.log(`[DEBUG] [getCategoryBySlug] Start - slug:`, slug);
+        
+        // Tìm category bằng slug
+        const category = await Category.findBySlug(slug);
+        console.log(`[DEBUG] [getCategoryBySlug] After findBySlug, found:`, !!category);
+        
+        if (!category) {
+            logError(`Category not found with slug: ${slug}`);
+            return res.status(404).json({
+                success: false,
+                message: "Không tìm thấy danh mục"
+            });
+        }
+
+        // Lấy thông tin người tạo và cập nhật
+        console.log(`[DEBUG] [getCategoryBySlug] Getting creator/updater for category:`, category._id);
+        const [creator, updater] = await Promise.all([
+            User.findById(category.createdBy).select('name'),
+            category.updatedBy ? User.findById(category.updatedBy).select('name') : null
+        ]);
+        console.log(`[DEBUG] [getCategoryBySlug] Got creator/updater`);
+
+        // Format response
+        const response = {
+            _id: category._id,
+            categoryId: category.categoryId,
+            name: category.name,
+            slug: category.slug,
+            description: category.description,
+            image: category.image,
+            isActive: category.isActive,
+            createdBy: {
+                _id: creator?._id,
+                name: creator?.name
+            },
+            updatedBy: updater ? {
+                _id: updater._id,
+                name: updater.name
+            } : null,
+            createdAt: category.createdAt,
+            updatedAt: category.updatedAt,
+            productCount: category.productCount || 0,
+            hasProducts: category.hasProducts || false
+        };
+
+        logInfo(`Successfully retrieved category by slug: ${category.name}`);
+        console.log(`[DEBUG] [getCategoryBySlug] End - Success`);
+        res.status(200).json({
+            success: true,
+            message: "Lấy thông tin danh mục thành công",
+            data: response
+        });
+    } catch (err) {
+        console.error(`[DEBUG] [getCategoryBySlug] Catch error:`, err);
+        logError(`Error getting category by slug: ${err.message}`);
+        res.status(500).json({
+            success: false,
+            message: "Lỗi server"
+        });
+    }
+};
+
 export const createCategory = async (req, res) => {
     const requestId = req.id || 'unknown';
     try {

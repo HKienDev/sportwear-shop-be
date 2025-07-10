@@ -19,6 +19,7 @@ router.get("/test", (req, res) => {
 router.get("/", categoryController.getAllCategories);
 router.get("/search", validateRequest(searchCategorySchema), categoryController.searchCategories);
 router.get("/admin", verifyAdmin, categoryController.getAllCategories);
+router.get("/slug/:slug", categoryController.getCategoryBySlug);
 router.get("/:categoryId", categoryController.getCategoryById);
 
 // Protected routes (Admin only)

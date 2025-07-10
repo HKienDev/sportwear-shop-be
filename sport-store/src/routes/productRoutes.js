@@ -9,7 +9,8 @@ import {
     getProductsByCategory,
     getFeaturedProducts,
     updateProductFeaturedStatus,
-    updateProductFeaturedConfig
+    updateProductFeaturedConfig,
+    getProductsByCategorySlug
 } from '../controllers/productController.js';
 import { verifyUser, verifyAdmin } from '../middlewares/authMiddleware.js';
 import { upload } from '../middlewares/uploadMiddleware.js';
@@ -35,6 +36,7 @@ router.get("/search", validateRequest(searchProductSchema), getProducts);
 router.get("/featured", getFeaturedProducts);
 router.get("/sku/:sku", getProductBySku);
 router.get("/category/:categoryId", getProductsByCategory);
+router.get("/category/slug/:slug", getProductsByCategorySlug);
 
 // Protected routes (require authentication)
 router.use(verifyUser);

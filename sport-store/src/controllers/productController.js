@@ -30,7 +30,7 @@ export const getProducts = async (req, res) => {
         } = req.query;
 
         // Build query
-        const query = {};
+        const query = { isActive: true };
         if (keyword) {
             query.$text = { $search: keyword };
         }
@@ -210,6 +210,53 @@ export const getFeaturedProducts = async (req, res) => {
         console.error(`[${requestId}] Error in getFeaturedProducts:`, error);
         logError(`[${requestId}] Error getting featured products:`, error.message || error);
         return sendErrorResponse(res, 500, 'Error getting featured products', error, requestId);
+    }
+};
+
+// GET /api/products/category/slug/:slug - Lấy danh sách sản phẩm theo slug category
+export const getProductsByCategorySlug = async (req, res) => {
+    const requestId = generateRequestId();
+    try {
+        const { slug } = req.params;
+        // Tìm category theo slug
+        const category = await Category.findOne({ slug, isActive: true });
+        if (!category) {
+            return sendErrorResponse(res, 404, 'Category not found', {}, requestId);
+        }
+        // Lấy các tham số filter/pagination nếu cần
+        const {
+            sort = 'createdAt',
+            order = 'desc',
+            page = 1,
+            limit = 100
+        } = req.query;
+        // Build query
+        const query = {
+            categoryId: category.categoryId,
+            isActive: true
+        };
+        const skip = (Number(page) - 1) * Number(limit);
+        const sortOptions = { [sort]: order === 'desc' ? -1 : 1 };
+        const [products, total] = await Promise.all([
+            Product.find(query)
+                .sort(sortOptions)
+                .skip(skip)
+                .limit(Number(limit))
+                .lean(),
+            Product.countDocuments(query)
+        ]);
+        return sendSuccessResponse(res, 200, 'Lấy danh sách sản phẩm theo slug thành công', {
+            products,
+            pagination: {
+                page: Number(page),
+                limit: Number(limit),
+                total,
+                totalPages: Math.ceil(total / Number(limit))
+            }
+        }, requestId);
+    } catch (error) {
+        console.error(`[${requestId}] Error in getProductsByCategorySlug:`, error);
+        return sendErrorResponse(res, 500, 'Internal server error', {}, requestId);
     }
 };
 
