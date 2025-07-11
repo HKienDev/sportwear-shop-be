@@ -114,10 +114,24 @@ export const deleteUser = async (req, res, next) => {
       });
     }
 
-    // Tìm user dựa vào customId (VJUSPORTUSER-XXXXX)
-    const user = await User.findOne({ 
-      customId: customId
-    });
+    let user;
+    
+    // Nếu customId có format VJUSPORTUSER-XXXXX, tìm user theo _id
+    if (customId.startsWith('VJUSPORTUSER-')) {
+      const shortId = customId.replace('VJUSPORTUSER-', '');
+      // Convert ObjectId to string for regex matching
+      user = await User.findOne({
+        $expr: {
+          $regexMatch: {
+            input: { $toString: "$_id" },
+            regex: `^${shortId}`
+          }
+        }
+      });
+    } else {
+      // Tìm user dựa vào customId field trong database
+      user = await User.findOne({ customId: customId });
+    }
 
     if (!user) {
       console.log('User not found with customId:', customId);
@@ -145,15 +159,48 @@ export const deleteUser = async (req, res, next) => {
 // Khóa/Mở khóa tài khoản user
 export const toggleUserStatus = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
-    if (!user) {
-      return res.status(404).json({ message: ERROR_MESSAGES.NOT_FOUND_ERROR });
+    const customId = req.params.customId;
+    
+    if (!customId) {
+      return res.status(400).json({ 
+        success: false,
+        message: "ID không tồn tại."
+      });
     }
+
+    let user;
+    
+    // Nếu customId có format VJUSPORTUSER-XXXXX, tìm user theo _id
+    if (customId.startsWith('VJUSPORTUSER-')) {
+      const shortId = customId.replace('VJUSPORTUSER-', '');
+      // Convert ObjectId to string for regex matching
+      user = await User.findOne({
+        $expr: {
+          $regexMatch: {
+            input: { $toString: "$_id" },
+            regex: `^${shortId}`
+          }
+        }
+      });
+    } else {
+      // Tìm user dựa vào customId field trong database
+      user = await User.findOne({ customId: customId });
+    }
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        message: ERROR_MESSAGES.NOT_FOUND_ERROR 
+      });
+    }
+    
     user.isActive = !user.isActive;
     await user.save();
+    
     res.status(200).json({ 
+      success: true,
       message: user.isActive ? 'Mở khóa tài khoản thành công' : 'Khóa tài khoản thành công',
-      user 
+      data: user 
     });
   } catch (error) {
     next(error);
@@ -206,10 +253,18 @@ export const resetUserPassword = async (req, res, next) => {
       });
     }
 
-    // Tìm user dựa vào customId (VJUSPORTUSER-XXXXX)
-    const user = await User.findOne({ 
-      customId: customId
-    });
+    let user;
+    
+    // Nếu customId có format VJUSPORTUSER-XXXXX, tìm user theo _id
+    if (customId.startsWith('VJUSPORTUSER-')) {
+      const shortId = customId.replace('VJUSPORTUSER-', '');
+      user = await User.findOne({
+        _id: { $regex: `^${shortId}` }
+      });
+    } else {
+      // Tìm user dựa vào customId field trong database
+      user = await User.findOne({ customId: customId });
+    }
     
     if (!user) {
       console.log('User not found with customId:', customId);

@@ -877,21 +877,39 @@ export const logout = async (req, res) => {
 export const getAllUsers = async (req, res) => {
     try {
         const users = await User.find({ role: 'user' })
-            .select('_id fullname email phone createdAt')
+            .select('_id fullname email phone createdAt updatedAt avatar isActive totalSpent orderCount')
             .sort({ createdAt: -1 });
+
+        // Tính toán deliveredOrders cho mỗi user
+        const usersWithOrders = await Promise.all(users.map(async (user) => {
+            // Đếm số đơn hàng đã giao
+            const deliveredOrders = await Order.countDocuments({
+                userId: user._id,
+                status: 'delivered'
+            });
+
+            return {
+                _id: user._id,
+                id: user._id,
+                fullname: user.fullname,
+                email: user.email,
+                phone: user.phone || '',
+                avatar: user.avatar || '',
+                isActive: user.isActive !== false, // Mặc định true nếu không có
+                totalSpent: user.totalSpent || 0,
+                deliveredOrders: deliveredOrders,
+                orderCount: user.orderCount || 0,
+                createdAt: user.createdAt,
+                updatedAt: user.updatedAt,
+                customId: `VJUSPORTUSER-${user._id.toString().slice(0, 8)}`
+            };
+        }));
 
         res.status(200).json({
             success: true,
             message: 'Lấy danh sách users thành công',
             data: {
-                users: users.map(user => ({
-                    _id: user._id,
-                    id: user._id,
-                    fullname: user.fullname,
-                    email: user.email,
-                    phone: user.phone,
-                    createdAt: user.createdAt
-                }))
+                users: usersWithOrders
             }
         });
     } catch (error) {
