@@ -2,7 +2,7 @@ import Product from '../models/Product.js';
 import Category from "../models/Category.js";
 import { logInfo, logError } from "../utils/logger.js";
 import { generateUniqueSKU } from "../utils/productUtils.js";
-import { updateProductSchema, searchProductSchema } from '../schemas/productSchema.js';
+import { updateProductSchema, searchProductSchema, createProductSchema } from '../schemas/productSchema.js';
 import { sendErrorResponse, sendSuccessResponse } from '../utils/responseUtils.js';
 import { generateRequestId } from '../utils/requestUtils.js';
 import slugify from 'slugify';
@@ -29,8 +29,10 @@ export const getProducts = async (req, res) => {
             limit = 5
         } = req.query;
 
-        // Build query
-        const query = { isActive: true };
+        // Build query - Admin thấy tất cả sản phẩm, public chỉ thấy active
+        const isAdminRoute = req.originalUrl.includes('/admin');
+        const query = isAdminRoute ? {} : { isActive: true };
+        
         if (keyword) {
             query.$text = { $search: keyword };
         }
@@ -293,27 +295,25 @@ export const createProduct = async (req, res) => {
 
         console.log(`[${requestId}] Processed body:`, JSON.stringify(processedBody, null, 2));
 
-        // Kiểm tra các trường bắt buộc
-        const requiredFields = ['name', 'description', 'originalPrice', 'stock', 'categoryId', 'brand', 'mainImage'];
-        const missingFields = {};
-        
-        for (const field of requiredFields) {
-            if (!processedBody[field]) {
-                missingFields[field] = `${field} là bắt buộc`;
-                console.log(`[${requestId}] Missing required field: ${field}`);
-            }
-        }
-        
-        if (Object.keys(missingFields).length > 0) {
-            console.log(`[${requestId}] Missing fields:`, JSON.stringify(missingFields, null, 2));
-            return sendErrorResponse(res, 400, 'Missing required fields', missingFields, requestId);
+        // Validate request data using schema
+        const { error, value } = createProductSchema.safeParse(processedBody);
+        if (error) {
+            // Debug: Log validation errors
+            console.log(`[${requestId}] Validation errors:`, JSON.stringify(error.errors, null, 2));
+            return sendErrorResponse(res, 400, 'Invalid product data', error.errors, requestId);
         }
 
+        // Debug: Log parsed value
+        console.log(`[${requestId}] Parsed value:`, JSON.stringify(value, null, 2));
+
+        // Sử dụng value từ validation hoặc processedBody nếu value là undefined
+        const validatedData = value || processedBody;
+
         // Kiểm tra categoryId có tồn tại
-        console.log(`[${requestId}] Checking categoryId: ${processedBody.categoryId}`);
-        const category = await Category.findOne({ categoryId: processedBody.categoryId });
+        console.log(`[${requestId}] Checking categoryId: ${validatedData.categoryId}`);
+        const category = await Category.findOne({ categoryId: validatedData.categoryId });
         if (!category) {
-            console.log(`[${requestId}] Category not found: ${processedBody.categoryId}`);
+            console.log(`[${requestId}] Category not found: ${validatedData.categoryId}`);
             return sendErrorResponse(
                 res,
                 404,
@@ -324,10 +324,10 @@ export const createProduct = async (req, res) => {
         }
 
         // Check if product name already exists
-        console.log(`[${requestId}] Checking product name: ${processedBody.name}`);
-        const existingProduct = await Product.findOne({ name: processedBody.name });
+        console.log(`[${requestId}] Checking product name: ${validatedData.name}`);
+        const existingProduct = await Product.findOne({ name: validatedData.name });
         if (existingProduct) {
-            console.log(`[${requestId}] Product name already exists: ${processedBody.name}`);
+            console.log(`[${requestId}] Product name already exists: ${validatedData.name}`);
             return sendErrorResponse(res, 400, 'Tên sản phẩm đã tồn tại', {}, requestId);
         }
 
@@ -343,24 +343,24 @@ export const createProduct = async (req, res) => {
         }
 
         // Generate slug from name
-        console.log(`[${requestId}] Generating slug from name: ${processedBody.name}`);
-        const slug = generateSlug(processedBody.name);
+        console.log(`[${requestId}] Generating slug from name: ${validatedData.name}`);
+        const slug = generateSlug(validatedData.name);
         console.log(`[${requestId}] Generated slug: ${slug}`);
 
         // Xử lý specifications nếu có
-        if (processedBody.specifications) {
-            console.log(`[${requestId}] Processing specifications:`, JSON.stringify(processedBody.specifications, null, 2));
+        if (validatedData.specifications) {
+            console.log(`[${requestId}] Processing specifications:`, JSON.stringify(validatedData.specifications, null, 2));
             
             // Đảm bảo specifications là một object
-            if (typeof processedBody.specifications === 'object' && processedBody.specifications !== null) {
+            if (typeof validatedData.specifications === 'object' && validatedData.specifications !== null) {
                 // Xử lý từng trường trong specifications
                 const specifications = {};
                 const specFields = ['material', 'weight', 'stretch', 'absorbency', 'warranty', 'origin', 'fabricTechnology', 'careInstructions'];
                 
                 for (const field of specFields) {
-                    if (processedBody.specifications[field] !== undefined && processedBody.specifications[field] !== null) {
+                    if (validatedData.specifications[field] !== undefined && validatedData.specifications[field] !== null) {
                         // Trim và kiểm tra không rỗng
-                        const value = String(processedBody.specifications[field]).trim();
+                        const value = String(validatedData.specifications[field]).trim();
                         if (value !== '') {
                             specifications[field] = value;
                         }
@@ -369,24 +369,24 @@ export const createProduct = async (req, res) => {
                 
                 // Chỉ thêm specifications nếu có ít nhất một trường
                 if (Object.keys(specifications).length > 0) {
-                    processedBody.specifications = specifications;
+                    validatedData.specifications = specifications;
                     console.log(`[${requestId}] Processed specifications:`, JSON.stringify(specifications, null, 2));
                 } else {
                     // Nếu không có trường nào hợp lệ, xóa specifications
-                    delete processedBody.specifications;
+                    delete validatedData.specifications;
                     console.log(`[${requestId}] No valid specifications found, removing from request`);
                 }
             } else {
                 // Nếu specifications không phải object hợp lệ, xóa nó
-                delete processedBody.specifications;
+                delete validatedData.specifications;
                 console.log(`[${requestId}] Invalid specifications format, removing from request`);
             }
         }
 
         // Tạo sản phẩm với dữ liệu đã được xử lý
-        console.log(`[${requestId}] Creating product with data:`, JSON.stringify(processedBody, null, 2));
+        console.log(`[${requestId}] Creating product with data:`, JSON.stringify(validatedData, null, 2));
         const productData = {
-            ...processedBody,
+            ...validatedData,
             sku,
             slug,
             createdBy: req.user?._id
@@ -720,6 +720,47 @@ export const deleteProduct = async (req, res) => {
         return sendSuccessResponse(res, 200, 'Product deleted successfully');
     } catch (error) {
         console.error(`[${requestId}] Error in deleteProduct:`, error);
+        return sendErrorResponse(res, 500, 'Internal server error', {}, requestId);
+    }
+};
+
+// DELETE /api/products/bulk-delete - Xóa nhiều sản phẩm cùng lúc
+export const bulkDeleteProducts = async (req, res) => {
+    const requestId = generateRequestId();
+    try {
+        const { productIds } = req.body;
+        
+        // Validate input
+        if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+            return sendErrorResponse(res, 400, 'Product IDs array is required and must not be empty', {}, requestId);
+        }
+
+        console.log(`[${requestId}] Bulk deleting products with IDs:`, productIds);
+
+        // Find products to get their names for logging
+        const productsToDelete = await Product.find({ _id: { $in: productIds } });
+        
+        if (productsToDelete.length === 0) {
+            return sendErrorResponse(res, 404, 'No products found with the provided IDs', {}, requestId);
+        }
+
+        // Delete products
+        const deleteResult = await Product.deleteMany({ _id: { $in: productIds } });
+
+        // Xóa cache dashboard
+        await clearDashboardCacheUtil();
+
+        console.log(`[${requestId}] Deleted ${deleteResult.deletedCount} products`);
+        
+        // Log success
+        logInfo(`[${requestId}] Bulk deleted ${deleteResult.deletedCount} products: ${productsToDelete.map(p => p.name).join(', ')}`);
+
+        return sendSuccessResponse(res, 200, `Successfully deleted ${deleteResult.deletedCount} products`, {
+            deletedCount: deleteResult.deletedCount,
+            productNames: productsToDelete.map(p => p.name)
+        }, requestId);
+    } catch (error) {
+        console.error(`[${requestId}] Error in bulkDeleteProducts:`, error);
         return sendErrorResponse(res, 500, 'Internal server error', {}, requestId);
     }
 };

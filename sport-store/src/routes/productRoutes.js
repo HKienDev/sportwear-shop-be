@@ -5,6 +5,7 @@ import {
     createProduct,
     updateProduct,
     deleteProduct,
+    bulkDeleteProducts,
     updateProductStatus,
     getProductsByCategory,
     getFeaturedProducts,
@@ -50,6 +51,7 @@ router.get("/admin", getProducts);
 // Product management routes - Admin
 router.post("/", upload.array('images', 5), validateRequest(createProductSchema), createProduct);
 router.put("/:sku", upload.array('images', 5), validateRequest(updateProductSchema), updateProduct);
+router.delete("/bulk-delete", bulkDeleteProducts);
 router.delete("/:sku", deleteProduct);
 router.patch("/:sku/status", validateRequest(productStatusSchema), updateProductStatus);
 router.patch("/:sku/featured", updateProductFeaturedStatus);

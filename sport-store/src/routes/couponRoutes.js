@@ -11,7 +11,8 @@ import {
     bulkDeleteCoupons,
     pauseCoupon,
     activateCoupon,
-    getCouponByCode
+    getCouponByCode,
+    updateExpiredCoupons
 } from "../controllers/couponController.js";
 
 const router = express.Router();
@@ -25,6 +26,7 @@ router.put("/admin/:id/activate", auth, checkRole(['admin']), activateCoupon);
 router.put("/admin/:id", auth, checkRole(['admin']), validateRequest({ body: updateCouponSchema }), updateCoupon);
 router.get("/admin/:id", auth, checkRole(['admin']), getCouponById);
 router.delete("/admin/:id", auth, checkRole(['admin']), deleteCoupon);
+router.post("/admin/update-expired", auth, checkRole(['admin']), updateExpiredCoupons);
 
 // Public routes - đặt route cụ thể trước route có tham số
 router.get("/", validateRequest({ query: searchCouponSchema }), getAllCoupons);

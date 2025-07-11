@@ -795,4 +795,69 @@ export const deleteOrder = async (req, res) => {
     }
 };
 
+// Bulk delete orders
+export const bulkDeleteOrders = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { orderIds } = req.body;
+
+        if (!Array.isArray(orderIds) || orderIds.length === 0) {
+            logError(`[${requestId}] Invalid order IDs provided`);
+            return res.status(400).json({
+                success: false,
+                message: "Danh sách ID đơn hàng không hợp lệ"
+            });
+        }
+
+        // Kiểm tra xem có đơn hàng nào tồn tại không
+        const existingOrders = await Order.find({ _id: { $in: orderIds } });
+        
+        if (existingOrders.length === 0) {
+            logError(`[${requestId}] No orders found to delete`);
+            return res.status(404).json({
+                success: false,
+                message: "Không tìm thấy đơn hàng nào để xóa"
+            });
+        }
+
+        // Restore product stock for pending orders
+        for (const order of existingOrders) {
+            if (order.status === ORDER_STATUS.PENDING) {
+                for (const item of order.items) {
+                    await Product.findByIdAndUpdate(item.product, {
+                        $inc: { stock: item.quantity }
+                    });
+                }
+            }
+        }
+
+        // Xóa các đơn hàng tồn tại
+        const result = await Order.deleteMany({ _id: { $in: orderIds } });
+        
+        if (result.deletedCount === 0) {
+            logError(`[${requestId}] No orders were deleted`);
+            return res.status(404).json({
+                success: false,
+                message: "Không có đơn hàng nào được xóa"
+            });
+        }
+
+        // Xóa cache sau khi xóa đơn hàng
+        await clearOrderCache(requestId);
+
+        logInfo(`[${requestId}] Successfully deleted ${result.deletedCount} orders`);
+        res.json({
+            success: true,
+            message: `Đã xóa thành công ${result.deletedCount} đơn hàng`,
+            data: {
+                deletedCount: result.deletedCount
+            }
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
+};
+
 const clearOrderCache = async () => {};

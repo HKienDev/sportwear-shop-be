@@ -126,6 +126,22 @@ export const createCoupon = async (req, res) => {
     }
 };
 
+// Helper function to update coupon status based on expiration
+async function updateCouponStatus(coupon) {
+    const now = DateUtils.getCurrentVietnamTime();
+    const endDate = dayjs(coupon.endDate).tz(VIETNAM_TIMEZONE);
+    const currentTime = dayjs(now).tz(VIETNAM_TIMEZONE);
+    
+    // Nếu coupon đã hết hạn và đang ở trạng thái "Hoạt động"
+    if (currentTime.isAfter(endDate) && coupon.status === COUPON_STATUS.ACTIVE) {
+        coupon.status = COUPON_STATUS.EXPIRED;
+        await coupon.save();
+        console.log(`Coupon ${coupon.code} has been automatically expired`);
+    }
+    
+    return coupon;
+}
+
 // Helper functions
 function parseAndValidateDates(startDate, endDate) {
     console.log('Parsing dates:', { startDate, endDate });
@@ -241,12 +257,17 @@ export const getAllCoupons = async (req, res) => {
         }
 
         // Lấy danh sách coupons với phân trang
-        const coupons = await Coupon.find(query)
+        let coupons = await Coupon.find(query)
             .populate("createdBy", "name email")
             .populate("updatedBy", "name email")
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit);
+
+        // Tự động cập nhật trạng thái cho từng coupon
+        for (let coupon of coupons) {
+            await updateCouponStatus(coupon);
+        }
 
         // Đếm tổng số coupons
         const total = await Coupon.countDocuments(query);
@@ -364,6 +385,9 @@ export const getCouponById = async (req, res) => {
                 message: ERROR_MESSAGES.COUPON_NOT_FOUND,
             });
         }
+
+        // Tự động cập nhật trạng thái coupon
+        await updateCouponStatus(coupon);
 
         // Format dates in response
         const formattedCoupon = {
@@ -799,12 +823,8 @@ export const getCouponByCode = async (req, res) => {
             });
         }
 
-        // Check if coupon is expired based on Vietnam time
-        const now = DateUtils.getCurrentVietnamTime();
-        if (DateUtils.compareVietnamDates(now, coupon.endDate) > 0 && coupon.status !== COUPON_STATUS.EXPIRED) {
-            coupon.status = COUPON_STATUS.EXPIRED;
-            await coupon.save();
-        }
+        // Tự động cập nhật trạng thái coupon
+        await updateCouponStatus(coupon);
 
         // Format dates for response
         const formattedCoupon = {
@@ -860,6 +880,9 @@ export const validateCouponCode = async (req, res) => {
                 message: ERROR_MESSAGES.COUPON_NOT_FOUND,
             });
         }
+
+        // Tự động cập nhật trạng thái coupon
+        await updateCouponStatus(coupon);
 
         // Kiểm tra trạng thái coupon
         if (coupon.status !== COUPON_STATUS.ACTIVE) {
@@ -1013,5 +1036,49 @@ export const useCoupon = async (req, res) => {
     } catch (error) {
         logError("Lỗi khi sử dụng mã giảm giá:", error);
         return handleError(res, error);
+    }
+}; 
+
+// Update all expired coupons status
+export const updateExpiredCoupons = async (req, res) => {
+    const requestId = req.id || "unknown";
+
+    try {
+        logInfo(`[${requestId}] Starting to update expired coupons`);
+
+        // Tìm tất cả coupon đang hoạt động
+        const activeCoupons = await Coupon.find({ status: COUPON_STATUS.ACTIVE });
+        
+        let updatedCount = 0;
+        const now = DateUtils.getCurrentVietnamTime();
+        const currentTime = dayjs(now).tz(VIETNAM_TIMEZONE);
+
+        for (let coupon of activeCoupons) {
+            const endDate = dayjs(coupon.endDate).tz(VIETNAM_TIMEZONE);
+            
+            // Nếu coupon đã hết hạn
+            if (currentTime.isAfter(endDate)) {
+                coupon.status = COUPON_STATUS.EXPIRED;
+                await coupon.save();
+                updatedCount++;
+                logInfo(`[${requestId}] Updated coupon ${coupon.code} to expired status`);
+            }
+        }
+
+        logInfo(`[${requestId}] Successfully updated ${updatedCount} expired coupons`);
+        res.json({
+            success: true,
+            message: `Đã cập nhật ${updatedCount} coupon hết hạn`,
+            data: {
+                updatedCount,
+                totalActiveCoupons: activeCoupons.length
+            }
+        });
+    } catch (error) {
+        logError(`[${requestId}] Error updating expired coupons:`, error);
+        res.status(500).json({
+            success: false,
+            message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+        });
     }
 }; 

@@ -19,15 +19,19 @@ export const getAllCategories = async (req, res) => {
         
         const skip = (page - 1) * limit;
 
-        // Xây dựng query
+        // Xây dựng query - Admin thấy tất cả categories, public chỉ thấy active
+        const isAdminRoute = req.originalUrl.includes('/admin');
         const filterQuery = {};
+        
         if (search) {
             filterQuery.$or = [
                 { name: { $regex: search, $options: 'i' } },
                 { categoryId: { $regex: search, $options: 'i' } }
             ];
         }
-        if (isActive !== undefined) {
+        
+        // Chỉ filter isActive nếu không phải admin route và có query parameter
+        if (!isAdminRoute && isActive !== undefined) {
             filterQuery.isActive = isActive === "true";
         }
 
