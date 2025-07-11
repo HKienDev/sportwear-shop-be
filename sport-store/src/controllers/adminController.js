@@ -1,5 +1,34 @@
 import User from "../models/User.js";
 import { ERROR_MESSAGES } from '../utils/constants.js';
+import { logError, logInfo } from '../utils/logger.js';
+
+// Helper function để tìm user theo customId
+const findUserByCustomId = async (customId) => {
+  if (!customId) {
+    return null;
+  }
+
+  let user;
+  
+  // Nếu customId có format VJUSPORTUSER-XXXXX, tìm user theo _id
+  if (customId.startsWith('VJUSPORTUSER-')) {
+    const shortId = customId.replace('VJUSPORTUSER-', '');
+    // Convert ObjectId to string for regex matching
+    user = await User.findOne({
+      $expr: {
+        $regexMatch: {
+          input: { $toString: "$_id" },
+          regex: `^${shortId}`
+        }
+      }
+    });
+  } else {
+    // Tìm user dựa vào customId field trong database
+    user = await User.findOne({ customId: customId });
+  }
+  
+  return user;
+};
 
 // Lấy danh sách tất cả users
 export const getAllUsers = async (req, res, next) => {
@@ -80,20 +109,56 @@ export const getUserByPhone = async (req, res, next) => {
 // Cập nhật thông tin user
 export const updateUser = async (req, res, next) => {
   try {
-    const { email, role, isActive } = req.body;
-    const user = await User.findById(req.params.id);
+    const customId = req.params.customId;
     
-    if (!user) {
-      return res.status(404).json({ message: ERROR_MESSAGES.NOT_FOUND_ERROR });
+    logInfo(`Updating user with customId: ${customId}`);
+    
+    if (!customId) {
+      logError('Custom ID is missing');
+      return res.status(400).json({ 
+        success: false,
+        message: "ID không tồn tại.",
+        path: req.url
+      });
     }
 
-    user.email = email || user.email;
-    user.role = role || user.role;
-    user.isActive = isActive !== undefined ? isActive : user.isActive;
+    const user = await findUserByCustomId(customId);
+    
+    if (!user) {
+      logError(`User not found with customId: ${customId}`);
+      return res.status(404).json({ 
+        success: false,
+        message: ERROR_MESSAGES.NOT_FOUND_ERROR,
+        path: req.url
+      });
+    }
+
+    // Cập nhật các trường được gửi từ frontend
+    const updateFields = req.body;
+    
+    // Cập nhật từng trường nếu có
+    if (updateFields.fullname !== undefined) user.fullname = updateFields.fullname;
+    if (updateFields.phone !== undefined) user.phone = updateFields.phone;
+    if (updateFields.email !== undefined) user.email = updateFields.email;
+    if (updateFields.role !== undefined) user.role = updateFields.role;
+    if (updateFields.isActive !== undefined) user.isActive = updateFields.isActive;
+    if (updateFields.address !== undefined) user.address = updateFields.address;
+    if (updateFields.dob !== undefined) user.dob = updateFields.dob;
+    if (updateFields.gender !== undefined) user.gender = updateFields.gender;
+    if (updateFields.membershipLevel !== undefined) user.membershipLevel = updateFields.membershipLevel;
+    if (updateFields.totalSpent !== undefined) user.totalSpent = updateFields.totalSpent;
 
     const updatedUser = await user.save();
-    res.status(200).json(updatedUser);
+    
+    logInfo(`User updated successfully: ${customId}`);
+    res.status(200).json({
+      success: true,
+      message: 'Cập nhật thông tin khách hàng thành công',
+      data: updatedUser,
+      path: req.url
+    });
   } catch (error) {
+    logError('Error in updateUser', error);
     next(error);
   }
 };
@@ -114,24 +179,7 @@ export const deleteUser = async (req, res, next) => {
       });
     }
 
-    let user;
-    
-    // Nếu customId có format VJUSPORTUSER-XXXXX, tìm user theo _id
-    if (customId.startsWith('VJUSPORTUSER-')) {
-      const shortId = customId.replace('VJUSPORTUSER-', '');
-      // Convert ObjectId to string for regex matching
-      user = await User.findOne({
-        $expr: {
-          $regexMatch: {
-            input: { $toString: "$_id" },
-            regex: `^${shortId}`
-          }
-        }
-      });
-    } else {
-      // Tìm user dựa vào customId field trong database
-      user = await User.findOne({ customId: customId });
-    }
+    const user = await findUserByCustomId(customId);
 
     if (!user) {
       console.log('User not found with customId:', customId);
@@ -168,24 +216,7 @@ export const toggleUserStatus = async (req, res, next) => {
       });
     }
 
-    let user;
-    
-    // Nếu customId có format VJUSPORTUSER-XXXXX, tìm user theo _id
-    if (customId.startsWith('VJUSPORTUSER-')) {
-      const shortId = customId.replace('VJUSPORTUSER-', '');
-      // Convert ObjectId to string for regex matching
-      user = await User.findOne({
-        $expr: {
-          $regexMatch: {
-            input: { $toString: "$_id" },
-            regex: `^${shortId}`
-          }
-        }
-      });
-    } else {
-      // Tìm user dựa vào customId field trong database
-      user = await User.findOne({ customId: customId });
-    }
+    const user = await findUserByCustomId(customId);
     
     if (!user) {
       return res.status(404).json({ 

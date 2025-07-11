@@ -49,10 +49,16 @@ export const updateUserSchema = z.object({
     .optional(),
   role: z.enum(['user', 'admin'], { errorMap: () => ({ message: 'Vai trò không hợp lệ' }) }).optional(),
   isActive: z.boolean().optional(),
-  address: z.string()
-    .min(5, { message: 'Địa chỉ phải có ít nhất 5 ký tự' })
-    .max(200, { message: 'Địa chỉ không được vượt quá 200 ký tự' })
-    .optional(),
+  address: z.object({
+    province: z.string().optional(),
+    district: z.string().optional(),
+    ward: z.string().optional(),
+    street: z.string().optional()
+  }).optional(),
+  dob: z.string().optional(),
+  gender: z.enum(['male', 'female', 'other']).optional(),
+  membershipLevel: z.string().optional(),
+  totalSpent: z.number().optional(),
   avatar: z.string().optional()
 });
 

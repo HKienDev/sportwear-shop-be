@@ -293,14 +293,23 @@ userSchema.statics.findBlocked = function() {
 
 // Pre-save middleware
 userSchema.pre("save", async function(next) {
+    // Hash password if modified and not already hashed
     if (!this.isModified("password") || this.password.startsWith("$2a$10$")) {
-        return next();
+        // Skip password hashing
+    } else {
+        this.password = await bcrypt.hash(this.password, 10);
     }
-    this.password = await bcrypt.hash(this.password, 10);
+    
+    // Generate customId if not exists
+    if (!this.customId) {
+        this.customId = `VJUSPORTUSER-${this._id.toString().slice(0, 8)}`;
+    }
+    
     next();
 });
 
 // Indexes
+userSchema.index({ customId: 1 });
 userSchema.index({ phone: 1 });
 userSchema.index({ role: 1 });
 userSchema.index({ membershipLevel: 1 });
@@ -310,6 +319,10 @@ userSchema.index({ authStatus: 1 });
 userSchema.index({ lastLoginAt: -1 });
 userSchema.index({ loginAttempts: 1 });
 userSchema.index({ lockedUntil: 1 });
+userSchema.index({ email: 1 });
+userSchema.index({ "address.province": 1 });
+userSchema.index({ "address.district": 1 });
+userSchema.index({ "address.ward": 1 });
 
 // Export model
 const User = mongoose.models.User || mongoose.model("User", userSchema);
