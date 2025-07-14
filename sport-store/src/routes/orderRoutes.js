@@ -76,6 +76,7 @@ router.post("/create", verifyAdmin, validateRequest(createOrderSchema), orderCon
 router.delete("/bulk-delete", verifyAdmin, orderController.bulkDeleteOrders);
 router.put("/:id/status", verifyAdmin, validateRequest(updateOrderSchema), orderController.updateOrderStatus);
 router.put("/:id/payment", verifyAdmin, validateRequest(updateOrderSchema), orderController.updateOrderPayment);
+router.get("/phone/:phone", verifyAdmin, orderController.getOrdersByPhone);
 router.get("/:id", verifyAdmin, orderController.getOrderById);
 router.delete("/:id", verifyAdmin, orderController.deleteOrder);
 

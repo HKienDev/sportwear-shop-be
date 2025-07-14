@@ -34,6 +34,7 @@ router.get("/test", (req, res) => {
 // Product routes - Public
 router.get("/", getProducts);
 router.get("/search", validateRequest(searchProductSchema), getProducts);
+router.get("/search/:keyword", getProducts); // Thêm endpoint search theo keyword
 router.get("/featured", getFeaturedProducts);
 router.get("/sku/:sku", getProductBySku);
 router.get("/category/:categoryId", getProductsByCategory);

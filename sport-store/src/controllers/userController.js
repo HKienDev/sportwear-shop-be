@@ -876,14 +876,57 @@ export const logout = async (req, res) => {
 // Lấy danh sách users cho admin
 export const getAllUsers = async (req, res) => {
     try {
+        // Debug: Kiểm tra tất cả users có phone "0123456789"
+        const debugUser = await User.findOne({ phone: "0123456789" });
+        if (debugUser) {
+            console.log('🔍 DEBUG: Found user with phone "0123456789":', {
+                _id: debugUser._id,
+                email: debugUser.email,
+                fullname: debugUser.fullname,
+                phone: debugUser.phone,
+                role: debugUser.role
+            });
+        } else {
+            console.log('🔍 DEBUG: No user found with phone "0123456789"');
+        }
+
         const users = await User.find({ role: 'user' })
             .select('_id fullname email phone createdAt updatedAt avatar isActive totalSpent orderCount')
             .sort({ createdAt: -1 });
 
-        // Tính toán deliveredOrders cho mỗi user
-        const usersWithOrders = await Promise.all(users.map(async (user) => {
-            // Đếm số đơn hàng đã giao
-            const deliveredOrders = await Order.countDocuments({
+        console.log('🔍 DEBUG: Found users with role "user":', users.length);
+        users.forEach(user => {
+            console.log('🔍 DEBUG: User:', {
+                _id: user._id,
+                email: user.email,
+                fullname: user.fullname,
+                phone: user.phone,
+                role: user.role
+            });
+        });
+
+        // Tính toán thống kê thực tế cho mỗi user (bao gồm cả đơn hàng theo phone)
+        const usersWithRealStats = await Promise.all(users.map(async (user) => {
+            // Tìm tất cả đơn hàng liên quan đến user này (theo userId hoặc phone)
+            const userOrders = await Order.find({
+                $or: [
+                    { userId: user._id },
+                    { 'shippingAddress.phone': user.phone }
+                ]
+            }).sort({ createdAt: -1 });
+
+            // Loại bỏ trùng lặp dựa trên _id
+            const uniqueOrders = userOrders.filter((order, index, self) => 
+                index === self.findIndex(o => o._id.toString() === order._id.toString())
+            );
+
+            // Tính toán thống kê thực tế
+            const realOrderCount = uniqueOrders.length;
+            const realTotalSpent = uniqueOrders.reduce((sum, order) => sum + (order.totalPrice || 0), 0);
+            const realDeliveredOrders = uniqueOrders.filter(order => order.status === 'delivered').length;
+
+            // Tính toán thống kê cũ (chỉ theo userId) để so sánh
+            const oldDeliveredOrders = await Order.countDocuments({
                 userId: user._id,
                 status: 'delivered'
             });
@@ -896,8 +939,13 @@ export const getAllUsers = async (req, res) => {
                 phone: user.phone || '',
                 avatar: user.avatar || '',
                 isActive: user.isActive !== false, // Mặc định true nếu không có
+                // Thống kê thực tế (bao gồm đơn hàng theo phone)
+                realOrderCount: realOrderCount,
+                realTotalSpent: realTotalSpent,
+                realDeliveredOrders: realDeliveredOrders,
+                // Thống kê cũ (chỉ theo userId) - giữ lại để tương thích
                 totalSpent: user.totalSpent || 0,
-                deliveredOrders: deliveredOrders,
+                deliveredOrders: oldDeliveredOrders,
                 orderCount: user.orderCount || 0,
                 createdAt: user.createdAt,
                 updatedAt: user.updatedAt,
@@ -905,13 +953,7 @@ export const getAllUsers = async (req, res) => {
             };
         }));
 
-        res.status(200).json({
-            success: true,
-            message: 'Lấy danh sách users thành công',
-            data: {
-                users: usersWithOrders
-            }
-        });
+        res.status(200).json(usersWithRealStats);
     } catch (error) {
         logError('Error in getAllUsers:', error);
         res.status(500).json({

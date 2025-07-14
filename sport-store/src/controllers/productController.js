@@ -105,12 +105,31 @@ export const getProductBySku = async (req, res) => {
     const requestId = generateRequestId();
     try {
         const { sku } = req.params;
-        const product = await Product.findOne({ sku });
+        
+        console.log(`[${requestId}] Searching for product with SKU: ${sku}`);
+        
+        // Thử tìm kiếm chính xác theo SKU trước
+        let product = await Product.findOne({ sku });
+
+        // Nếu không tìm thấy, thử tìm kiếm theo phần đuôi của SKU
+        if (!product && sku.includes('-')) {
+            const skuSuffix = sku.split('-').pop();
+            console.log(`[${requestId}] Not found by exact SKU, trying with suffix: ${skuSuffix}`);
+            product = await Product.findOne({ sku: { $regex: skuSuffix + '$', $options: 'i' } });
+        }
+
+        // Nếu vẫn không tìm thấy, thử tìm kiếm theo regex pattern
+        if (!product) {
+            console.log(`[${requestId}] Not found by suffix, trying with regex pattern`);
+            product = await Product.findOne({ sku: { $regex: sku, $options: 'i' } });
+        }
 
         if (!product) {
+            console.log(`[${requestId}] Product not found for SKU: ${sku}`);
             return sendErrorResponse(res, 404, 'Product not found', {}, requestId);
         }
 
+        console.log(`[${requestId}] Found product: ${product.name} with SKU: ${product.sku}`);
         return sendSuccessResponse(res, 200, 'Product retrieved successfully', { product });
     } catch (error) {
         console.error(`[${requestId}] Error in getProductBySku:`, error);

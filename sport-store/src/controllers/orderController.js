@@ -492,16 +492,40 @@ export const getAllOrders = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { userId } = req.query;
-        const query = userId ? { user: userId } : {};
+        const { userId, phone } = req.query;
+        let query = {};
+
+        logInfo(`[${requestId}] getAllOrders called with userId: ${userId}, phone: ${phone}`);
+
+        // Nếu có userId, tìm theo user
+        if (userId) {
+            query.user = userId;
+        }
+        
+        // Nếu có phone, tìm theo số điện thoại trong shippingAddress
+        if (phone) {
+            query['shippingAddress.phone'] = phone;
+        }
+
+        // Nếu có cả userId và phone, tìm theo cả hai điều kiện
+        if (userId && phone) {
+            query = {
+                $or: [
+                    { user: userId },
+                    { 'shippingAddress.phone': phone }
+                ]
+            };
+        }
+
+        logInfo(`[${requestId}] Final query:`, JSON.stringify(query));
 
         const orders = await Order.find(query)
             .sort({ createdAt: -1 })
-            .populate('user', 'email')
+            .populate('user', 'email fullname phone')
             .populate('items.product', 'name price image')
             .lean();
 
-        logInfo(`[${requestId}] Successfully retrieved all orders`);
+        logInfo(`[${requestId}] Successfully retrieved ${orders.length} orders with query:`, query);
         res.json({
             success: true,
             data: orders
@@ -534,6 +558,43 @@ export const getOrderById = async (req, res) => {
         res.json({
             success: true,
             data: order
+        });
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
+};
+
+// Tìm kiếm đơn hàng theo số điện thoại
+export const getOrdersByPhone = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { phone } = req.params;
+        
+        logInfo(`[${requestId}] getOrdersByPhone called with phone: ${phone}`);
+        
+        if (!phone) {
+            logError(`[${requestId}] Phone number is required`);
+            return res.status(400).json({
+                success: false,
+                message: "Số điện thoại là bắt buộc"
+            });
+        }
+
+        const query = { 'shippingAddress.phone': phone };
+        logInfo(`[${requestId}] Query for phone search:`, JSON.stringify(query));
+
+        const orders = await Order.find(query)
+            .sort({ createdAt: -1 })
+            .populate('user', 'email fullname phone customId')
+            .populate('items.product', 'name price image')
+            .lean();
+
+        logInfo(`[${requestId}] Successfully retrieved orders for phone: ${phone}, count: ${orders.length}`);
+        res.json({
+            success: true,
+            data: orders
         });
     } catch (error) {
         const errorResponse = handleError(error, requestId);
