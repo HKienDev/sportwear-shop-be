@@ -22,17 +22,34 @@ const shippingAddressSchema = z.object({
 
 // Schema cho tạo order
 export const createOrderSchema = z.object({
-  user: z.string().min(1, { message: 'ID người dùng là bắt buộc' }),
-  items: z.array(orderItemSchema).min(1, { message: 'Đơn hàng phải có ít nhất một sản phẩm' }),
-  shippingAddress: shippingAddressSchema,
+  customerId: z.string().optional(), // Chỉ admin mới cần
+  items: z.array(z.object({
+    sku: z.string().min(1, { message: 'SKU sản phẩm là bắt buộc' }),
+    quantity: z.number().int().min(1, { message: 'Số lượng phải lớn hơn 0' })
+  })).min(1, { message: 'Đơn hàng phải có ít nhất một sản phẩm' }),
+  shippingAddress: z.object({
+    fullName: z.string().min(1, { message: 'Họ tên người nhận là bắt buộc' }),
+    phone: z.string().min(1, { message: 'Số điện thoại là bắt buộc' }),
+    address: z.object({
+      province: z.object({
+        name: z.string().min(1, { message: 'Tên tỉnh/thành phố là bắt buộc' }),
+        code: z.number().min(1, { message: 'Mã tỉnh/thành phố là bắt buộc' })
+      }),
+      district: z.object({
+        name: z.string().min(1, { message: 'Tên quận/huyện là bắt buộc' }),
+        code: z.number().min(1, { message: 'Mã quận/huyện là bắt buộc' })
+      }),
+      ward: z.object({
+        name: z.string().min(1, { message: 'Tên phường/xã là bắt buộc' }),
+        code: z.number().min(1, { message: 'Mã phường/xã là bắt buộc' })
+      }),
+      street: z.string().optional()
+    })
+  }),
   paymentMethod: z.enum(['cod', 'banking', 'momo', 'vnpay'], { errorMap: () => ({ message: 'Phương thức thanh toán không hợp lệ' }) }),
-  paymentStatus: z.enum(['pending', 'paid', 'failed', 'refunded'], { errorMap: () => ({ message: 'Trạng thái thanh toán không hợp lệ' }) }).default('pending'),
-  orderStatus: z.enum(['pending', 'processing', 'shipped', 'delivered', 'cancelled'], { errorMap: () => ({ message: 'Trạng thái đơn hàng không hợp lệ' }) }).default('pending'),
-  totalAmount: z.number().min(0, { message: 'Tổng tiền phải lớn hơn hoặc bằng 0' }),
-  shippingFee: z.number().min(0, { message: 'Phí vận chuyển phải lớn hơn hoặc bằng 0' }).default(0),
-  discount: z.number().min(0, { message: 'Giảm giá phải lớn hơn hoặc bằng 0' }).max(100, { message: 'Giảm giá không được vượt quá 100%' }).optional(),
-  coupon: z.string().optional(),
-  note: z.string().optional()
+  shippingMethod: z.enum(['standard', 'express', 'same_day'], { errorMap: () => ({ message: 'Phương thức vận chuyển không hợp lệ' }) }),
+  couponCode: z.string().optional(),
+  notes: z.string().optional()
 });
 
 // Schema cho cập nhật order

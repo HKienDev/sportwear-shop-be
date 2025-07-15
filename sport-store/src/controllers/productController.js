@@ -26,8 +26,18 @@ export const getProducts = async (req, res) => {
             sort = 'createdAt',
             order = 'desc',
             page = 1,
-            limit = 5
+            limit = req.query.limit
         } = req.query;
+
+        // Xử lý limit cho admin và public
+        let finalLimit;
+        if (req.originalUrl.includes('/admin')) {
+            // Admin có thể lấy tất cả sản phẩm hoặc giới hạn tùy ý
+            finalLimit = limit ? Number(limit) : null;
+        } else {
+            // Public giới hạn mặc định 5 sản phẩm
+            finalLimit = Number(limit) || 5;
+        }
 
         // Build query - Admin thấy tất cả sản phẩm, public chỉ thấy active
         const isAdminRoute = req.originalUrl.includes('/admin');
@@ -56,28 +66,32 @@ export const getProducts = async (req, res) => {
         console.log(`[${requestId}] Query:`, JSON.stringify(query, null, 2));
 
         // Execute query with pagination
-        const skip = (Number(page) - 1) * Number(limit);
+        const skip = finalLimit ? (Number(page) - 1) * finalLimit : 0;
         const sortOptions = { [sort]: order === 'desc' ? -1 : 1 };
         
+        let productsQuery = Product.find(query)
+            .sort(sortOptions)
+            .populate({
+                path: 'categoryId',
+                select: 'name slug categoryId',
+                match: { isActive: true }
+            });
+        
+        // Chỉ áp dụng skip và limit nếu có finalLimit
+        if (finalLimit) {
+            productsQuery = productsQuery.skip(skip).limit(finalLimit);
+        }
+        
         const [products, total] = await Promise.all([
-            Product.find(query)
-                .sort(sortOptions)
-                .skip(skip)
-                .limit(Number(limit))
-                .populate({
-                    path: 'categoryId',
-                    select: 'name slug categoryId',
-                    match: { isActive: true }
-                })
-                .lean(),
+            productsQuery.lean(),
             Product.countDocuments(query)
         ]);
 
         console.log(`[${requestId}] Query result:`, JSON.stringify({
             total,
             page: Number(page),
-            limit: Number(limit),
-            totalPages: Math.ceil(total / Number(limit))
+            limit: finalLimit,
+            totalPages: finalLimit ? Math.ceil(total / finalLimit) : 1
         }, null, 2));
 
         // Log success
@@ -88,9 +102,9 @@ export const getProducts = async (req, res) => {
             products,
             pagination: {
                 page: Number(page),
-                limit: Number(limit),
+                limit: finalLimit,
                 total,
-                totalPages: Math.ceil(total / Number(limit))
+                totalPages: finalLimit ? Math.ceil(total / finalLimit) : 1
             }
         }, requestId);
     } catch (error) {

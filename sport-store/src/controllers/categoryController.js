@@ -30,9 +30,12 @@ export const getAllCategories = async (req, res) => {
             ];
         }
         
-        // Chỉ filter isActive nếu không phải admin route và có query parameter
-        if (!isAdminRoute && isActive !== undefined) {
+        // Admin có thể filter theo status, public chỉ thấy active
+        if (isAdminRoute && isActive !== undefined) {
             filterQuery.isActive = isActive === "true";
+        } else if (!isAdminRoute) {
+            // Public chỉ thấy categories active
+            filterQuery.isActive = true;
         }
 
         // Xây dựng sort

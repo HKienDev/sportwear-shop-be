@@ -25,8 +25,65 @@ export const createOrder = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { items, shippingAddress, paymentMethod, couponCode, shippingMethod } = req.body;
-        const userId = req.user._id;
+        const { items, shippingAddress, paymentMethod, couponCode, shippingMethod, customerId } = req.body;
+        
+        // Xác định userId cho đơn hàng
+        let userId = req.user._id;
+        
+        // Nếu là admin, tìm user theo số điện thoại hoặc customerId
+        if (req.user.role === 'admin') {
+            let customer = null;
+            
+            // Ưu tiên tìm theo customerId nếu có
+            if (customerId) {
+                if (!mongoose.Types.ObjectId.isValid(customerId)) {
+                    logError(`[${requestId}] Invalid customer ID: ${customerId}`);
+                    return res.status(400).json({
+                        success: false,
+                        message: "ID khách hàng không hợp lệ"
+                    });
+                }
+                
+                customer = await User.findById(customerId);
+                if (!customer) {
+                    logError(`[${requestId}] Customer not found: ${customerId}`);
+                    return res.status(404).json({
+                        success: false,
+                        message: "Không tìm thấy khách hàng"
+                    });
+                }
+            } else {
+                // Tìm theo số điện thoại trong shippingAddress
+                if (shippingAddress && shippingAddress.phone) {
+                    customer = await User.findOne({ phone: shippingAddress.phone });
+                    if (!customer) {
+                        logError(`[${requestId}] No customer found with phone: ${shippingAddress.phone}`);
+                        return res.status(404).json({
+                            success: false,
+                            message: `Không tìm thấy khách hàng với số điện thoại: ${shippingAddress.phone}`
+                        });
+                    }
+                } else {
+                    logError(`[${requestId}] No phone number provided in shipping address`);
+                    return res.status(400).json({
+                        success: false,
+                        message: "Số điện thoại là bắt buộc khi tạo đơn hàng"
+                    });
+                }
+            }
+            
+            // Kiểm tra user có role 'user' không
+            if (customer.role !== 'user') {
+                logError(`[${requestId}] User is not a customer: ${customer._id}`);
+                return res.status(400).json({
+                    success: false,
+                    message: "ID không phải là khách hàng"
+                });
+            }
+            
+            userId = customer._id;
+            logInfo(`[${requestId}] Admin creating order for customer: ${customer._id} (${customer.phone})`);
+        }
 
         // Validate items
         if (!items || items.length === 0) {
@@ -700,12 +757,14 @@ export const updateOrderStatus = async (req, res) => {
                 order.paymentStatus = PAYMENT_STATUS.PAID;
             }
             // Cập nhật orderCount và totalSpent của user
-            await User.findByIdAndUpdate(order.user, {
-                $inc: { 
-                    orderCount: 1,
-                    totalSpent: order.totalPrice
-                }
-            });
+            const user = await User.findById(order.user);
+            if (user) {
+                user.orderCount += 1;
+                user.totalSpent += order.totalPrice;
+                user.updateMembershipLevel();
+                await user.save();
+                logInfo(`[${requestId}] Updated user stats and membership level after delivering order: ${order.user}`);
+            }
             // Cập nhật stock của sản phẩm
             for (const item of order.items) {
                 await Product.findOneAndUpdate(
@@ -715,7 +774,7 @@ export const updateOrderStatus = async (req, res) => {
             }
         }
         
-        // Nếu đơn hàng bị hủy, hoàn lại stock
+        // Nếu đơn hàng bị hủy, hoàn lại stock và cập nhật thống kê user
         if (newStatus === ORDER_STATUS.CANCELLED && currentStatus !== ORDER_STATUS.CANCELLED) {
             // Hoàn lại stock cho tất cả các sản phẩm
             for (const item of order.items) {
@@ -723,6 +782,18 @@ export const updateOrderStatus = async (req, res) => {
                     { sku: item.sku },
                     { $inc: { stock: item.quantity } }
                 );
+            }
+
+            // Cập nhật thống kê user nếu đơn hàng đã được tính vào thống kê trước đó
+            if (currentStatus === 'delivered' || currentStatus === 'confirmed' || currentStatus === 'shipped' || order.paymentStatus === 'paid') {
+                const user = await User.findById(order.user);
+                if (user) {
+                    user.totalSpent = Math.max(0, user.totalSpent - order.totalPrice);
+                    user.orderCount = Math.max(0, user.orderCount - 1);
+                    user.updateMembershipLevel();
+                    await user.save();
+                    logInfo(`[${requestId}] Updated user stats after cancelling order: ${order.user}`);
+                }
             }
 
             // Chỉ hoàn lại usageLimit và userLimit khi hủy đơn ở trạng thái PENDING
@@ -792,6 +863,19 @@ export const updateOrderPayment = async (req, res) => {
 
         order.paymentMethod = paymentMethod;
         order.paymentStatus = paymentStatus;
+        
+        // Nếu thanh toán thành công và đơn hàng chưa được tính vào thống kê
+        if (paymentStatus === PAYMENT_STATUS.PAID && order.status !== ORDER_STATUS.DELIVERED) {
+            const user = await User.findById(order.user);
+            if (user) {
+                user.orderCount += 1;
+                user.totalSpent += order.totalPrice;
+                user.updateMembershipLevel();
+                await user.save();
+                logInfo(`[${requestId}] Updated user stats after payment: ${order.user}`);
+            }
+        }
+        
         await order.save();
 
         // Xóa cache sau khi cập nhật trạng thái thanh toán
@@ -840,6 +924,18 @@ export const deleteOrder = async (req, res) => {
             }
         }
 
+        // Cập nhật thống kê user nếu đơn hàng đã thanh toán hoặc đã giao hàng
+        if (order.status === 'delivered' || order.status === 'confirmed' || order.status === 'shipped' || order.paymentStatus === 'paid') {
+            const user = await User.findById(order.user);
+            if (user) {
+                user.totalSpent = Math.max(0, user.totalSpent - order.totalPrice);
+                user.orderCount = Math.max(0, user.orderCount - 1);
+                user.updateMembershipLevel();
+                await user.save();
+                logInfo(`[${requestId}] Updated user stats and membership level after deleting order: ${order.user}`);
+            }
+        }
+
         await order.deleteOne();
 
         // Xóa cache sau khi xóa đơn hàng
@@ -882,7 +978,9 @@ export const bulkDeleteOrders = async (req, res) => {
             });
         }
 
-        // Restore product stock for pending orders
+        // Restore product stock for pending orders and update user stats
+        const userStatsUpdates = new Map(); // Map để tính toán tổng cần trừ cho mỗi user
+        
         for (const order of existingOrders) {
             if (order.status === ORDER_STATUS.PENDING) {
                 for (const item of order.items) {
@@ -891,10 +989,33 @@ export const bulkDeleteOrders = async (req, res) => {
                     });
                 }
             }
+            
+            // Tính toán thống kê cần cập nhật cho user
+            if (order.status === 'delivered' || order.status === 'confirmed' || order.status === 'shipped' || order.paymentStatus === 'paid') {
+                const userId = order.user.toString();
+                if (!userStatsUpdates.has(userId)) {
+                    userStatsUpdates.set(userId, { totalSpent: 0, orderCount: 0 });
+                }
+                const stats = userStatsUpdates.get(userId);
+                stats.totalSpent += order.totalPrice;
+                stats.orderCount += 1;
+            }
         }
 
         // Xóa các đơn hàng tồn tại
         const result = await Order.deleteMany({ _id: { $in: orderIds } });
+        
+        // Cập nhật thống kê user
+        for (const [userId, stats] of userStatsUpdates) {
+            const user = await User.findById(userId);
+            if (user) {
+                user.totalSpent = Math.max(0, user.totalSpent - stats.totalSpent);
+                user.orderCount = Math.max(0, user.orderCount - stats.orderCount);
+                user.updateMembershipLevel();
+                await user.save();
+                logInfo(`[${requestId}] Updated user stats and membership level after bulk delete: ${userId}, -${stats.totalSpent} VND, -${stats.orderCount} orders`);
+            }
+        }
         
         if (result.deletedCount === 0) {
             logError(`[${requestId}] No orders were deleted`);

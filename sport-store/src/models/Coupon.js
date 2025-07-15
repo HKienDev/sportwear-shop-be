@@ -9,7 +9,8 @@ import { DateUtils } from "../utils/timeUtils.js";
 export const COUPON_STATUS = {
     ACTIVE: "Hoạt động",
     EXPIRED: "Hết hạn",
-    PAUSED: "Tạm Dừng"
+    PAUSED: "Tạm Dừng",
+    UPCOMING: "Sắp diễn ra"
 };
 
 export const DISCOUNT_TYPE = {
@@ -63,7 +64,7 @@ const couponSchema = new mongoose.Schema(
         status: {
             type: String,
             enum: Object.values(COUPON_STATUS),
-            default: COUPON_STATUS.ACTIVE
+            default: COUPON_STATUS.UPCOMING
         },
         usageCount: {
             type: Number,
@@ -117,7 +118,6 @@ const couponSchema = new mongoose.Schema(
 couponSchema.virtual('isAvailable').get(function() {
     const now = DateUtils.getCurrentVietnamTime();
     return this.status === COUPON_STATUS.ACTIVE && 
-           !DateUtils.isExpiredInVietnam(this.endDate) && 
            this.usageCount < this.usageLimit &&
            DateUtils.isDateInRange(now, this.startDate, this.endDate);
 });

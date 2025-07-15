@@ -907,10 +907,10 @@ export const getAllUsers = async (req, res) => {
 
         // Tính toán thống kê thực tế cho mỗi user (bao gồm cả đơn hàng theo phone)
         const usersWithRealStats = await Promise.all(users.map(async (user) => {
-            // Tìm tất cả đơn hàng liên quan đến user này (theo userId hoặc phone)
+            // Tìm tất cả đơn hàng liên quan đến user này (theo user hoặc phone)
             const userOrders = await Order.find({
                 $or: [
-                    { userId: user._id },
+                    { user: user._id },
                     { 'shippingAddress.phone': user.phone }
                 ]
             }).sort({ createdAt: -1 });
@@ -920,14 +920,20 @@ export const getAllUsers = async (req, res) => {
                 index === self.findIndex(o => o._id.toString() === order._id.toString())
             );
 
-            // Tính toán thống kê thực tế
-            const realOrderCount = uniqueOrders.length;
-            const realTotalSpent = uniqueOrders.reduce((sum, order) => sum + (order.totalPrice || 0), 0);
-            const realDeliveredOrders = uniqueOrders.filter(order => order.status === 'delivered').length;
+            // Tính toán thống kê thực tế - tính tất cả đơn hàng đã thanh toán (không chỉ đơn đã giao hàng)
+            const paidOrders = uniqueOrders.filter(order => 
+                order.status === 'delivered' || 
+                order.status === 'confirmed' || 
+                order.status === 'shipped' ||
+                order.paymentStatus === 'paid'
+            );
+            const realOrderCount = paidOrders.length; // Tính tất cả đơn đã thanh toán
+            const realTotalSpent = paidOrders.reduce((sum, order) => sum + (order.totalPrice || 0), 0); // Tính tổng đơn đã thanh toán
+            const realDeliveredOrders = uniqueOrders.filter(order => order.status === 'delivered').length; // Chỉ đơn đã giao hàng
 
-            // Tính toán thống kê cũ (chỉ theo userId) để so sánh
+            // Tính toán thống kê cũ (chỉ theo user) để so sánh
             const oldDeliveredOrders = await Order.countDocuments({
-                userId: user._id,
+                user: user._id,
                 status: 'delivered'
             });
 
