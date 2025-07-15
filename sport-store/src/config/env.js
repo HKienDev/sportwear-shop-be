@@ -25,7 +25,10 @@ const requiredEnvVars = [
     "RATE_LIMIT_MAX_REQUESTS",
     "CORS_ORIGIN",
     "GOOGLE_CLIENT_ID",
-    "GOOGLE_CLIENT_SECRET"
+    "GOOGLE_CLIENT_SECRET",
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET"
     // GOOGLE_REDIRECT_URI - Made optional for deployment
 ];
 
@@ -73,6 +76,11 @@ const env = {
     GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || (process.env.NODE_ENV === "production" ? `${process.env.CORS_ORIGIN}/api/auth/google/callback` : "http://localhost:4000/api/auth/google/callback"),
     GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL || process.env.GOOGLE_REDIRECT_URI || (process.env.NODE_ENV === "production" ? `${process.env.CORS_ORIGIN}/api/auth/google/callback` : "http://localhost:4000/api/auth/google/callback"),
     
+    // Cloudinary
+    CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+    CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+    CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
+    
     // Paths
     UPLOAD_DIR: join(__dirname, "../../uploads"),
     
@@ -85,6 +93,11 @@ const env = {
 // Validate JWT configuration
 if (!env.JWT_SECRET) {
     throw new Error('JWT_SECRET is required');
+}
+
+// Validate Cloudinary configuration
+if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
+    throw new Error('Cloudinary configuration is required (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)');
 }
 
 export default env;

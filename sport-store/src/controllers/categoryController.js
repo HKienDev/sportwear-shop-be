@@ -120,6 +120,7 @@ export const getCategoryById = async (req, res) => {
             description: category.description,
             image: category.image,
             isActive: category.isActive,
+            showInNewProducts: category.showInNewProducts !== undefined ? category.showInNewProducts : true,
             createdBy: {
                 _id: creator?._id,
                 name: creator?.name
@@ -180,6 +181,7 @@ export const getCategoryBySlug = async (req, res) => {
             description: category.description,
             image: category.image,
             isActive: category.isActive,
+            showInNewProducts: category.showInNewProducts !== undefined ? category.showInNewProducts : true,
             createdBy: {
                 _id: creator?._id,
                 name: creator?.name
@@ -214,7 +216,7 @@ export const getCategoryBySlug = async (req, res) => {
 export const createCategory = async (req, res) => {
     const requestId = req.id || 'unknown';
     try {
-        const { name, description, image, isActive } = req.body;
+        const { name, description, image, isActive, showInNewProducts } = req.body;
 
         // Log request data
         logInfo(`Creating category with data:`, {
@@ -273,6 +275,7 @@ export const createCategory = async (req, res) => {
             description: description || "",
             image,
             isActive: isActive !== undefined ? isActive : true,
+            showInNewProducts: showInNewProducts !== undefined ? showInNewProducts : true,
             createdBy: req.user._id
         });
 
@@ -308,7 +311,7 @@ export const updateCategory = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        const { name, description, slug, image, isActive } = req.body;
+        const { name, description, slug, image, isActive, showInNewProducts } = req.body;
         const { categoryId } = req.params;
 
         logInfo(`[${requestId}] Updating category with ID: ${categoryId}`);
@@ -352,6 +355,7 @@ export const updateCategory = async (req, res) => {
         if (slug !== undefined) updateData.slug = slug;
         if (image !== undefined) updateData.image = image;
         if (isActive !== undefined) updateData.isActive = isActive;
+        if (showInNewProducts !== undefined) updateData.showInNewProducts = showInNewProducts;
         updateData.updatedBy = req.user._id;
 
         logInfo(`[${requestId}] Update data to be applied:`, updateData);
@@ -451,4 +455,87 @@ export const searchCategories = async (req, res) => {
             data: categories
         });
     } catch { /* empty */ }
+};
+
+export const bulkDeleteCategories = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { categoryIds } = req.body;
+
+        if (!categoryIds || !Array.isArray(categoryIds) || categoryIds.length === 0) {
+            logError(`[${requestId}] Invalid categoryIds provided`);
+            return res.status(400).json({
+                success: false,
+                message: "Danh sách ID danh mục không hợp lệ"
+            });
+        }
+
+        logInfo(`[${requestId}] Bulk deleting categories:`, categoryIds);
+
+        // Kiểm tra xem các danh mục có tồn tại không và có sản phẩm không
+        const categories = await Category.find({
+            $or: [
+                { _id: { $in: categoryIds } },
+                { categoryId: { $in: categoryIds } }
+            ]
+        });
+
+        if (categories.length === 0) {
+            logError(`[${requestId}] No categories found to delete`);
+            return res.status(404).json({
+                success: false,
+                message: "Không tìm thấy danh mục nào để xóa"
+            });
+        }
+
+        // Kiểm tra xem có danh mục nào có sản phẩm không
+        const categoryIdsToCheck = categories.map(cat => cat.categoryId);
+        const productsWithCategories = await Product.find({
+            categoryId: { $in: categoryIdsToCheck }
+        });
+
+        if (productsWithCategories.length > 0) {
+            const categoriesWithProducts = [...new Set(productsWithCategories.map(p => p.categoryId))];
+            logError(`[${requestId}] Categories with products found:`, categoriesWithProducts);
+            return res.status(400).json({
+                success: false,
+                message: `Không thể xóa các danh mục sau vì có sản phẩm đang sử dụng: ${categoriesWithProducts.join(', ')}`
+            });
+        }
+
+        // Xóa ảnh khỏi Cloudinary
+        const imageDeletionPromises = categories
+            .filter(category => category.image)
+            .map(async (category) => {
+                try {
+                    const publicId = category.image.split('/').pop().split('.')[0];
+                    await cloudinary.uploader.destroy(`sport-store/categories/${publicId}`);
+                } catch (error) {
+                    logError(`[${requestId}] Error deleting image from Cloudinary:`, error);
+                }
+            });
+
+        await Promise.all(imageDeletionPromises);
+
+        // Xóa các danh mục khỏi database
+        const deleteResult = await Category.deleteMany({
+            _id: { $in: categories.map(cat => cat._id) }
+        });
+
+        logInfo(`[${requestId}] Successfully deleted ${deleteResult.deletedCount} categories`);
+        res.json({
+            success: true,
+            message: `Đã xóa thành công ${deleteResult.deletedCount} danh mục`,
+            data: {
+                deletedCount: deleteResult.deletedCount
+            }
+        });
+    } catch (error) {
+        logError(`[${requestId}] Error in bulkDeleteCategories:`, error);
+        res.status(500).json({
+            success: false,
+            message: "Có lỗi xảy ra khi xóa danh mục"
+        });
+    }
 };

@@ -20,10 +20,11 @@ router.get("/", categoryController.getAllCategories);
 router.get("/search", validateRequest(searchCategorySchema), categoryController.searchCategories);
 router.get("/admin", verifyAdmin, categoryController.getAllCategories);
 router.get("/slug/:slug", categoryController.getCategoryBySlug);
-router.get("/:categoryId", categoryController.getCategoryById);
 
 // Protected routes (Admin only)
 router.post("/", verifyAdmin, validateRequest(createCategorySchema), categoryController.createCategory);
+router.delete("/bulk-delete", verifyAdmin, categoryController.bulkDeleteCategories);
+router.get("/:categoryId", categoryController.getCategoryById);
 router.put("/:categoryId", verifyAdmin, validateRequest(updateCategorySchema), categoryController.updateCategory);
 router.delete("/:categoryId", verifyAdmin, categoryController.deleteCategory);
 

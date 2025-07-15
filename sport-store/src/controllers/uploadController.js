@@ -43,7 +43,7 @@ const handleError = (error, requestId) => {
     return {
         success: false,
         message: ERROR_MESSAGES.SERVER_ERROR,
-        error: env.NODE_ENV === "development" ? error.message : undefined
+        error: env.isDevelopment ? error.message : undefined
     };
 };
 

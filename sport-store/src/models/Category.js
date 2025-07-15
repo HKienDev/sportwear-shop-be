@@ -56,6 +56,11 @@ const categorySchema = new mongoose.Schema({
         type: Number,
         default: 0,
         min: [0, "Số lượng sản phẩm không thể âm"]
+    },
+    showInNewProducts: {
+        type: Boolean,
+        default: true,
+        description: "Hiển thị trong phần 'Sản phẩm Mới' trên trang chủ"
     }
 }, {
     timestamps: true,
