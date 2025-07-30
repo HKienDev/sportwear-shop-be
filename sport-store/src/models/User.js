@@ -309,7 +309,6 @@ userSchema.pre("save", async function(next) {
 });
 
 // Indexes
-userSchema.index({ customId: 1 });
 userSchema.index({ phone: 1 });
 userSchema.index({ role: 1 });
 userSchema.index({ membershipLevel: 1 });
@@ -319,7 +318,6 @@ userSchema.index({ authStatus: 1 });
 userSchema.index({ lastLoginAt: -1 });
 userSchema.index({ loginAttempts: 1 });
 userSchema.index({ lockedUntil: 1 });
-userSchema.index({ email: 1 });
 userSchema.index({ "address.province": 1 });
 userSchema.index({ "address.district": 1 });
 userSchema.index({ "address.ward": 1 });

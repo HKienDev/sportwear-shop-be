@@ -115,6 +115,7 @@ const productSchema = new mongoose.Schema({
     sku: {
         type: String,
         required: true,
+        unique: true,
         trim: true
     },
     tags: [{
@@ -397,10 +398,9 @@ productSchema.post('remove', async function(doc, next) {
 });
 
 // Indexes
-productSchema.index({ name: 1, description: 'text', brand: 'text', tags: 'text' }, { unique: true });
+productSchema.index({ name: 1, description: 'text', brand: 'text', tags: 'text' });
 productSchema.index({ categoryId: 1 });
 productSchema.index({ brand: 1 });
-productSchema.index({ sku: 1 }, { unique: true });
 productSchema.index({ slug: 1 }, { unique: true });
 productSchema.index({ isActive: 1 });
 productSchema.index({ isActive: 1, isFeatured: 1 });
