@@ -13,7 +13,10 @@ import {
     verifyReview,
     unverifyReview,
     makePublic,
-    makePrivate
+    makePrivate,
+    replyToReview,
+    updateAdminReply,
+    deleteAdminReply
 } from "../controllers/reviewController.js";
 
 const router = express.Router();
@@ -26,6 +29,9 @@ router.put("/admin/:id/verify", verifyAccessTokenMiddleware, checkRole(['admin']
 router.put("/admin/:id/unverify", verifyAccessTokenMiddleware, checkRole(['admin']), unverifyReview);
 router.put("/admin/:id/public", verifyAccessTokenMiddleware, checkRole(['admin']), makePublic);
 router.put("/admin/:id/private", verifyAccessTokenMiddleware, checkRole(['admin']), makePrivate);
+router.put("/admin/:id/reply", verifyAccessTokenMiddleware, checkRole(['admin']), replyToReview);
+router.put("/admin/:id/reply/update", verifyAccessTokenMiddleware, checkRole(['admin']), updateAdminReply);
+router.delete("/admin/:id/reply", verifyAccessTokenMiddleware, checkRole(['admin']), deleteAdminReply);
 router.put("/admin/:id", verifyAccessTokenMiddleware, checkRole(['admin']), validateRequest({ body: updateReviewSchema }), updateReview);
 router.delete("/admin/:id", verifyAccessTokenMiddleware, checkRole(['admin']), deleteReview);
 

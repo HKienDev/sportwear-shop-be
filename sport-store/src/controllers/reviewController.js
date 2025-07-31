@@ -454,4 +454,108 @@ const updateProductRating = async (productId) => {
     } catch (error) {
         logger.error("Error updating product rating:", error);
     }
-}; 
+};
+
+// Reply to review (admin only)
+export const replyToReview = async (req, res) => {
+    const requestId = generateRequestId();
+    try {
+        const { id } = req.params;
+        const { adminReply } = req.body;
+
+        if (!adminReply || adminReply.trim().length === 0) {
+            return sendErrorResponse(res, 400, "Nội dung phản hồi không được để trống", {}, requestId);
+        }
+
+        if (adminReply.length > 500) {
+            return sendErrorResponse(res, 400, "Nội dung phản hồi không được vượt quá 500 ký tự", {}, requestId);
+        }
+
+        const review = await Review.findById(id);
+        if (!review) {
+            return sendErrorResponse(res, 404, "Không tìm thấy đánh giá", {}, requestId);
+        }
+
+        review.adminNote = adminReply.trim();
+        review.reviewedBy = req.user.id;
+        review.reviewedAt = new Date();
+        await review.save();
+
+        logger.info(`[${requestId}] Admin replied to review ${id}`);
+
+        return sendSuccessResponse(res, 200, "Phản hồi đánh giá thành công", { review });
+
+    } catch (error) {
+        logger.error(`[${requestId}] Error replying to review:`, error);
+        return sendErrorResponse(res, 500, "Lỗi khi phản hồi đánh giá", error.message, requestId);
+    }
+};
+
+// Update admin reply (admin only)
+export const updateAdminReply = async (req, res) => {
+    const requestId = generateRequestId();
+    try {
+        const { id } = req.params;
+        const { adminReply } = req.body;
+
+        if (!adminReply || adminReply.trim().length === 0) {
+            return sendErrorResponse(res, 400, "Nội dung phản hồi không được để trống", {}, requestId);
+        }
+
+        if (adminReply.length > 500) {
+            return sendErrorResponse(res, 400, "Nội dung phản hồi không được vượt quá 500 ký tự", {}, requestId);
+        }
+
+        const review = await Review.findById(id);
+        if (!review) {
+            return sendErrorResponse(res, 404, "Không tìm thấy đánh giá", {}, requestId);
+        }
+
+        if (!review.adminNote) {
+            return sendErrorResponse(res, 400, "Không có phản hồi admin để cập nhật", {}, requestId);
+        }
+
+        review.adminNote = adminReply.trim();
+        review.reviewedBy = req.user.id;
+        review.reviewedAt = new Date();
+        await review.save();
+
+        logger.info(`[${requestId}] Admin updated reply to review ${id}`);
+
+        return sendSuccessResponse(res, 200, "Cập nhật phản hồi thành công", { review });
+
+    } catch (error) {
+        logger.error(`[${requestId}] Error updating admin reply:`, error);
+        return sendErrorResponse(res, 500, "Lỗi khi cập nhật phản hồi", error.message, requestId);
+    }
+};
+
+// Delete admin reply (admin only)
+export const deleteAdminReply = async (req, res) => {
+    const requestId = generateRequestId();
+    try {
+        const { id } = req.params;
+
+        const review = await Review.findById(id);
+        if (!review) {
+            return sendErrorResponse(res, 404, "Không tìm thấy đánh giá", {}, requestId);
+        }
+
+        if (!review.adminNote) {
+            return sendErrorResponse(res, 400, "Không có phản hồi admin để xóa", {}, requestId);
+        }
+
+        review.adminNote = undefined;
+        review.reviewedBy = undefined;
+        review.reviewedAt = undefined;
+        await review.save();
+
+        logger.info(`[${requestId}] Admin deleted reply to review ${id}`);
+
+        return sendSuccessResponse(res, 200, "Xóa phản hồi thành công", { review });
+
+    } catch (error) {
+        logger.error(`[${requestId}] Error deleting admin reply:`, error);
+        return sendErrorResponse(res, 500, "Lỗi khi xóa phản hồi", error.message, requestId);
+    }
+};
