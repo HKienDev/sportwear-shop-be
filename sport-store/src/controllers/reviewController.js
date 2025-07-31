@@ -42,7 +42,7 @@ export const getAllReviews = async (req, res) => {
         console.log(`[${requestId}] Sort:`, sort);
         
         const reviews = await Review.find(filter)
-            .populate("user", "fullname avatar")
+            .populate("user", "fullname avatar totalSpent")
             .populate("product", "name mainImage sku")
             .sort(sort)
             .limit(parseInt(limit))
@@ -84,7 +84,7 @@ export const getReviewById = async (req, res) => {
         const { id } = req.params;
 
         const review = await Review.findById(id)
-            .populate("user", "fullname avatar")
+            .populate("user", "fullname avatar totalSpent")
             .populate("product", "name mainImage sku");
 
         if (!review) {
