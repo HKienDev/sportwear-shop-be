@@ -48,6 +48,8 @@ export const getAllReviews = async (req, res) => {
             .limit(parseInt(limit))
             .skip(skip);
 
+
+
         // Get total count
         const total = await Review.countDocuments(filter);
 
@@ -134,7 +136,13 @@ export const createReview = async (req, res) => {
             logger.error(`[${requestId}] Order not found: ${orderId} for user: ${userId}`);
             return sendErrorResponse(res, 404, "Không tìm thấy đơn hàng hoặc đơn hàng không thuộc về bạn", {}, requestId);
         }
-        logger.info(`[${requestId}] Found order: ${order._id}`);
+        logger.info(`[${requestId}] Found order: ${order._id} with status: ${order.status}`);
+
+        // Check if order is delivered (required for review)
+        if (order.status !== 'delivered') {
+            logger.error(`[${requestId}] Order ${orderId} is not delivered. Current status: ${order.status}`);
+            return sendErrorResponse(res, 400, "Chỉ có thể đánh giá sản phẩm sau khi đơn hàng đã được giao thành công", {}, requestId);
+        }
 
         // Check if user has already reviewed this product for this order
         const existingReview = await Review.findOne({

@@ -328,8 +328,7 @@ productSchema.statics.findFeatured = function(limit = 6) {
         .limit(limit)
         .populate({
             path: 'categoryId',
-            select: 'name slug categoryId',
-            match: { isActive: true }
+            select: 'name slug categoryId'
         });
 };
 

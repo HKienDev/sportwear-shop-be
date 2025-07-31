@@ -8,6 +8,7 @@ import { sendErrorResponse, sendSuccessResponse } from '../utils/responseUtils.j
 import { generateRequestId } from '../utils/requestUtils.js';
 import slugify from 'slugify';
 import { clearDashboardCacheUtil } from './dashboardController.js';
+import mongoose from 'mongoose';
 
 // API PUBLIC (cho người dùng)
 // GET /api/products - Lấy danh sách sản phẩm (có phân trang, filter, sort)
@@ -183,7 +184,40 @@ export const getProductBySku = async (req, res) => {
         }
 
         console.log(`[${requestId}] Found product: ${product.name} with SKU: ${product.sku}`);
-        return sendSuccessResponse(res, 200, 'Product retrieved successfully', { product });
+        
+        // Tính rating thực từ Review collection
+        try {
+            const reviewStats = await Review.aggregate([
+                {
+                    $match: {
+                        product: product._id
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        averageRating: { $avg: "$rating" },
+                        totalReviews: { $sum: 1 }
+                    }
+                }
+            ]);
+
+            const rating = reviewStats.length > 0 ? reviewStats[0].averageRating : 0;
+            const numReviews = reviewStats.length > 0 ? reviewStats[0].totalReviews : 0;
+
+            // Cập nhật product với rating thực
+            const productWithRating = {
+                ...product.toObject(),
+                rating: Math.round(rating * 10) / 10, // Làm tròn đến 1 chữ số thập phân
+                numReviews: numReviews
+            };
+
+            console.log(`[${requestId}] Product rating calculated: ${productWithRating.rating} from ${numReviews} reviews`);
+            return sendSuccessResponse(res, 200, 'Product retrieved successfully', { product: productWithRating });
+        } catch (error) {
+            console.error(`[${requestId}] Error calculating rating for product ${product._id}:`, error);
+            return sendSuccessResponse(res, 200, 'Product retrieved successfully', { product });
+        }
     } catch (error) {
         console.error(`[${requestId}] Error in getProductBySku:`, error);
         return sendErrorResponse(res, 500, 'Internal server error', {}, requestId);
@@ -257,10 +291,31 @@ export const getFeaturedProducts = async (req, res) => {
         const products = await Product.findFeatured(parseInt(limit));
         
         console.log(`[${requestId}] Found ${products.length} featured products`);
+        console.log(`[${requestId}] Products:`, products.map(p => ({id: p._id, name: p.name, isFeatured: p.isFeatured})));
+        
+        // Debug: Kiểm tra trực tiếp trong database
+        const directProducts = await mongoose.connection.db.collection('products').find({isActive: true, isFeatured: true}).limit(parseInt(limit)).toArray();
+        console.log(`[${requestId}] Direct DB query found ${directProducts.length} products:`, directProducts.map(p => ({id: p._id, name: p.name, isFeatured: p.isFeatured})));
+        
+        // Sử dụng dữ liệu trực tiếp từ database vì Product.findFeatured() có vấn đề với populate
+        const productsToUse = directProducts;
+        
+        // Debug: Log productsToUse
+        console.log(`[${requestId}] productsToUse length:`, productsToUse.length);
+        console.log(`[${requestId}] productsToUse sample:`, productsToUse[0] ? {
+            _id: productsToUse[0]._id,
+            name: productsToUse[0].name,
+            salePrice: productsToUse[0].salePrice,
+            originalPrice: productsToUse[0].originalPrice,
+            mainImage: productsToUse[0].mainImage,
+            sku: productsToUse[0].sku,
+            brand: productsToUse[0].brand,
+            categoryId: productsToUse[0].categoryId
+        } : 'No products');
         
         // Tính rating thực từ Review collection cho mỗi sản phẩm
         const productsWithRating = await Promise.all(
-            products.map(async (product) => {
+            productsToUse.map(async (product) => {
                 try {
                     // Kiểm tra product._id có tồn tại không
                     if (!product._id) {
