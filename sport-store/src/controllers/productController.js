@@ -1,5 +1,6 @@
 import Product from '../models/Product.js';
 import Category from "../models/Category.js";
+import Review from "../models/Review.js";
 import { logInfo, logError } from "../utils/logger.js";
 import { generateUniqueSKU } from "../utils/productUtils.js";
 import { updateProductSchema, searchProductSchema, createProductSchema } from '../schemas/productSchema.js';
@@ -87,6 +88,44 @@ export const getProducts = async (req, res) => {
             Product.countDocuments(query)
         ]);
 
+        // Tính rating thực từ Review collection cho mỗi sản phẩm
+        const productsWithRating = await Promise.all(
+            products.map(async (product) => {
+                try {
+                    const reviewStats = await Review.aggregate([
+                        {
+                            $match: {
+                                product: product._id
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                averageRating: { $avg: "$rating" },
+                                totalReviews: { $sum: 1 }
+                            }
+                        }
+                    ]);
+
+                    const rating = reviewStats.length > 0 ? reviewStats[0].averageRating : 0;
+                    const numReviews = reviewStats.length > 0 ? reviewStats[0].totalReviews : 0;
+
+                    return {
+                        ...product,
+                        rating: Math.round(rating * 10) / 10, // Làm tròn đến 1 chữ số thập phân
+                        numReviews: numReviews
+                    };
+                } catch (error) {
+                    console.error(`Error calculating rating for product ${product._id}:`, error);
+                    return {
+                        ...product,
+                        rating: 0,
+                        numReviews: 0
+                    };
+                }
+            })
+        );
+
         console.log(`[${requestId}] Query result:`, JSON.stringify({
             total,
             page: Number(page),
@@ -99,7 +138,7 @@ export const getProducts = async (req, res) => {
         
         // Return success response
         return sendSuccessResponse(res, 200, 'Lấy danh sách sản phẩm thành công', {
-            products,
+            products: productsWithRating,
             pagination: {
                 page: Number(page),
                 limit: finalLimit,
@@ -219,18 +258,66 @@ export const getFeaturedProducts = async (req, res) => {
         
         console.log(`[${requestId}] Found ${products.length} featured products`);
         
+        // Tính rating thực từ Review collection cho mỗi sản phẩm
+        const productsWithRating = await Promise.all(
+            products.map(async (product) => {
+                try {
+                    // Kiểm tra product._id có tồn tại không
+                    if (!product._id) {
+                        console.error(`Product missing _id:`, product);
+                        return {
+                            ...product,
+                            rating: 0,
+                            numReviews: 0
+                        };
+                    }
+
+                    const reviewStats = await Review.aggregate([
+                        {
+                            $match: {
+                                product: product._id
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                averageRating: { $avg: "$rating" },
+                                totalReviews: { $sum: 1 }
+                            }
+                        }
+                    ]);
+
+                    const rating = reviewStats.length > 0 ? reviewStats[0].averageRating : 0;
+                    const numReviews = reviewStats.length > 0 ? reviewStats[0].totalReviews : 0;
+
+                    return {
+                        ...product,
+                        rating: Math.round(rating * 10) / 10, // Làm tròn đến 1 chữ số thập phân
+                        numReviews: numReviews
+                    };
+                } catch (error) {
+                    console.error(`Error calculating rating for product ${product._id}:`, error);
+                    return {
+                        ...product,
+                        rating: 0,
+                        numReviews: 0
+                    };
+                }
+            })
+        );
+
         // Transform products to match frontend expected format
-        const transformedProducts = products.map(product => ({
-            id: product._id.toString(),
-            name: product.name,
-            price: product.salePrice || product.originalPrice,
-            originalPrice: product.originalPrice,
+        const transformedProducts = productsWithRating.map(product => ({
+            id: product._id ? product._id.toString() : '',
+            name: product.name || '',
+            price: product.salePrice || product.originalPrice || 0,
+            originalPrice: product.originalPrice || 0,
             sold: product.featuredConfig?.soldCount || product.soldCount || 0,
-            total: (product.featuredConfig?.remainingStock || product.stock) + (product.featuredConfig?.soldCount || product.soldCount || 0),
+            total: (product.featuredConfig?.remainingStock || product.stock || 0) + (product.featuredConfig?.soldCount || product.soldCount || 0),
             rating: product.rating || 0,
-            image: product.mainImage,
-            sku: product.sku,
-            brand: product.brand,
+            image: product.mainImage || '',
+            sku: product.sku || '',
+            brand: product.brand || '',
             category: product.categoryId?.name || 'Unknown Category',
             featuredConfig: product.featuredConfig || null
         }));
@@ -280,8 +367,47 @@ export const getProductsByCategorySlug = async (req, res) => {
                 .lean(),
             Product.countDocuments(query)
         ]);
+
+        // Tính rating thực từ Review collection cho mỗi sản phẩm
+        const productsWithRating = await Promise.all(
+            products.map(async (product) => {
+                try {
+                    const reviewStats = await Review.aggregate([
+                        {
+                            $match: {
+                                product: product._id
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                averageRating: { $avg: "$rating" },
+                                totalReviews: { $sum: 1 }
+                            }
+                        }
+                    ]);
+
+                    const rating = reviewStats.length > 0 ? reviewStats[0].averageRating : 0;
+                    const numReviews = reviewStats.length > 0 ? reviewStats[0].totalReviews : 0;
+
+                    return {
+                        ...product,
+                        rating: Math.round(rating * 10) / 10, // Làm tròn đến 1 chữ số thập phân
+                        numReviews: numReviews
+                    };
+                } catch (error) {
+                    console.error(`Error calculating rating for product ${product._id}:`, error);
+                    return {
+                        ...product,
+                        rating: 0,
+                        numReviews: 0
+                    };
+                }
+            })
+        );
+
         return sendSuccessResponse(res, 200, 'Lấy danh sách sản phẩm theo slug thành công', {
-            products,
+            products: productsWithRating,
             pagination: {
                 page: Number(page),
                 limit: Number(limit),

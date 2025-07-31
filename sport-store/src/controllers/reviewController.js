@@ -427,9 +427,7 @@ const updateProductRating = async (productId) => {
         const result = await Review.aggregate([
             {
                 $match: {
-                    product: productId,
-                    status: "approved",
-                    visibility: "public"
+                    product: productId
                 }
             },
             {
