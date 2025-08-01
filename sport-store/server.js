@@ -31,6 +31,7 @@ import cartRoutes from "./src/routes/cartRoutes.js";
 import emailRoutes from "./src/routes/emailRoutes.js";
 import chatRoutes from "./src/routes/chatRoutes.js";
 import reviewRoutes from "./src/routes/reviewRoutes.js";
+import questionRoutes from "./src/routes/questionRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -76,6 +77,7 @@ app.use("/api/cart", cartRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/questions", questionRoutes);
 
 // Error handling
 app.use(notFoundHandler);

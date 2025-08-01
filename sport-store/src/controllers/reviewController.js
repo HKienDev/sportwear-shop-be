@@ -5,6 +5,8 @@ import User from "../models/User.js";
 import { sendSuccessResponse, sendErrorResponse } from "../utils/responseUtils.js";
 import { logger } from "../utils/logger.js";
 import { generateRequestId } from "../utils/requestUtils.js";
+import { sendEmail } from "../utils/sendEmail.js";
+import env from "../config/env.js";
 
 // Get all reviews (with filtering and pagination)
 export const getAllReviews = async (req, res) => {
@@ -160,6 +162,15 @@ export const createReview = async (req, res) => {
             return sendErrorResponse(res, 400, "Sản phẩm không có trong đơn hàng này", {}, requestId);
         }
 
+        // Validate comment
+        if (!comment || !comment.trim()) {
+            return sendErrorResponse(res, 400, "Nội dung đánh giá không được để trống", {}, requestId);
+        }
+
+        if (comment.trim().length > 1000) {
+            return sendErrorResponse(res, 400, "Nội dung đánh giá không được vượt quá 1000 ký tự", {}, requestId);
+        }
+
         // Create review
         const review = new Review({
             product: product._id,
@@ -169,7 +180,7 @@ export const createReview = async (req, res) => {
             userAvatar: user.avatar,
             rating,
             title,
-            comment,
+            comment: comment.trim(),
             images,
             orderId: order._id,
             orderShortId: order.shortId,
@@ -187,6 +198,39 @@ export const createReview = async (req, res) => {
 
         // Update product rating
         await updateProductRating(product._id);
+
+        // Send email notification to admin
+        if (env.ADMIN_EMAIL) {
+            try {
+                logger.info(`[${requestId}] Sending new review notification to admin: ${env.ADMIN_EMAIL}`);
+                
+                const { render } = await import('@react-email/render');
+                const AdminNewReviewEmail = (await import('../email-templates/AdminNewReviewEmail.js')).default;
+                
+                const emailData = {
+                    userName: user.fullname,
+                    productName: product.name, // Display name
+                    productSku: product.sku, // For URL
+                    rating,
+                    comment: comment.trim(),
+                    reviewUrl: `https://vjusport.com/admin/reviews`
+                };
+                
+                const reactElement = AdminNewReviewEmail(emailData);
+                const html = await render(reactElement);
+                
+                const emailResult = await sendEmail({
+                    to: env.ADMIN_EMAIL,
+                    subject: 'Đánh giá mới từ user',
+                    html,
+                    requestId
+                });
+                
+                logger.info(`[${requestId}] Admin review notification sent successfully:`, emailResult);
+            } catch (emailError) {
+                logger.error(`[${requestId}] Error sending admin review notification:`, emailError);
+            }
+        }
 
         logger.info(`[${requestId}] Created review ${review._id} for product ${productSku}`);
 

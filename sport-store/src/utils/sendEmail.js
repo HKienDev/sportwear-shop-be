@@ -30,13 +30,14 @@ export const sendEmail = async ({ to, subject, html, requestId }) => {
 
         console.log('[SEND EMAIL UTILS] Gọi resend.emails.send...');
         const result = await resend.emails.send({
-            from: 'Sport Store <no-reply@vjusport.com>',
-            reply_to: 'support@sportstore.com',
+            from: 'Sport Store <support@vjusport.com>',
+            reply_to: 'support@vjusport.com',
             to,
             subject,
             html,
+            text: html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().substring(0, 500), // Limited plain text
             tags: [
-                { name: 'category', value: 'direct_email' },
+                { name: 'category', value: 'question_answered' },
                 { name: 'request_id', value: requestId }
             ]
         });
