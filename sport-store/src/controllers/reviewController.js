@@ -521,7 +521,7 @@ export const replyToReview = async (req, res) => {
             return sendErrorResponse(res, 400, "Nội dung phản hồi không được vượt quá 500 ký tự", {}, requestId);
         }
 
-        const review = await Review.findById(id);
+        const review = await Review.findById(id).populate('user', 'fullname email').populate('product', 'name');
         if (!review) {
             return sendErrorResponse(res, 404, "Không tìm thấy đánh giá", {}, requestId);
         }
@@ -530,6 +530,29 @@ export const replyToReview = async (req, res) => {
         review.reviewedBy = req.user.id;
         review.reviewedAt = new Date();
         await review.save();
+
+        // Send email notification to user
+        try {
+            const AdminReviewReplyEmail = require('../email-templates/AdminReviewReplyEmail.js');
+            const emailHtml = AdminReviewReplyEmail(
+                review.user.fullname,
+                review.product.name,
+                review.title,
+                adminReply.trim(),
+                req.user.fullname || 'Admin'
+            );
+
+            await sendEmail({
+                to: review.user.email,
+                subject: 'Phản hồi từ Admin về đánh giá của bạn',
+                html: emailHtml
+            });
+
+            logger.info(`[${requestId}] Email notification sent to user ${review.user.email} for review reply`);
+        } catch (emailError) {
+            logger.error(`[${requestId}] Error sending email notification:`, emailError);
+            // Don't fail the request if email fails
+        }
 
         logger.info(`[${requestId}] Admin replied to review ${id}`);
 
@@ -556,7 +579,7 @@ export const updateAdminReply = async (req, res) => {
             return sendErrorResponse(res, 400, "Nội dung phản hồi không được vượt quá 500 ký tự", {}, requestId);
         }
 
-        const review = await Review.findById(id);
+        const review = await Review.findById(id).populate('user', 'fullname email').populate('product', 'name');
         if (!review) {
             return sendErrorResponse(res, 404, "Không tìm thấy đánh giá", {}, requestId);
         }
@@ -569,6 +592,29 @@ export const updateAdminReply = async (req, res) => {
         review.reviewedBy = req.user.id;
         review.reviewedAt = new Date();
         await review.save();
+
+        // Send email notification to user about updated reply
+        try {
+            const AdminReviewReplyEmail = require('../email-templates/AdminReviewReplyEmail.js');
+            const emailHtml = AdminReviewReplyEmail(
+                review.user.fullname,
+                review.product.name,
+                review.title,
+                adminReply.trim(),
+                req.user.fullname || 'Admin'
+            );
+
+            await sendEmail({
+                to: review.user.email,
+                subject: 'Cập nhật phản hồi từ Admin về đánh giá của bạn',
+                html: emailHtml
+            });
+
+            logger.info(`[${requestId}] Email notification sent to user ${review.user.email} for updated review reply`);
+        } catch (emailError) {
+            logger.error(`[${requestId}] Error sending email notification:`, emailError);
+            // Don't fail the request if email fails
+        }
 
         logger.info(`[${requestId}] Admin updated reply to review ${id}`);
 

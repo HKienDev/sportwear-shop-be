@@ -17,15 +17,15 @@ export const createReviewSchema = Joi.object({
         "number.max": "Đánh giá tối đa là 5 sao",
         "any.required": "Đánh giá sao là bắt buộc"
     }),
-    title: Joi.string().trim().min(5).max(100).required().messages({
+    title: Joi.string().trim().min(1).max(100).required().messages({
         "string.empty": "Tiêu đề đánh giá không được để trống",
-        "string.min": "Tiêu đề đánh giá phải có ít nhất 5 ký tự",
+        "string.min": "Tiêu đề đánh giá không được để trống",
         "string.max": "Tiêu đề đánh giá không được vượt quá 100 ký tự",
         "any.required": "Tiêu đề đánh giá là bắt buộc"
     }),
-    comment: Joi.string().trim().min(10).max(1000).required().messages({
+    comment: Joi.string().trim().min(1).max(1000).required().messages({
         "string.empty": "Nội dung đánh giá không được để trống",
-        "string.min": "Nội dung đánh giá phải có ít nhất 10 ký tự",
+        "string.min": "Nội dung đánh giá không được để trống",
         "string.max": "Nội dung đánh giá không được vượt quá 1000 ký tự",
         "any.required": "Nội dung đánh giá là bắt buộc"
     }),
@@ -42,14 +42,14 @@ export const updateReviewSchema = Joi.object({
         "number.min": "Đánh giá tối thiểu là 1 sao",
         "number.max": "Đánh giá tối đa là 5 sao"
     }),
-    title: Joi.string().trim().min(5).max(100).optional().messages({
+    title: Joi.string().trim().min(1).max(100).optional().messages({
         "string.empty": "Tiêu đề đánh giá không được để trống",
-        "string.min": "Tiêu đề đánh giá phải có ít nhất 5 ký tự",
+        "string.min": "Tiêu đề đánh giá không được để trống",
         "string.max": "Tiêu đề đánh giá không được vượt quá 100 ký tự"
     }),
-    comment: Joi.string().trim().min(10).max(1000).optional().messages({
+    comment: Joi.string().trim().min(1).max(1000).optional().messages({
         "string.empty": "Nội dung đánh giá không được để trống",
-        "string.min": "Nội dung đánh giá phải có ít nhất 10 ký tự",
+        "string.min": "Nội dung đánh giá không được để trống",
         "string.max": "Nội dung đánh giá không được vượt quá 1000 ký tự"
     }),
     images: Joi.array().items(Joi.string().uri()).max(5).optional().messages({

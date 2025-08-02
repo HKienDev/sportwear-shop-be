@@ -242,7 +242,7 @@ questionSchema.statics.getAllQuestions = async function(options = {}) {
 
     const [questions, total] = await Promise.all([
         this.find(query)
-            .populate('user', 'fullname avatar email')
+            .populate('user', 'fullname avatar email totalSpent')
             .populate('product', 'name images sku')
             .populate('answeredBy', 'fullname')
             .sort(sort)
@@ -284,7 +284,7 @@ questionSchema.statics.getPendingQuestions = async function(options = {}) {
 
     const [questions, total] = await Promise.all([
         this.find(query)
-            .populate('user', 'fullname avatar email')
+            .populate('user', 'fullname avatar email totalSpent')
             .populate('product', 'name images')
             .sort(sort)
             .skip(skip)
