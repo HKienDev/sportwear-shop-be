@@ -4,11 +4,11 @@ import crypto from "crypto";
 
 // Constants
 const MEMBERSHIP_LEVELS = {
-    IRON: "Hạng Sắt",
-    SILVER: "Hạng Bạc",
-    GOLD: "Hạng Vàng",
-    PLATINUM: "Hạng Bạch Kim",
-    DIAMOND: "Hạng Kim Cương"
+    BRONZE: "Đồng",
+    SILVER: "Bạc",
+    GOLD: "Vàng",
+    PLATINUM: "Bạch Kim",
+    DIAMOND: "Kim Cương"
 };
 
 const GENDERS = {
@@ -125,7 +125,7 @@ const userSchema = new mongoose.Schema({
     // Thông tin thành viên (Membership Information)
     membershipLevel: { 
         type: String, 
-        default: MEMBERSHIP_LEVELS.IRON,
+        default: MEMBERSHIP_LEVELS.BRONZE,
         enum: Object.values(MEMBERSHIP_LEVELS)
     },
     totalSpent: { 
@@ -230,14 +230,16 @@ userSchema.methods.generateResetToken = function() {
 };
 
 userSchema.methods.updateMembershipLevel = function() {
-    if (this.totalSpent >= 10000000) {
+    if (this.totalSpent >= 50000000) {
         this.membershipLevel = MEMBERSHIP_LEVELS.DIAMOND;
-    } else if (this.totalSpent >= 5000000) {
+    } else if (this.totalSpent >= 10000000) {
         this.membershipLevel = MEMBERSHIP_LEVELS.PLATINUM;
-    } else if (this.totalSpent >= 2000000) {
+    } else if (this.totalSpent >= 5000000) {
         this.membershipLevel = MEMBERSHIP_LEVELS.GOLD;
-    } else if (this.totalSpent >= 500000) {
+    } else if (this.totalSpent >= 2000000) {
         this.membershipLevel = MEMBERSHIP_LEVELS.SILVER;
+    } else {
+        this.membershipLevel = MEMBERSHIP_LEVELS.BRONZE;
     }
 };
 

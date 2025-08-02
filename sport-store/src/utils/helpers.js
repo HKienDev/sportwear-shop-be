@@ -18,7 +18,7 @@ export const formatUserResponse = (user) => ({
     address: user.address || {},
     dob: user.dob,
     gender: user.gender,
-    membershipLevel: user.membershipLevel || "Hạng Sắt",
+            membershipLevel: user.membershipLevel || "Đồng",
     totalSpent: user.totalSpent || 0,
     orderCount: user.orderCount || 0,
     lastLoginAt: user.lastLoginAt,

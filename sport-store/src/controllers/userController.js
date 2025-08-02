@@ -383,7 +383,7 @@ export const register = async (req, res) => {
             address: { province: "", district: "", ward: "", street: "" },
             dob: null,
             gender: "other",
-            membershipLevel: "Hạng Sắt",
+            membershipLevel: "Đồng",
             totalSpent: 0,
             orderCount: 0
         });
