@@ -5,34 +5,34 @@ export const validateRequest = (schemas) => {
     try {
       // Validate request body nếu có
       if (schemas.body) {
-        const { error, value } = schemas.body.validate(req.body, { abortEarly: false });
-        if (error) {
+        const result = schemas.body.safeParse(req.body);
+        if (!result.success) {
           return res.status(400).json({
             success: false,
             message: ERROR_MESSAGES.VALIDATION_ERROR,
-            errors: error.details.map(err => ({
+            errors: result.error.errors.map(err => ({
               field: err.path.join('.'),
               message: err.message
             }))
           });
         }
-        req.body = value;
+        req.body = result.data;
       }
 
       // Validate query params nếu có
       if (schemas.query) {
-        const { error, value } = schemas.query.validate(req.query, { abortEarly: false });
-        if (error) {
+        const result = schemas.query.safeParse(req.query);
+        if (!result.success) {
           return res.status(400).json({
             success: false,
             message: ERROR_MESSAGES.VALIDATION_ERROR,
-            errors: error.details.map(err => ({
+            errors: result.error.errors.map(err => ({
               field: err.path.join('.'),
               message: err.message
             }))
           });
         }
-        req.query = value;
+        req.query = result.data;
       }
 
       next();

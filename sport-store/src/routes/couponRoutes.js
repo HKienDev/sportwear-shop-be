@@ -2,6 +2,7 @@ import express from "express";
 import { checkRole, auth } from "../middlewares/auth.js";
 import { validateRequest } from "../middlewares/validateRequest.js";
 import { createCouponSchema, updateCouponSchema, searchCouponSchema } from "../schemas/couponSchema.js";
+import { autoCleanupExpiredCoupons } from "../middlewares/couponCleanup.js";
 import {
     getAllCoupons,
     getCouponById,
@@ -12,7 +13,8 @@ import {
     pauseCoupon,
     activateCoupon,
     getCouponByCode,
-    updateExpiredCoupons
+    updateExpiredCoupons,
+    deleteExpiredCoupons
 } from "../controllers/couponController.js";
 
 const router = express.Router();
@@ -27,9 +29,10 @@ router.put("/admin/:id", auth, checkRole(['admin']), validateRequest({ body: upd
 router.get("/admin/:id", auth, checkRole(['admin']), getCouponById);
 router.delete("/admin/:id", auth, checkRole(['admin']), deleteCoupon);
 router.post("/admin/update-expired", auth, checkRole(['admin']), updateExpiredCoupons);
+router.delete("/admin/delete-expired", auth, checkRole(['admin']), deleteExpiredCoupons);
 
 // Public routes - đặt route cụ thể trước route có tham số
-router.get("/", validateRequest({ query: searchCouponSchema }), getAllCoupons);
+router.get("/", autoCleanupExpiredCoupons, validateRequest({ query: searchCouponSchema }), getAllCoupons);
 
 // Đặt route /code/:code trước route /:id để ưu tiên tìm kiếm theo code
 router.get("/code/:code", getCouponByCode);

@@ -245,8 +245,11 @@ export const getAllCoupons = async (req, res) => {
         const status = req.query['status'];
         const skip = (page - 1) * limit;
 
-        // Xây dựng query
-        const query = {};
+        // Xây dựng query - loại bỏ coupons hết hạn khỏi kết quả
+        const query = {
+            status: { $ne: COUPON_STATUS.EXPIRED } // Loại bỏ coupons có status "Hết hạn"
+        };
+        
         if (search) {
             query.code = { $regex: search, $options: "i" };
         }
@@ -273,8 +276,7 @@ export const getAllCoupons = async (req, res) => {
                              status !== 'undefined' && 
                              (status === COUPON_STATUS.ACTIVE || 
                               status === COUPON_STATUS.PAUSED || 
-                              status === COUPON_STATUS.EXPIRED ||
-                              status === COUPON_STATUS.UPCOMING);
+                              status === COUPON_STATUS.UPCOMING); // Loại bỏ EXPIRED khỏi danh sách hợp lệ
         
         console.log('Is status valid?', isValidStatus);
         
@@ -1100,7 +1102,36 @@ export const useCoupon = async (req, res) => {
     }
 }; 
 
-// Update all expired coupons status
+// Delete expired coupons permanently
+export const deleteExpiredCoupons = async (req, res) => {
+    const requestId = req.id || "unknown";
+
+    try {
+        logInfo(`[${requestId}] Starting to delete expired coupons`);
+
+        // Tìm và xóa tất cả coupon có status "Hết hạn"
+        const result = await Coupon.deleteMany({ 
+            status: COUPON_STATUS.EXPIRED 
+        });
+
+        logInfo(`[${requestId}] Successfully deleted ${result.deletedCount} expired coupons`);
+        res.json({
+            success: true,
+            message: `Đã xóa ${result.deletedCount} coupon hết hạn`,
+            data: {
+                deletedCount: result.deletedCount
+            }
+        });
+    } catch (error) {
+        logError(`[${requestId}] Error deleting expired coupons:`, error);
+        res.status(500).json({
+            success: false,
+            message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+        });
+    }
+};
+
+// Update all expired coupons status and delete them
 export const updateExpiredCoupons = async (req, res) => {
     const requestId = req.id || "unknown";
 
@@ -1113,6 +1144,7 @@ export const updateExpiredCoupons = async (req, res) => {
         });
         
         let updatedCount = 0;
+        let deletedCount = 0;
         const now = DateUtils.getCurrentVietnamTime();
         const currentTime = dayjs(now).tz(VIETNAM_TIMEZONE);
 
@@ -1153,12 +1185,19 @@ export const updateExpiredCoupons = async (req, res) => {
             }
         }
 
-        logInfo(`[${requestId}] Successfully updated ${updatedCount} coupons status`);
+        // Xóa các coupon đã hết hạn để tối ưu database
+        const deleteResult = await Coupon.deleteMany({ 
+            status: COUPON_STATUS.EXPIRED 
+        });
+        deletedCount = deleteResult.deletedCount;
+
+        logInfo(`[${requestId}] Successfully updated ${updatedCount} coupons status and deleted ${deletedCount} expired coupons`);
         res.json({
             success: true,
-            message: `Đã cập nhật trạng thái ${updatedCount} coupon`,
+            message: `Đã cập nhật trạng thái ${updatedCount} coupon và xóa ${deletedCount} coupon hết hạn`,
             data: {
                 updatedCount,
+                deletedCount,
                 totalCoupons: couponsToUpdate.length
             }
         });
