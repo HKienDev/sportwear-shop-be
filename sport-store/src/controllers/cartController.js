@@ -15,64 +15,21 @@ export const getCart = async (req, res) => {
       cart = await Cart.create({ userId, items: [] });
     }
 
-    // Debug logs
-    console.log('Backend getCart - Raw cart:', cart);
-    console.log('Backend getCart - Cart items:', cart.items);
-    console.log('Backend getCart - Items type:', typeof cart.items);
-    console.log('Backend getCart - Items is array:', Array.isArray(cart.items));
-    console.log('Backend getCart - Items length:', cart.items?.length || 0);
-
-    // Debug từng item
-    if (cart.items && cart.items.length > 0) {
-      cart.items.forEach((item, index) => {
-        console.log(`Backend getCart - Item ${index}:`, {
-          _id: item._id,
-          quantity: item.quantity,
-          quantityType: typeof item.quantity,
-          color: item.color,
-          size: item.size,
-          product: item.product
-        });
-      });
-    }
-
     // Sử dụng toObject() với options để đảm bảo dữ liệu đúng format
     const cartWithIds = cart.toObject({
       transform: (doc, ret) => {
-        console.log('Backend getCart - Transform function called with:', ret);
         // Đảm bảo mỗi item có _id
         if (ret.items && Array.isArray(ret.items)) {
           ret.items = ret.items.map(item => {
-            console.log('Backend getCart - Transforming item:', item);
             return {
               ...item,
               _id: item._id || new mongoose.Types.ObjectId()
             };
           });
         }
-        console.log('Backend getCart - Transformed result:', ret);
         return ret;
       }
     });
-
-    console.log('Backend getCart - Cart with IDs:', cartWithIds);
-    console.log('Backend getCart - Items with IDs:', cartWithIds.items);
-    console.log('Backend getCart - Items with IDs type:', typeof cartWithIds.items);
-    console.log('Backend getCart - Items with IDs is array:', Array.isArray(cartWithIds.items));
-
-    // Debug từng item sau khi map
-    if (cartWithIds.items && cartWithIds.items.length > 0) {
-      cartWithIds.items.forEach((item, index) => {
-        console.log(`Backend getCart - Mapped Item ${index}:`, {
-          _id: item._id,
-          quantity: item.quantity,
-          quantityType: typeof item.quantity,
-          color: item.color,
-          size: item.size,
-          product: item.product
-        });
-      });
-    }
 
     return sendSuccessResponse(res, 200, "Lấy giỏ hàng thành công", cartWithIds);
   } catch (error) {

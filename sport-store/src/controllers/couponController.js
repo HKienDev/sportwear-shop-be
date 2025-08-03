@@ -216,11 +216,6 @@ function parseAndValidateDates(startDate, endDate) {
 
 function validateDates(startDate, endDate) {
     const now = DateUtils.getCurrentVietnamTime();
-    console.log('Validating dates:', {
-        now: DateUtils.formatToVietnamDateString(now),
-        startDate: DateUtils.formatToVietnamDateString(startDate),
-        endDate: DateUtils.formatToVietnamDateString(endDate)
-    });
     
     const startDayjs = dayjs(startDate).tz(VIETNAM_TIMEZONE);
     const endDayjs = dayjs(endDate).tz(VIETNAM_TIMEZONE);
@@ -254,22 +249,6 @@ export const getAllCoupons = async (req, res) => {
             query.code = { $regex: search, $options: "i" };
         }
         
-        // Log để debug
-        console.log('Status from query:', status, 'Type:', typeof status);
-        console.log('COUPON_STATUS values:', Object.values(COUPON_STATUS));
-        
-        // Kiểm tra chi tiết từng ký tự trong chuỗi status
-        if (status && typeof status === 'string') {
-            console.log('Status length:', status.length);
-            console.log('Status characters:', Array.from(status).map(c => `${c} (${c.charCodeAt(0)})`));
-            
-            // Kiểm tra từng giá trị trong COUPON_STATUS
-            Object.values(COUPON_STATUS).forEach(validStatus => {
-                console.log(`Comparing with "${validStatus}" (length: ${validStatus.length}):`, status === validStatus);
-                console.log('Valid status characters:', Array.from(validStatus).map(c => `${c} (${c.charCodeAt(0)})`));
-            });
-        }
-        
         // Kiểm tra xem status có phải là một trong các giá trị hợp lệ không
         const isValidStatus = status && 
                              status !== 'null' && 
@@ -278,14 +257,9 @@ export const getAllCoupons = async (req, res) => {
                               status === COUPON_STATUS.PAUSED || 
                               status === COUPON_STATUS.UPCOMING); // Loại bỏ EXPIRED khỏi danh sách hợp lệ
         
-        console.log('Is status valid?', isValidStatus);
-        
         // Chỉ thêm điều kiện status vào query nếu status có giá trị và là một trong các giá trị hợp lệ
         if (isValidStatus) {
             query.status = status;
-            console.log('Added status to query:', query.status);
-        } else {
-            console.log('Status not added to query. Status value:', status);
         }
 
         // Lấy danh sách coupons với phân trang

@@ -85,7 +85,7 @@ export const getStats = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        logInfo(`[${requestId}] Fetching general statistics`);
+
 
         const today = new Date();
         today.setHours(7, 0, 0, 0);
@@ -137,7 +137,7 @@ export const getStats = async (req, res) => {
             ? ((newCustomers - lastMonthCustomers) / lastMonthCustomers * 100).toFixed(1)
             : 0;
 
-        logInfo(`[${requestId}] Successfully fetched statistics`);
+
         res.json({
             success: true,
             data: {
@@ -161,7 +161,7 @@ export const getRevenue = async (req, res) => {
     try {
         const { timeRange = TIME_RANGES.DAY } = req.query;
         
-        logInfo(`[${requestId}] Fetching revenue data for time range: ${timeRange}`);
+
 
         if (!Object.values(TIME_RANGES).includes(timeRange)) {
             logError(`[${requestId}] Invalid time range: ${timeRange}`);
@@ -240,7 +240,7 @@ export const getRevenue = async (req, res) => {
             return keyA.localeCompare(keyB);
         });
 
-        logInfo(`[${requestId}] Successfully processed revenue data`);
+
         res.json({
             success: true,
             data: sortedPeriods.map(([period, data]) => ({
@@ -260,7 +260,7 @@ export const getBestSellingProducts = async (req, res) => {
     try {
         const { limit = 5, days = 30 } = req.query;
         
-        logInfo(`[${requestId}] Fetching best selling products for the last ${days} days`);
+
 
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - parseInt(days));
@@ -312,7 +312,7 @@ export const getBestSellingProducts = async (req, res) => {
             };
         });
 
-        logInfo(`[${requestId}] Successfully fetched best selling products`);
+
         res.json({
             success: true,
             data: {
@@ -334,7 +334,7 @@ export const getRevenueStats = async (req, res) => {
     try {
         const { period = 'day' } = req.query;
         
-        logInfo(`[${requestId}] Fetching revenue stats for period: ${period}`);
+
 
         const startDate = new Date();
         startDate.setHours(7, 0, 0, 0);
@@ -383,7 +383,7 @@ export const getRevenueStats = async (req, res) => {
             }
         ]).exec();
 
-        logInfo(`[${requestId}] Successfully fetched revenue stats`);
+
         res.json({
             success: true,
             data: stats.map(stat => stat.toObject ? stat.toObject() : stat)

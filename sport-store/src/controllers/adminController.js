@@ -44,10 +44,7 @@ export const getAllUsers = async (req, res, next) => {
 export const getUserById = async (req, res, next) => {
   try {
     const customId = req.params.customId;
-    console.log('Searching for user with customId:', customId);
-    
     if (!customId) {
-      console.log('Custom ID is missing');
       return res.status(400).json({ 
         success: false,
         message: "ID không tồn tại.",
@@ -61,15 +58,12 @@ export const getUserById = async (req, res, next) => {
     }).select('-password');
     
     if (!user) {
-      console.log('User not found with customId:', customId);
       return res.status(404).json({ 
         success: false,
         message: ERROR_MESSAGES.NOT_FOUND_ERROR,
         path: req.url
       });
     }
-    
-    console.log('User found:', user._id);
     res.status(200).json({
       success: true,
       data: user,
@@ -182,7 +176,6 @@ export const deleteUser = async (req, res, next) => {
     const user = await findUserByCustomId(customId);
 
     if (!user) {
-      console.log('User not found with customId:', customId);
       return res.status(404).json({ 
         success: false,
         message: ERROR_MESSAGES.NOT_FOUND_ERROR,
@@ -191,8 +184,6 @@ export const deleteUser = async (req, res, next) => {
     }
 
     await user.deleteOne();
-    
-    console.log('User deleted successfully:', customId);
     res.status(200).json({ 
       success: true,
       message: 'Xóa user thành công',
@@ -273,10 +264,7 @@ export const resetUserPassword = async (req, res, next) => {
     const { password } = req.body;
     const customId = req.params.customId;
     
-    console.log('Resetting password for user with customId:', customId);
-    
     if (!customId) {
-      console.log('Custom ID is missing');
       return res.status(400).json({ 
         success: false,
         message: "ID không tồn tại.",
@@ -298,7 +286,6 @@ export const resetUserPassword = async (req, res, next) => {
     }
     
     if (!user) {
-      console.log('User not found with customId:', customId);
       return res.status(404).json({ 
         success: false,
         message: ERROR_MESSAGES.NOT_FOUND_ERROR,
@@ -308,8 +295,6 @@ export const resetUserPassword = async (req, res, next) => {
 
     user.password = password;
     await user.save();
-    
-    console.log('Password reset successful for user:', user._id);
     res.status(200).json({ 
       success: true,
       message: 'Reset mật khẩu thành công',

@@ -14,21 +14,12 @@ const resend = new Resend(env.RESEND_API_KEY);
  * @returns {Promise<Object>} Kết quả gửi email
  */
 export const sendEmail = async ({ to, subject, html, requestId }) => {
-    console.log('=== [SEND EMAIL UTILS] Bắt đầu gửi email ===');
-    console.log('Request ID:', requestId);
-    console.log('To:', to);
-    console.log('Subject:', subject);
-    console.log('HTML length:', html?.length);
-    console.log('Resend API Key:', env.RESEND_API_KEY ? 'Present' : 'Missing');
-
     try {
         // Validate required fields
         if (!to || !subject || !html) {
-            console.log('[SEND EMAIL UTILS] Thiếu trường bắt buộc:', { to, subject, htmlLength: html?.length });
             throw new Error('Missing required fields: to, subject, and html are required');
         }
 
-        console.log('[SEND EMAIL UTILS] Gọi resend.emails.send...');
         const result = await resend.emails.send({
             from: 'Sport Store <support@vjusport.com>',
             reply_to: 'support@vjusport.com',
@@ -42,11 +33,9 @@ export const sendEmail = async ({ to, subject, html, requestId }) => {
             ]
         });
 
-        console.log('[SEND EMAIL UTILS] Resend API Response:', result);
         logInfo(requestId, `Email sent successfully to ${to}`);
         return result;
     } catch (error) {
-        console.error('[SEND EMAIL UTILS] Resend API Error:', error);
         logError(requestId, `Error sending email: ${error.message}`);
         throw error;
     }

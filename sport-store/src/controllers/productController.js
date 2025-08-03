@@ -168,22 +168,17 @@ export const getProductBySku = async (req, res) => {
         // Nếu không tìm thấy, thử tìm kiếm theo phần đuôi của SKU
         if (!product && sku.includes('-')) {
             const skuSuffix = sku.split('-').pop();
-            console.log(`[${requestId}] Not found by exact SKU, trying with suffix: ${skuSuffix}`);
             product = await Product.findOne({ sku: { $regex: skuSuffix + '$', $options: 'i' } });
         }
 
         // Nếu vẫn không tìm thấy, thử tìm kiếm theo regex pattern
         if (!product) {
-            console.log(`[${requestId}] Not found by suffix, trying with regex pattern`);
             product = await Product.findOne({ sku: { $regex: sku, $options: 'i' } });
         }
 
         if (!product) {
-            console.log(`[${requestId}] Product not found for SKU: ${sku}`);
             return sendErrorResponse(res, 404, 'Product not found', {}, requestId);
         }
-
-        console.log(`[${requestId}] Found product: ${product.name} with SKU: ${product.sku}`);
         
         // Tính rating thực từ Review collection
         try {
@@ -212,7 +207,7 @@ export const getProductBySku = async (req, res) => {
                 numReviews: numReviews
             };
 
-            console.log(`[${requestId}] Product rating calculated: ${productWithRating.rating} from ${numReviews} reviews`);
+
             return sendSuccessResponse(res, 200, 'Product retrieved successfully', { product: productWithRating });
         } catch (error) {
             console.error(`[${requestId}] Error calculating rating for product ${product._id}:`, error);
@@ -286,32 +281,13 @@ export const getFeaturedProducts = async (req, res) => {
     try {
         const { limit = 6 } = req.query;
         
-        console.log(`[${requestId}] Getting featured products with limit: ${limit}`);
-        
         const products = await Product.findFeatured(parseInt(limit));
-        
-        console.log(`[${requestId}] Found ${products.length} featured products`);
-        console.log(`[${requestId}] Products:`, products.map(p => ({id: p._id, name: p.name, isFeatured: p.isFeatured})));
         
         // Debug: Kiểm tra trực tiếp trong database
         const directProducts = await mongoose.connection.db.collection('products').find({isActive: true, isFeatured: true}).limit(parseInt(limit)).toArray();
-        console.log(`[${requestId}] Direct DB query found ${directProducts.length} products:`, directProducts.map(p => ({id: p._id, name: p.name, isFeatured: p.isFeatured})));
         
         // Sử dụng dữ liệu trực tiếp từ database vì Product.findFeatured() có vấn đề với populate
         const productsToUse = directProducts;
-        
-        // Debug: Log productsToUse
-        console.log(`[${requestId}] productsToUse length:`, productsToUse.length);
-        console.log(`[${requestId}] productsToUse sample:`, productsToUse[0] ? {
-            _id: productsToUse[0]._id,
-            name: productsToUse[0].name,
-            salePrice: productsToUse[0].salePrice,
-            originalPrice: productsToUse[0].originalPrice,
-            mainImage: productsToUse[0].mainImage,
-            sku: productsToUse[0].sku,
-            brand: productsToUse[0].brand,
-            categoryId: productsToUse[0].categoryId
-        } : 'No products');
         
         // Tính rating thực từ Review collection cho mỗi sản phẩm
         const productsWithRating = await Promise.all(
@@ -319,7 +295,6 @@ export const getFeaturedProducts = async (req, res) => {
                 try {
                     // Kiểm tra product._id có tồn tại không
                     if (!product._id) {
-                        console.error(`Product missing _id:`, product);
                         return {
                             ...product,
                             rating: 0,
@@ -351,7 +326,7 @@ export const getFeaturedProducts = async (req, res) => {
                         numReviews: numReviews
                     };
                 } catch (error) {
-                    console.error(`Error calculating rating for product ${product._id}:`, error);
+                    logError(`Error calculating rating for product ${product._id}: ${error.message}`);
                     return {
                         ...product,
                         rating: 0,
@@ -490,12 +465,8 @@ const generateSlug = (name) => {
 export const createProduct = async (req, res) => {
     const requestId = generateRequestId();
     try {
-        // Debug: Log request body
-        console.log(`[${requestId}] Request body:`, JSON.stringify(req.body, null, 2));
-
         // Kiểm tra dữ liệu đầu vào
         if (!req.body || Object.keys(req.body).length === 0) {
-            console.log(`[${requestId}] Request body is empty`);
             return sendErrorResponse(res, 400, 'Request body is empty', {}, requestId);
         }
 
@@ -507,27 +478,18 @@ export const createProduct = async (req, res) => {
             stock: typeof req.body.stock === 'string' ? parseInt(req.body.stock) : req.body.stock
         };
 
-        console.log(`[${requestId}] Processed body:`, JSON.stringify(processedBody, null, 2));
-
         // Validate request data using schema
         const { error, value } = createProductSchema.safeParse(processedBody);
         if (error) {
-            // Debug: Log validation errors
-            console.log(`[${requestId}] Validation errors:`, JSON.stringify(error.errors, null, 2));
             return sendErrorResponse(res, 400, 'Invalid product data', error.errors, requestId);
         }
-
-        // Debug: Log parsed value
-        console.log(`[${requestId}] Parsed value:`, JSON.stringify(value, null, 2));
 
         // Sử dụng value từ validation hoặc processedBody nếu value là undefined
         const validatedData = value || processedBody;
 
         // Kiểm tra categoryId có tồn tại
-        console.log(`[${requestId}] Checking categoryId: ${validatedData.categoryId}`);
         const category = await Category.findOne({ categoryId: validatedData.categoryId });
         if (!category) {
-            console.log(`[${requestId}] Category not found: ${validatedData.categoryId}`);
             return sendErrorResponse(
                 res,
                 404,
@@ -538,33 +500,24 @@ export const createProduct = async (req, res) => {
         }
 
         // Check if product name already exists
-        console.log(`[${requestId}] Checking product name: ${validatedData.name}`);
         const existingProduct = await Product.findOne({ name: validatedData.name });
         if (existingProduct) {
-            console.log(`[${requestId}] Product name already exists: ${validatedData.name}`);
             return sendErrorResponse(res, 400, 'Tên sản phẩm đã tồn tại', {}, requestId);
         }
 
         // Generate unique SKU
-        console.log(`[${requestId}] Generating unique SKU`);
         let sku;
         try {
             sku = await generateUniqueSKU(Product);
-            console.log(`[${requestId}] Generated SKU: ${sku}`);
         } catch (error) {
-            console.log(`[${requestId}] Error generating SKU:`, error);
             return sendErrorResponse(res, 500, 'Could not generate unique SKU', {}, requestId);
         }
 
         // Generate slug from name
-        console.log(`[${requestId}] Generating slug from name: ${validatedData.name}`);
         const slug = generateSlug(validatedData.name);
-        console.log(`[${requestId}] Generated slug: ${slug}`);
 
         // Xử lý specifications nếu có
         if (validatedData.specifications) {
-            console.log(`[${requestId}] Processing specifications:`, JSON.stringify(validatedData.specifications, null, 2));
-            
             // Đảm bảo specifications là một object
             if (typeof validatedData.specifications === 'object' && validatedData.specifications !== null) {
                 // Xử lý từng trường trong specifications
@@ -584,21 +537,17 @@ export const createProduct = async (req, res) => {
                 // Chỉ thêm specifications nếu có ít nhất một trường
                 if (Object.keys(specifications).length > 0) {
                     validatedData.specifications = specifications;
-                    console.log(`[${requestId}] Processed specifications:`, JSON.stringify(specifications, null, 2));
                 } else {
                     // Nếu không có trường nào hợp lệ, xóa specifications
                     delete validatedData.specifications;
-                    console.log(`[${requestId}] No valid specifications found, removing from request`);
                 }
             } else {
                 // Nếu specifications không phải object hợp lệ, xóa nó
                 delete validatedData.specifications;
-                console.log(`[${requestId}] Invalid specifications format, removing from request`);
             }
         }
 
         // Tạo sản phẩm với dữ liệu đã được xử lý
-        console.log(`[${requestId}] Creating product with data:`, JSON.stringify(validatedData, null, 2));
         const productData = {
             ...validatedData,
             sku,
@@ -609,9 +558,7 @@ export const createProduct = async (req, res) => {
         const product = new Product(productData);
         
         // Lưu sản phẩm vào database
-        console.log(`[${requestId}] Saving product to database`);
         const savedProduct = await product.save();
-        console.log(`[${requestId}] Product saved successfully:`, savedProduct._id);
 
         // Xóa cache dashboard
         await clearDashboardCacheUtil();
@@ -689,48 +636,36 @@ export const updateProduct = async (req, res) => {
         const updateData = value || processedBody;
 
         // Check if product exists
-        console.log(`[${requestId}] Checking if product exists with SKU: ${sku}`);
         const product = await Product.findOne({ sku });
         if (!product) {
-            console.log(`[${requestId}] Product not found with SKU: ${sku}`);
             return sendErrorResponse(res, 404, 'Product not found', {}, requestId);
         }
 
         // Check if category exists if categoryId is provided
         if (updateData.categoryId) {
-            console.log(`[${requestId}] Checking if category exists: ${updateData.categoryId}`);
             const category = await Category.findOne({ categoryId: updateData.categoryId });
             if (!category) {
-                console.log(`[${requestId}] Category not found: ${updateData.categoryId}`);
                 return sendErrorResponse(res, 404, 'Category not found', {}, requestId);
             }
         }
 
         // Check if product name already exists (if name is being updated)
         if (updateData.name && updateData.name !== product.name) {
-            console.log(`[${requestId}] Checking if product name already exists: ${updateData.name}`);
             const existingProduct = await Product.findOne({ name: updateData.name, sku: { $ne: sku } });
             if (existingProduct) {
-                console.log(`[${requestId}] Product name already exists: ${updateData.name}`);
                 return sendErrorResponse(res, 400, 'Tên sản phẩm đã tồn tại', {}, requestId);
             }
         }
 
         // Generate slug from name if name is being updated
         if (updateData.name && updateData.name !== product.name) {
-            console.log(`[${requestId}] Generating slug from name: ${updateData.name}`);
             updateData.slug = generateSlug(updateData.name);
-            console.log(`[${requestId}] Generated slug: ${updateData.slug}`);
         }
 
         // Xử lý cập nhật sizes nếu có
         if (updateData.sizes && Array.isArray(updateData.sizes)) {
-            console.log(`[${requestId}] Processing sizes update`);
-            
             // Nếu sizes là một mảng các đối tượng với thuộc tính size
             if (updateData.sizes.length > 0 && typeof updateData.sizes[0] === 'object' && 'size' in updateData.sizes[0]) {
-                console.log(`[${requestId}] Sizes is an array of objects with size property`);
-                
                 // Lọc bỏ các size không hợp lệ và chuyển đổi thành mảng các chuỗi
                 updateData.sizes = updateData.sizes
                     .filter(sizeObj => 
@@ -740,61 +675,43 @@ export const updateProduct = async (req, res) => {
                         sizeObj.size.trim() !== ''
                     )
                     .map(sizeObj => sizeObj.size);
-                
-                console.log(`[${requestId}] Converted sizes to strings:`, JSON.stringify(updateData.sizes, null, 2));
             } 
             // Nếu sizes là một mảng các chuỗi
             else if (updateData.sizes.every(size => typeof size === 'string')) {
-                console.log(`[${requestId}] Sizes is an array of strings`);
-                
                 // Lọc bỏ các chuỗi không hợp lệ
                 updateData.sizes = updateData.sizes.filter(size => 
                     typeof size === 'string' && size.trim() !== ''
                 );
-                
-                console.log(`[${requestId}] Filtered sizes:`, JSON.stringify(updateData.sizes, null, 2));
             }
         }
 
         // Xử lý cập nhật colors nếu có
         if (updateData.colors && Array.isArray(updateData.colors)) {
-            console.log(`[${requestId}] Processing colors update`);
-            
             // Lọc bỏ các màu không hợp lệ
             updateData.colors = updateData.colors.filter(color => 
                 typeof color === 'string' && color.trim() !== ''
             );
-            
-            console.log(`[${requestId}] Filtered colors:`, JSON.stringify(updateData.colors, null, 2));
         }
 
         // Xử lý cập nhật tags nếu có
         if (updateData.tags && Array.isArray(updateData.tags)) {
-            console.log(`[${requestId}] Processing tags update`);
-            
             // Lọc bỏ các tag không hợp lệ
             updateData.tags = updateData.tags.filter(tag => 
                 typeof tag === 'string' && tag.trim() !== ''
             );
-            
-            console.log(`[${requestId}] Filtered tags:`, JSON.stringify(updateData.tags, null, 2));
         }
 
         // Xử lý cập nhật subImages nếu có
         if (updateData.subImages && Array.isArray(updateData.subImages)) {
-            console.log(`[${requestId}] Processing subImages update`);
             
             // Lọc bỏ các URL không hợp lệ
             updateData.subImages = updateData.subImages.filter(url => 
                 typeof url === 'string' && url.trim() !== ''
             );
-            
-            console.log(`[${requestId}] Filtered subImages:`, JSON.stringify(updateData.subImages, null, 2));
         }
 
         // Xử lý cập nhật specifications nếu có
         if (updateData.specifications) {
-            console.log(`[${requestId}] Processing specifications update:`, JSON.stringify(updateData.specifications, null, 2));
             
             // Đảm bảo specifications là một object
             if (typeof updateData.specifications === 'object' && updateData.specifications !== null) {

@@ -79,19 +79,16 @@ export const getAllCategories = async (req, res) => {
 export const getCategoryById = async (req, res) => {
     try {
         const { categoryId } = req.params;
-        console.log(`[DEBUG] [getCategoryById] Start - categoryId:`, categoryId);
         
         // Tìm category bằng categoryId trước
         let category = await Category.findOne({ categoryId });
-        console.log(`[DEBUG] [getCategoryById] After findOne categoryId, found:`, !!category);
         
         // Nếu không tìm thấy bằng categoryId, thử tìm bằng _id
         if (!category) {
             try {
                 category = await Category.findById(categoryId);
-                console.log(`[DEBUG] [getCategoryById] After findById _id, found:`, !!category);
             } catch (err) {
-                console.error(`[DEBUG] [getCategoryById] Error in findById:`, err);
+                logError(`Error in findById: ${err.message}`);
             }
         }
         
@@ -104,12 +101,10 @@ export const getCategoryById = async (req, res) => {
         }
 
         // Lấy thông tin người tạo và cập nhật
-        console.log(`[DEBUG] [getCategoryById] Getting creator/updater for category:`, category._id);
         const [creator, updater] = await Promise.all([
             User.findById(category.createdBy).select('name'),
             category.updatedBy ? User.findById(category.updatedBy).select('name') : null
         ]);
-        console.log(`[DEBUG] [getCategoryById] Got creator/updater`);
 
         // Format response
         const response = {
@@ -136,25 +131,22 @@ export const getCategoryById = async (req, res) => {
         };
 
         logInfo(`Successfully retrieved category: ${category.name}`);
-        console.log(`[DEBUG] [getCategoryById] End - Success`);
         res.status(200).json({
             success: true,
             message: "Lấy thông tin danh mục thành công",
             data: response
         });
     } catch (err) {
-        console.error(`[DEBUG] [getCategoryById] Catch error:`, err);
+        logError(`Error in getCategoryById: ${err.message}`);
     }
 };
 
 export const getCategoryBySlug = async (req, res) => {
     try {
         const { slug } = req.params;
-        console.log(`[DEBUG] [getCategoryBySlug] Start - slug:`, slug);
         
         // Tìm category bằng slug
         const category = await Category.findBySlug(slug);
-        console.log(`[DEBUG] [getCategoryBySlug] After findBySlug, found:`, !!category);
         
         if (!category) {
             logError(`Category not found with slug: ${slug}`);
@@ -165,12 +157,10 @@ export const getCategoryBySlug = async (req, res) => {
         }
 
         // Lấy thông tin người tạo và cập nhật
-        console.log(`[DEBUG] [getCategoryBySlug] Getting creator/updater for category:`, category._id);
         const [creator, updater] = await Promise.all([
             User.findById(category.createdBy).select('name'),
             category.updatedBy ? User.findById(category.updatedBy).select('name') : null
         ]);
-        console.log(`[DEBUG] [getCategoryBySlug] Got creator/updater`);
 
         // Format response
         const response = {
@@ -197,14 +187,12 @@ export const getCategoryBySlug = async (req, res) => {
         };
 
         logInfo(`Successfully retrieved category by slug: ${category.name}`);
-        console.log(`[DEBUG] [getCategoryBySlug] End - Success`);
         res.status(200).json({
             success: true,
             message: "Lấy thông tin danh mục thành công",
             data: response
         });
     } catch (err) {
-        console.error(`[DEBUG] [getCategoryBySlug] Catch error:`, err);
         logError(`Error getting category by slug: ${err.message}`);
         res.status(500).json({
             success: false,

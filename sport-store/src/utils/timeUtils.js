@@ -65,19 +65,16 @@ export const DateUtils = {
     },
 
     /**
-     * Parse a date string flexibly to UTC Date
+     * Parse a date string flexibly with multiple formats
      * @param {string} dateString - Date string to parse
      * @returns {Date} Date in UTC
      */
     parseDateFlexible: (dateString) => {
         if (!dateString) return null;
 
-        console.log('Parsing date:', dateString);
-
         // Thử parse trực tiếp với dayjs và timezone
         let parsedDate = dayjs.tz(dateString, VIETNAM_TIMEZONE);
         if (parsedDate.isValid()) {
-            console.log('Direct parse successful:', parsedDate.format());
             return parsedDate.toDate();
         }
 
@@ -95,12 +92,10 @@ export const DateUtils = {
         for (const format of formats) {
             parsedDate = dayjs.tz(dateString, format, VIETNAM_TIMEZONE);
             if (parsedDate.isValid()) {
-                console.log('Parse successful with format:', format, parsedDate.format());
                 return parsedDate.toDate();
             }
         }
 
-        console.log('All parse attempts failed');
         throw new Error(`Không thể parse ngày tháng. Format hỗ trợ: ${formats.join(", ")}`);
     },
 
@@ -110,17 +105,13 @@ export const DateUtils = {
      * @returns {Date} Date in UTC
      */
     parseISOWithTimezone: (isoString) => {
-        console.log('Parsing ISO string with timezone:', isoString);
-        
         // Thử parse trực tiếp với dayjs
         const d = dayjs(isoString);
         
         if (d.isValid()) {
-            console.log('ISO parse successful:', d.format());
             return d.utc().toDate();
         }
         
-        console.log('ISO parse failed');
         throw new Error(`Invalid ISO date format: ${isoString}`);
     },
 

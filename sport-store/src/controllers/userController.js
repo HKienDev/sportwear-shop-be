@@ -876,34 +876,9 @@ export const logout = async (req, res) => {
 // Lấy danh sách users cho admin
 export const getAllUsers = async (req, res) => {
     try {
-        // Debug: Kiểm tra tất cả users có phone "0123456789"
-        const debugUser = await User.findOne({ phone: "0123456789" });
-        if (debugUser) {
-            console.log('🔍 DEBUG: Found user with phone "0123456789":', {
-                _id: debugUser._id,
-                email: debugUser.email,
-                fullname: debugUser.fullname,
-                phone: debugUser.phone,
-                role: debugUser.role
-            });
-        } else {
-            console.log('🔍 DEBUG: No user found with phone "0123456789"');
-        }
-
         const users = await User.find({ role: 'user' })
             .select('_id fullname email phone createdAt updatedAt avatar isActive totalSpent orderCount')
             .sort({ createdAt: -1 });
-
-        console.log('🔍 DEBUG: Found users with role "user":', users.length);
-        users.forEach(user => {
-            console.log('🔍 DEBUG: User:', {
-                _id: user._id,
-                email: user.email,
-                fullname: user.fullname,
-                phone: user.phone,
-                role: user.role
-            });
-        });
 
         // Tính toán thống kê thực tế cho mỗi user (bao gồm cả đơn hàng theo phone)
         const usersWithRealStats = await Promise.all(users.map(async (user) => {

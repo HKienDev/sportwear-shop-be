@@ -15,12 +15,8 @@ const AdminNewOrderEmail = AdminNewOrderEmailModule.default || AdminNewOrderEmai
  */
 export async function sendOrderConfirmationEmail({ to, requestId, order }) {
   try {
-    console.log('[EMAIL DEBUG]', { step: 'typeof NewOrderEmail', type: typeof NewOrderEmail });
-    console.log('[EMAIL DEBUG]', { step: 'NewOrderEmail', value: NewOrderEmail });
     const reactElement = NewOrderEmail(order);
-    console.log('[EMAIL DEBUG]', { step: 'reactElement', value: reactElement });
     const html = await render(reactElement);
-    console.log('[EMAIL DEBUG]', { step: 'html', value: html, type: typeof html });
     return sendEmail({
       to,
       subject: `Xác nhận đơn hàng #${order.shortId} từ Sport Store`,
@@ -28,7 +24,6 @@ export async function sendOrderConfirmationEmail({ to, requestId, order }) {
       requestId,
     });
   } catch (err) {
-    console.error('[EMAIL DEBUG] Error rendering or sending email:', err);
     throw err;
   }
 }
@@ -44,7 +39,6 @@ export async function sendOrderNotificationToAdmin({ order, requestId }) {
       requestId,
     });
   } catch (err) {
-    console.error('[EMAIL ADMIN DEBUG] Error rendering or sending admin order email:', err);
     throw err;
   }
 } 
