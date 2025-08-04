@@ -289,9 +289,22 @@ export const getFeaturedProducts = async (req, res) => {
         // Sử dụng dữ liệu trực tiếp từ database vì Product.findFeatured() có vấn đề với populate
         const productsToUse = directProducts;
         
+        // Lọc sản phẩm hết hạn (countdown đã kết thúc)
+        const now = new Date();
+        const validProducts = productsToUse.filter(product => {
+            if (product.featuredConfig?.countdownEndDate) {
+                const endDate = new Date(product.featuredConfig.countdownEndDate);
+                const diff = endDate.getTime() - now.getTime();
+                // Chỉ trả về sản phẩm chưa hết hạn (diff > 0)
+                return diff > 0;
+            }
+            // Nếu không có countdownEndDate, vẫn trả về sản phẩm
+            return true;
+        });
+        
         // Tính rating thực từ Review collection cho mỗi sản phẩm
         const productsWithRating = await Promise.all(
-            productsToUse.map(async (product) => {
+            validProducts.map(async (product) => {
                 try {
                     // Kiểm tra product._id có tồn tại không
                     if (!product._id) {
@@ -352,7 +365,7 @@ export const getFeaturedProducts = async (req, res) => {
             featuredConfig: product.featuredConfig || null
         }));
 
-        logInfo(`[${requestId}] Successfully retrieved ${transformedProducts.length} featured products`);
+        logInfo(`[${requestId}] Successfully retrieved ${transformedProducts.length} valid featured products (filtered out expired ones)`);
         
         return sendSuccessResponse(res, 200, 'Featured products retrieved successfully', {
             products: transformedProducts,
