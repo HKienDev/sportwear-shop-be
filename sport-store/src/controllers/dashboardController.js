@@ -57,8 +57,6 @@ export const getStats = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        logInfo(`[${requestId}] Fetching dashboard stats`);
-
         // Kiểm tra cache
         const redis = getRedisClient();
         if (redis) {
@@ -66,7 +64,6 @@ export const getStats = async (req, res) => {
             const cachedData = await redis.get(cacheKey);
             
             if (cachedData) {
-                logInfo(`[${requestId}] Returning cached dashboard stats`);
                 return res.json({
                     success: true,
                     data: JSON.parse(cachedData),
@@ -226,7 +223,7 @@ export const getStats = async (req, res) => {
             await redis.set(cacheKey, JSON.stringify(data), 'EX', 300);
         }
 
-        logInfo(`[${requestId}] Successfully fetched dashboard stats`);
+
         res.json({
             success: true,
             data,
@@ -250,16 +247,10 @@ export const getRevenue = async (req, res) => {
     const { period = 'month', limit = 12 } = req.query;
     
     try {
-        logInfo(`[${requestId}] Fetching revenue data for period: ${period}, limit: ${limit}`);
-        logInfo(`[${requestId}] Request query: ${JSON.stringify(req.query)}`);
-        logInfo(`[${requestId}] Request params: ${JSON.stringify(req.params)}`);
-        logInfo(`[${requestId}] Request body: ${JSON.stringify(req.body)}`);
-
         // Kiểm tra cache
         const redis = getRedisClient();
         if (redis) {
             const cacheKey = `revenue_data:${period}:${limit}`;
-            logInfo(`[${requestId}] Checking cache with key: ${cacheKey}`);
             const cachedData = await redis.get(cacheKey);
             
             if (cachedData) {
@@ -274,11 +265,8 @@ export const getRevenue = async (req, res) => {
                 
                 // Kiểm tra cache cho tất cả period
                 if (isSameDay) {
-                    logInfo(`[${requestId}] Returning cached revenue data for period: ${period}`);
-                    
                     // Kiểm tra xem dữ liệu từ cache có đủ số lượng không
                     if (parsedData.revenue && parsedData.revenue.length < parseInt(limit)) {
-                        logInfo(`[${requestId}] Cached data has insufficient items, clearing cache to fetch fresh data`);
                         await redis.del(cacheKey);
                     } else {
                         return res.json({
@@ -289,7 +277,6 @@ export const getRevenue = async (req, res) => {
                     }
                 } else {
                     // Nếu không phải dữ liệu của ngày hôm nay, xóa cache
-                    logInfo(`[${requestId}] Cache outdated, clearing cache key: ${cacheKey}`);
                     await redis.del(cacheKey);
                 }
             }
@@ -321,9 +308,6 @@ export const getRevenue = async (req, res) => {
         }
 
         // Tối ưu query
-        logInfo(`[${requestId}] Start date: ${startDate}`);
-        logInfo(`[${requestId}] Period: ${period}`);
-        logInfo(`[${requestId}] Limit: ${limit}`);
 
 
 
@@ -443,7 +427,6 @@ export const getRevenue = async (req, res) => {
             const cacheKey = `revenue_data:${period}:${limit}`;
             const cacheTime = 60; // 1 phút cho tất cả period
             await redis.set(cacheKey, JSON.stringify(data), 'EX', cacheTime);
-            logInfo(`[${requestId}] Revenue data cached with key: ${cacheKey} for ${cacheTime} seconds`);
         }
 
         res.json({
@@ -468,7 +451,6 @@ export const getRecentOrders = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        logInfo(`[${requestId}] Fetching recent orders`);
 
         // Tối ưu query với lean() và select()
         const orders = await Order.find()
@@ -536,7 +518,7 @@ export const getRecentOrders = async (req, res) => {
             }
         };
 
-        logInfo(`[${requestId}] Successfully fetched ${formattedOrders.length} recent orders`);
+
         res.json({
             success: true,
             data,
@@ -560,8 +542,6 @@ export const getBestSellingProducts = async (req, res) => {
     const { limit = 6, days = 30 } = req.query;
     
     try {
-        logInfo(`[${requestId}] Fetching best selling products for last ${days} days`);
-
         // Kiểm tra cache
         const redis = getRedisClient();
         if (redis) {
@@ -569,7 +549,6 @@ export const getBestSellingProducts = async (req, res) => {
             const cachedData = await redis.get(cacheKey);
             
             if (cachedData) {
-                logInfo(`[${requestId}] Returning cached best selling products data`);
                 return res.json(JSON.parse(cachedData));
             }
         }
@@ -579,7 +558,6 @@ export const getBestSellingProducts = async (req, res) => {
         // Luôn xóa cache cũ để đảm bảo dữ liệu mới nhất
         if (redis) {
             await redis.del(cacheKey);
-            logInfo(`[${requestId}] Cleared cache for best selling products`);
         }
 
         const currentPeriodStart = new Date();
@@ -671,9 +649,7 @@ export const getBestSellingProducts = async (req, res) => {
             ]).exec(),
         ]);
 
-        // Log dữ liệu để debug
-        logInfo(`[${requestId}] Current delivered data: ${JSON.stringify(currentDelivered)}`);
-        logInfo(`[${requestId}] Current cancelled data: ${JSON.stringify(currentCancelled)}`);
+
 
         // Tính % tăng trưởng
         const calculateGrowth = (current, previous) => {
@@ -700,13 +676,7 @@ export const getBestSellingProducts = async (req, res) => {
             ) || { totalCancelled: 0 };
             const previousTotalSold = (previousDeliveredStats.totalSold || 0) - (previousCancelledStats.totalCancelled || 0);
 
-            // Log chi tiết cho từng sản phẩm
-            logInfo(`[${requestId}] Product ${product.name} stats:
-                Current delivered: ${currentDeliveredStats.totalSold || 0}
-                Current cancelled: ${currentCancelledStats.totalCancelled || 0}
-                Current total: ${currentTotalSold}
-                Previous total: ${previousTotalSold}
-            `);
+
 
             // Tính % tăng trưởng
             const growthRate = calculateGrowth(currentTotalSold, previousTotalSold);
@@ -737,10 +707,7 @@ export const getBestSellingProducts = async (req, res) => {
         // Cache kết quả (1 phút)
         if (redis) {
             await redis.set(cacheKey, JSON.stringify(data), 'EX', 60); // Giảm thời gian cache xuống 1 phút
-            logInfo(`[${requestId}] Cached best selling products data for 1 minute`);
         }
-
-        logInfo(`[${requestId}] Successfully fetched best selling products`);
         res.json(data);
     } catch (error) {
         logError(`[${requestId}] Error getting best selling products: ${error.message}`);
