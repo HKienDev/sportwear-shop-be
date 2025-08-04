@@ -63,7 +63,8 @@ export const getAllReviews = async (req, res) => {
             user: {
                 _id: review.user?._id || review.user || 'unknown',
                 fullname: review.userName || review.user?.fullname || 'Unknown User',
-                avatar: review.userAvatar || review.user?.avatar || ''
+                avatar: review.userAvatar || review.user?.avatar || '',
+                totalSpent: review.user?.totalSpent || 0
             },
             userName: review.userName || review.user?.fullname || 'Unknown User',
             userAvatar: review.userAvatar || review.user?.avatar || '',

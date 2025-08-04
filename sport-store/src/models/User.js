@@ -230,6 +230,8 @@ userSchema.methods.generateResetToken = function() {
 };
 
 userSchema.methods.updateMembershipLevel = function() {
+    // Use >= logic to match frontend behavior
+    // When totalSpent equals minSpent of a tier, it belongs to that tier
     if (this.totalSpent >= 50000000) {
         this.membershipLevel = MEMBERSHIP_LEVELS.DIAMOND;
     } else if (this.totalSpent >= 10000000) {
