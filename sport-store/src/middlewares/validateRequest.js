@@ -5,34 +5,72 @@ export const validateRequest = (schemas) => {
     try {
       // Validate request body nếu có
       if (schemas.body) {
-        const result = schemas.body.safeParse(req.body);
-        if (!result.success) {
-          return res.status(400).json({
-            success: false,
-            message: ERROR_MESSAGES.VALIDATION_ERROR,
-            errors: result.error.errors.map(err => ({
-              field: err.path.join('.'),
-              message: err.message
-            }))
-          });
+        let result;
+        // Kiểm tra xem schema có phải là Zod hay Joi
+        if (schemas.body.safeParse) {
+          // Zod schema
+          result = schemas.body.safeParse(req.body);
+          if (!result.success) {
+            return res.status(400).json({
+              success: false,
+              message: ERROR_MESSAGES.VALIDATION_ERROR,
+              errors: result.error.errors.map(err => ({
+                field: err.path.join('.'),
+                message: err.message
+              }))
+            });
+          }
+          req.body = result.data;
+        } else {
+          // Joi schema
+          result = schemas.body.validate(req.body);
+          if (result.error) {
+            return res.status(400).json({
+              success: false,
+              message: ERROR_MESSAGES.VALIDATION_ERROR,
+              errors: result.error.details.map(err => ({
+                field: err.path.join('.'),
+                message: err.message
+              }))
+            });
+          }
+          req.body = result.value;
         }
-        req.body = result.data;
       }
 
       // Validate query params nếu có
       if (schemas.query) {
-        const result = schemas.query.safeParse(req.query);
-        if (!result.success) {
-          return res.status(400).json({
-            success: false,
-            message: ERROR_MESSAGES.VALIDATION_ERROR,
-            errors: result.error.errors.map(err => ({
-              field: err.path.join('.'),
-              message: err.message
-            }))
-          });
+        let result;
+        // Kiểm tra xem schema có phải là Zod hay Joi
+        if (schemas.query.safeParse) {
+          // Zod schema
+          result = schemas.query.safeParse(req.query);
+          if (!result.success) {
+            return res.status(400).json({
+              success: false,
+              message: ERROR_MESSAGES.VALIDATION_ERROR,
+              errors: result.error.errors.map(err => ({
+                field: err.path.join('.'),
+                message: err.message
+              }))
+            });
+          }
+          req.query = result.data;
+        } else {
+          // Joi schema
+          result = schemas.query.validate(req.query);
+          if (result.error) {
+            return res.status(400).json({
+              success: false,
+              message: ERROR_MESSAGES.VALIDATION_ERROR,
+              errors: result.error.details.map(err => ({
+                field: err.path.join('.'),
+                message: err.message
+              }))
+            });
+          }
+          req.query = result.value;
         }
-        req.query = result.data;
       }
 
       next();

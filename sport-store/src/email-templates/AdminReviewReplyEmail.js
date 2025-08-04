@@ -178,4 +178,4 @@ const AdminReviewReplyEmail = (userName, productName, reviewTitle, adminReply, a
   `;
 };
 
-module.exports = AdminReviewReplyEmail; 
+export default AdminReviewReplyEmail; 

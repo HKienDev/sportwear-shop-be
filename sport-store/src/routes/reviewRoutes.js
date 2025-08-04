@@ -16,13 +16,15 @@ import {
     makePrivate,
     replyToReview,
     updateAdminReply,
-    deleteAdminReply
+    deleteAdminReply,
+    getReviewStats
 } from "../controllers/reviewController.js";
 
 const router = express.Router();
 
 // Admin routes - đặt route cụ thể trước route có tham số
 router.get("/admin", verifyAccessTokenMiddleware, checkRole(['admin']), validateRequest({ query: searchReviewSchema }), getAllReviews);
+router.get("/admin/stats", verifyAccessTokenMiddleware, checkRole(['admin']), getReviewStats);
 router.post("/admin", verifyAccessTokenMiddleware, checkRole(['admin']), validateRequest({ body: createReviewSchema }), createReview);
 router.delete("/admin/bulk-delete", verifyAccessTokenMiddleware, checkRole(['admin']), bulkDeleteReviews);
 router.put("/admin/:id/verify", verifyAccessTokenMiddleware, checkRole(['admin']), verifyReview);

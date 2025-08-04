@@ -46,11 +46,48 @@ export const getAllReviews = async (req, res) => {
         const reviews = await Review.find(filter)
             .populate("user", "fullname avatar totalSpent")
             .populate("product", "name mainImage sku")
+            .populate("reviewedBy", "fullname")
             .sort(sort)
             .limit(parseInt(limit))
             .skip(skip);
 
-
+        // Transform reviews to match frontend expectations
+        const transformedReviews = reviews.map(review => ({
+            _id: review._id,
+            product: {
+                _id: review.product?._id || review.product || 'unknown',
+                name: review.product?.name || 'Unknown Product',
+                mainImage: review.product?.mainImage || '',
+                sku: review.productSku || review.product?.sku || ''
+            },
+            user: {
+                _id: review.user?._id || review.user || 'unknown',
+                fullname: review.userName || review.user?.fullname || 'Unknown User',
+                avatar: review.userAvatar || review.user?.avatar || ''
+            },
+            userName: review.userName || review.user?.fullname || 'Unknown User',
+            userAvatar: review.userAvatar || review.user?.avatar || '',
+            rating: review.rating,
+            title: review.title,
+            comment: review.comment,
+            images: review.images || [],
+            status: review.status,
+            visibility: review.visibility,
+            isVerified: review.isVerified,
+            isHelpful: review.isHelpful,
+            helpfulUsers: review.helpfulUsers || [],
+            orderId: review.orderId,
+            orderShortId: review.orderShortId,
+            purchasedItem: review.purchasedItem,
+            adminNote: review.adminNote,
+            reviewedBy: review.reviewedBy ? {
+                _id: review.reviewedBy._id,
+                fullname: review.reviewedBy.fullname
+            } : undefined,
+            reviewedAt: review.reviewedAt,
+            createdAt: review.createdAt,
+            updatedAt: review.updatedAt
+        }));
 
         // Get total count
         const total = await Review.countDocuments(filter);
@@ -60,7 +97,7 @@ export const getAllReviews = async (req, res) => {
         return res.status(200).json({
             success: true,
             data: {
-                reviews,
+                reviews: transformedReviews,
                 pagination: {
                     page: parseInt(page),
                     limit: parseInt(limit),
@@ -533,7 +570,7 @@ export const replyToReview = async (req, res) => {
 
         // Send email notification to user
         try {
-            const AdminReviewReplyEmail = require('../email-templates/AdminReviewReplyEmail.js');
+            const { default: AdminReviewReplyEmail } = await import('../email-templates/AdminReviewReplyEmail.js');
             const emailHtml = AdminReviewReplyEmail(
                 review.user.fullname,
                 review.product.name,
@@ -595,7 +632,7 @@ export const updateAdminReply = async (req, res) => {
 
         // Send email notification to user about updated reply
         try {
-            const AdminReviewReplyEmail = require('../email-templates/AdminReviewReplyEmail.js');
+            const { default: AdminReviewReplyEmail } = await import('../email-templates/AdminReviewReplyEmail.js');
             const emailHtml = AdminReviewReplyEmail(
                 review.user.fullname,
                 review.product.name,
@@ -653,5 +690,47 @@ export const deleteAdminReply = async (req, res) => {
     } catch (error) {
         logger.error(`[${requestId}] Error deleting admin reply:`, error);
         return sendErrorResponse(res, 500, "Lỗi khi xóa phản hồi", error.message, requestId);
+    }
+};
+
+// Get review stats (admin only)
+export const getReviewStats = async (req, res) => {
+    const requestId = generateRequestId();
+    try {
+        // Get total reviews count
+        const total = await Review.countDocuments();
+        
+        // Get average rating
+        const ratingStats = await Review.aggregate([
+            {
+                $group: {
+                    _id: null,
+                    averageRating: { $avg: "$rating" },
+                    totalHelpful: { $sum: "$isHelpful" }
+                }
+            }
+        ]);
+
+        const stats = {
+            total,
+            averageRating: ratingStats.length > 0 ? Math.round(ratingStats[0].averageRating * 10) / 10 : 0,
+            totalHelpful: ratingStats.length > 0 ? ratingStats[0].totalHelpful : 0
+        };
+
+        logger.info(`[${requestId}] Retrieved review stats:`, stats);
+
+        return res.status(200).json({
+            success: true,
+            data: stats,
+            message: "Lấy thống kê đánh giá thành công"
+        });
+
+    } catch (error) {
+        logger.error(`[${requestId}] Error getting review stats:`, error);
+        return res.status(500).json({
+            success: false,
+            message: "Lỗi khi lấy thống kê đánh giá",
+            error: error.message
+        });
     }
 };
