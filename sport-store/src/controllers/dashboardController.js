@@ -10,8 +10,21 @@ export const clearDashboardCacheUtil = async () => {
     try {
         const redis = getRedisClient();
         if (redis) {
-            const cacheKey = 'dashboard_stats';
-            await redis.del(cacheKey);
+            // Clear dashboard stats cache
+            const statsCacheKey = 'dashboard_stats';
+            await redis.del(statsCacheKey);
+            
+            // Clear revenue data cache for all periods
+            const revenueCacheKeys = [
+                'revenue_data:day:7',
+                'revenue_data:month:12', 
+                'revenue_data:year:5'
+            ];
+            
+            for (const key of revenueCacheKeys) {
+                await redis.del(key);
+            }
+            
             logInfo(`[clearDashboardCacheUtil] Dashboard cache cleared successfully`);
         }
     } catch (error) {
@@ -24,6 +37,7 @@ export const clearDashboardCache = async (req, res) => {
     const requestId = req.id || 'unknown';
     try {
         await clearDashboardCacheUtil();
+        logInfo(`[${requestId}] Dashboard cache cleared manually`);
         res.json({
             success: true,
             message: 'Dashboard cache cleared successfully'
@@ -94,7 +108,7 @@ export const getStats = async (req, res) => {
             Order.countDocuments({ status: 'delivered' }),
             // Đếm số đơn hàng đã hủy
             Order.countDocuments({ status: 'cancelled' }),
-            // Tính tổng doanh thu từ đơn hàng đã giao
+            // Tính tổng doanh thu từ đơn hàng đã giao thành công
             Order.aggregate([
                 { 
                     $match: { status: 'delivered' } 
@@ -237,6 +251,9 @@ export const getRevenue = async (req, res) => {
     
     try {
         logInfo(`[${requestId}] Fetching revenue data for period: ${period}, limit: ${limit}`);
+        logInfo(`[${requestId}] Request query: ${JSON.stringify(req.query)}`);
+        logInfo(`[${requestId}] Request params: ${JSON.stringify(req.params)}`);
+        logInfo(`[${requestId}] Request body: ${JSON.stringify(req.body)}`);
 
         // Kiểm tra cache
         const redis = getRedisClient();
@@ -255,96 +272,24 @@ export const getRevenue = async (req, res) => {
                                 lastUpdated.getMonth() === now.getMonth() &&
                                 lastUpdated.getFullYear() === now.getFullYear();
                 
-                // Nếu là dữ liệu của ngày hôm nay và không phải period=day, trả về từ cache
-                if (isSameDay && period !== 'day') {
+                // Kiểm tra cache cho tất cả period
+                if (isSameDay) {
                     logInfo(`[${requestId}] Returning cached revenue data for period: ${period}`);
                     
                     // Kiểm tra xem dữ liệu từ cache có đủ số lượng không
                     if (parsedData.revenue && parsedData.revenue.length < parseInt(limit)) {
-                        logInfo(`[${requestId}] Cached data has insufficient items, generating missing data`);
-                        
-                        // Tạo dữ liệu mẫu cho các tháng còn thiếu
-                        const today = new Date();
-                        const sampleData = [];
-                        
-                        // Tạo map để theo dõi các ngày/tháng/năm đã có dữ liệu
-                        const existingDates = new Set(parsedData.revenue.map(item => item.date));
-                        
-                        for (let i = 0; i < parseInt(limit); i++) {
-                            const date = new Date(today);
-                            if (period === 'day') {
-                                date.setDate(date.getDate() - i);
-                                const day = date.getDate().toString().padStart(2, '0');
-                                const month = (date.getMonth() + 1).toString().padStart(2, '0');
-                                const year = date.getFullYear();
-                                const dateStr = `${day}/${month}/${year}`;
-                                
-                                // Chỉ thêm nếu ngày này chưa có trong parsedData.revenue
-                                if (!existingDates.has(dateStr)) {
-                                    sampleData.push({
-                                        date: dateStr,
-                                        revenue: 0,
-                                        orderCount: 0
-                                    });
-                                }
-                            } else if (period === 'month') {
-                                date.setMonth(date.getMonth() - i);
-                                const month = (date.getMonth() + 1).toString().padStart(2, '0');
-                                const year = date.getFullYear();
-                                const dateStr = `${month}/${year}`;
-                                
-                                // Chỉ thêm nếu tháng này chưa có trong parsedData.revenue
-                                if (!existingDates.has(dateStr)) {
-                                    sampleData.push({
-                                        date: dateStr,
-                                        revenue: 0,
-                                        orderCount: 0
-                                    });
-                                }
-                            } else if (period === 'year') {
-                                date.setFullYear(date.getFullYear() - i);
-                                const dateStr = date.getFullYear().toString();
-                                
-                                // Chỉ thêm nếu năm này chưa có trong parsedData.revenue
-                                if (!existingDates.has(dateStr)) {
-                                    sampleData.push({
-                                        date: dateStr,
-                                        revenue: 0,
-                                        orderCount: 0
-                                    });
-                                }
-                            }
-                        }
-                        
-                        // Kết hợp dữ liệu mới với dữ liệu hiện có và sắp xếp theo ngày
-                        parsedData.revenue.push(...sampleData);
-                        parsedData.revenue.sort((a, b) => {
-                            if (period === 'day') {
-                                const [dayA, monthA, yearA] = a.date.split('/');
-                                const [dayB, monthB, yearB] = b.date.split('/');
-                                const dateA = new Date(yearA, monthA - 1, dayA);
-                                const dateB = new Date(yearB, monthB - 1, dayB);
-                                return dateA - dateB;
-                            } else if (period === 'month') {
-                                const [monthA, yearA] = a.date.split('/');
-                                const [monthB, yearB] = b.date.split('/');
-                                if (yearA !== yearB) return yearA - yearB;
-                                return monthA - monthB;
-                            } else {
-                                // period === 'year'
-                                return a.date - b.date;
-                            }
+                        logInfo(`[${requestId}] Cached data has insufficient items, clearing cache to fetch fresh data`);
+                        await redis.del(cacheKey);
+                    } else {
+                        return res.json({
+                            success: true,
+                            data: parsedData,
+                            message: 'Revenue data retrieved from cache'
                         });
                     }
-                    
-                    return res.json({
-                        success: true,
-                        data: parsedData,
-                        message: 'Revenue data retrieved from cache'
-                    });
-                } else if (!isSameDay || period === 'day') {
-                    // Nếu không phải dữ liệu của ngày hôm nay hoặc đang xem theo ngày, xóa cache
-                    logInfo(`[${requestId}] Cache outdated or viewing daily data, clearing cache key: ${cacheKey}`);
+                } else {
+                    // Nếu không phải dữ liệu của ngày hôm nay, xóa cache
+                    logInfo(`[${requestId}] Cache outdated, clearing cache key: ${cacheKey}`);
                     await redis.del(cacheKey);
                 }
             }
@@ -355,27 +300,32 @@ export const getRevenue = async (req, res) => {
 
         switch (period) {
             case 'day':
+                // 7 ngày gần nhất: từ 6 ngày trước đến hôm nay
                 startDate = new Date(now);
-                startDate.setDate(startDate.getDate() - parseInt(limit) + 1); // +1 để bao gồm ngày hiện tại
+                startDate.setDate(startDate.getDate() - 6); // 6 ngày trước
                 startDate.setHours(0, 0, 0, 0); // Reset về đầu ngày
                 break;
             case 'month':
+                // 12 tháng gần nhất: từ 11 tháng trước đến tháng này
                 startDate = new Date(now);
-                startDate.setMonth(startDate.getMonth() - parseInt(limit));
+                startDate.setMonth(startDate.getMonth() - 11); // 11 tháng trước
                 break;
             case 'year':
+                // 5 năm gần nhất: từ 4 năm trước đến năm này
                 startDate = new Date(now);
-                startDate.setFullYear(startDate.getFullYear() - parseInt(limit));
+                startDate.setFullYear(startDate.getFullYear() - 4); // 4 năm trước
                 break;
             default:
                 startDate = new Date(now);
-                startDate.setMonth(startDate.getMonth() - parseInt(limit));
+                startDate.setMonth(startDate.getMonth() - 11);
         }
 
         // Tối ưu query
         logInfo(`[${requestId}] Start date: ${startDate}`);
         logInfo(`[${requestId}] Period: ${period}`);
         logInfo(`[${requestId}] Limit: ${limit}`);
+
+
 
         const revenue = await Order.aggregate([
             {
@@ -454,18 +404,26 @@ export const getRevenue = async (req, res) => {
             }
         ]);
 
-        logInfo(`[${requestId}] Raw revenue data: ${JSON.stringify(revenue)}`);
-
-        // Format lại date theo period
+        // Format lại date theo period - Đồng bộ với frontend
         const formattedRevenue = revenue.map(item => {
             let date = item.date;
             if (period === 'day') {
-                // Nếu period là day, đảm bảo date có định dạng DD/MM/YYYY
+                // Đảm bảo format DD/MM/YYYY cho ngày
                 const parts = date.split('/');
                 if (parts.length === 3) {
                     const [day, month, year] = parts;
                     date = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
                 }
+            } else if (period === 'month') {
+                // Đảm bảo format MM/YYYY cho tháng
+                const parts = date.split('/');
+                if (parts.length === 2) {
+                    const [month, year] = parts;
+                    date = `${month.padStart(2, '0')}/${year}`;
+                }
+            } else if (period === 'year') {
+                // Đảm bảo format YYYY cho năm
+                date = date.toString();
             }
             return {
                 ...item,
@@ -473,93 +431,17 @@ export const getRevenue = async (req, res) => {
             };
         });
 
-        logInfo(`[${requestId}] Formatted revenue data: ${JSON.stringify(formattedRevenue)}`);
 
-        // Tạo dữ liệu mẫu nếu không có dữ liệu hoặc không đủ số lượng
-        if (formattedRevenue.length === 0 || period === 'day' || formattedRevenue.length < parseInt(limit)) {
-            logInfo(`[${requestId}] Generating sample data for empty periods`);
-            const today = new Date();
-            const sampleData = [];
-            
-            // Tạo map để theo dõi các ngày/tháng/năm đã có dữ liệu
-            const existingDates = new Set(formattedRevenue.map(item => item.date));
-
-            for (let i = 0; i < parseInt(limit); i++) {
-                const date = new Date(today);
-                if (period === 'day') {
-                    date.setDate(date.getDate() - i);
-                    const day = date.getDate().toString().padStart(2, '0');
-                    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-                    const year = date.getFullYear();
-                    const dateStr = `${day}/${month}/${year}`;
-                    
-                    // Chỉ thêm nếu ngày này chưa có trong formattedRevenue
-                    if (!existingDates.has(dateStr)) {
-                        sampleData.push({
-                            date: dateStr,
-                            revenue: 0,
-                            orderCount: 0
-                        });
-                    }
-                } else if (period === 'month') {
-                    date.setMonth(date.getMonth() - i);
-                    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-                    const year = date.getFullYear();
-                    const dateStr = `${month}/${year}`;
-                    
-                    // Chỉ thêm nếu tháng này chưa có trong formattedRevenue
-                    if (!existingDates.has(dateStr)) {
-                        sampleData.push({
-                            date: dateStr,
-                            revenue: 0,
-                            orderCount: 0
-                        });
-                    }
-                } else if (period === 'year') {
-                    date.setFullYear(date.getFullYear() - i);
-                    const dateStr = date.getFullYear().toString();
-                    
-                    // Chỉ thêm nếu năm này chưa có trong formattedRevenue
-                    if (!existingDates.has(dateStr)) {
-                        sampleData.push({
-                            date: dateStr,
-                            revenue: 0,
-                            orderCount: 0
-                        });
-                    }
-                }
-            }
-
-            // Kết hợp dữ liệu mới với dữ liệu hiện có và sắp xếp theo ngày
-            formattedRevenue.push(...sampleData);
-            formattedRevenue.sort((a, b) => {
-                if (period === 'day') {
-                    const [dayA, monthA, yearA] = a.date.split('/');
-                    const [dayB, monthB, yearB] = b.date.split('/');
-                    const dateA = new Date(yearA, monthA - 1, dayA);
-                    const dateB = new Date(yearB, monthB - 1, dayB);
-                    return dateA - dateB;
-                } else if (period === 'month') {
-                    const [monthA, yearA] = a.date.split('/');
-                    const [monthB, yearB] = b.date.split('/');
-                    if (yearA !== yearB) return yearA - yearB;
-                    return monthA - monthB;
-                } else {
-                    // period === 'year'
-                    return a.date - b.date;
-                }
-            });
-        }
 
         const data = {
             revenue: formattedRevenue,
             lastUpdated: new Date()
         };
 
-        // Cache kết quả (5 phút cho period khác day, 1 phút cho period=day)
+        // Cache kết quả (1 phút cho tất cả period để đảm bảo dữ liệu mới nhất)
         if (redis) {
             const cacheKey = `revenue_data:${period}:${limit}`;
-            const cacheTime = period === 'day' ? 60 : 300; // 1 phút cho day, 5 phút cho các period khác
+            const cacheTime = 60; // 1 phút cho tất cả period
             await redis.set(cacheKey, JSON.stringify(data), 'EX', cacheTime);
             logInfo(`[${requestId}] Revenue data cached with key: ${cacheKey} for ${cacheTime} seconds`);
         }
@@ -648,7 +530,7 @@ export const getRecentOrders = async (req, res) => {
         const data = {
             orders: formattedOrders,
             pagination: {
-                totalPages: null,
+                totalPages: 1,
                 totalOrders: formattedOrders.length,
                 hasMore: false
             }
@@ -682,6 +564,16 @@ export const getBestSellingProducts = async (req, res) => {
 
         // Kiểm tra cache
         const redis = getRedisClient();
+        if (redis) {
+            const cacheKey = `best_selling_products:${limit}:${days}`;
+            const cachedData = await redis.get(cacheKey);
+            
+            if (cachedData) {
+                logInfo(`[${requestId}] Returning cached best selling products data`);
+                return res.json(JSON.parse(cachedData));
+            }
+        }
+
         const cacheKey = `best_selling_products:${limit}:${days}`;
 
         // Luôn xóa cache cũ để đảm bảo dữ liệu mới nhất

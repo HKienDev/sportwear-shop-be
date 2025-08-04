@@ -21,7 +21,13 @@ const sendAndCacheOTP = async (email, purpose, requestId) => {
 
     const otp = generateOTP();
     const otpKey = `otp:${purpose}:${email}`;
-    await redis.set(otpKey, otp, 'EX', AUTH_CONFIG.OTP_EXPIRY);
+    
+    try {
+        await redis.set(otpKey, otp, 'EX', AUTH_CONFIG.OTP_EXPIRY);
+    } catch (redisError) {
+        logError(`[sendAndCacheOTP] Redis error: ${redisError.message}`);
+        // Continue without caching OTP
+    }
 
     try {
         let emailTemplate;
@@ -99,7 +105,14 @@ const verifyOTPHelper = async (email, otp, purpose) => {
 
         // Kiểm tra OTP từ Redis
         const otpKey = `otp:${purpose}:${email}`;
-        const storedOTP = await redis.get(otpKey);
+        let storedOTP;
+        
+        try {
+            storedOTP = await redis.get(otpKey);
+        } catch (redisError) {
+            logError(`[verifyOTPHelper] Redis error: ${redisError.message}`);
+            throw new Error('Redis connection error');
+        }
         
         if (!storedOTP) {
             logError(`[verifyOTPHelper] OTP not found for: ${email}`);
@@ -112,7 +125,11 @@ const verifyOTPHelper = async (email, otp, purpose) => {
         }
 
         // Xóa OTP sau khi xác thực thành công
-        await redis.del(otpKey);
+        try {
+            await redis.del(otpKey);
+        } catch (redisError) {
+            logError(`[verifyOTPHelper] Redis delete error: ${redisError.message}`);
+        }
         logInfo(`[verifyOTPHelper] Successfully verified OTP for: ${email}`);
 
         return user;
@@ -126,15 +143,26 @@ const verifyOTPHelper = async (email, otp, purpose) => {
 const isTokenBlacklisted = async (token) => {
     const redis = getRedisClient();
     if (!redis) return false;
-    const blacklisted = await redis.get(`blacklist:${token}`);
-    return !!blacklisted;
+    
+    try {
+        const blacklisted = await redis.get(`blacklist:${token}`);
+        return !!blacklisted;
+    } catch (redisError) {
+        logError(`[isTokenBlacklisted] Redis error: ${redisError.message}`);
+        return false;
+    }
 };
 
 // Helper function để thêm token vào blacklist
 const addTokenToBlacklist = async (token, expiry) => {
     const redis = getRedisClient();
     if (!redis) return;
-    await redis.set(`blacklist:${token}`, '1', 'EX', expiry);
+    
+    try {
+        await redis.set(`blacklist:${token}`, '1', 'EX', expiry);
+    } catch (redisError) {
+        logError(`[addTokenToBlacklist] Redis error: ${redisError.message}`);
+    }
 };
 
 // Controllers
@@ -616,17 +644,20 @@ export const refreshToken = async (req, res) => {
 
         // Get Redis client
         const redis = getRedisClient();
-        if (!redis) {
-            throw new Error('Redis connection not available');
+        if (redis) {
+            try {
+                // Cache user data
+                await redis.set(
+                    `user:${user._id}`,
+                    JSON.stringify(user),
+                    'EX',
+                    env.REDIS_CACHE_TTL
+                );
+            } catch (redisError) {
+                logError(`[${requestId}] Redis cache error: ${redisError.message}`);
+                // Continue without caching if Redis fails
+            }
         }
-
-        // Cache user data
-        await redis.set(
-            `user:${user._id}`,
-            JSON.stringify(user),
-            'EX',
-            env.REDIS_CACHE_TTL
-        );
 
         logInfo(`[${requestId}] Successfully refreshed token for user: ${user._id}`);
         res.json({

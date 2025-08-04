@@ -70,6 +70,7 @@ const env = {
     
     // Redis (Optional)
     REDIS_URL: process.env.REDIS_URL,
+    REDIS_CACHE_TTL: parseInt(process.env.REDIS_CACHE_TTL) || 3600, // 1 hour default
     
     // Google OAuth
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,

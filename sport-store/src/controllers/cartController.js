@@ -9,9 +9,11 @@ export const getCart = async (req, res) => {
   try {
     const userId = req.user?._id || null;
 
+    // Kiểm tra nếu userId là null, tìm cart với user: null
     let cart = await Cart.findOne({ userId });
     
     if (!cart) {
+      // Tạo cart mới với userId (có thể là null)
       cart = await Cart.create({ userId, items: [] });
     }
 
