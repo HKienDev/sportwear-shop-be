@@ -4,7 +4,7 @@ import { logError, logInfo } from '../utils/logger.js';
 
 // Constants
 const UPLOAD_CONFIG = {
-    MAX_FILE_SIZE: 5 * 1024 * 1024, // 5MB
+    MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
     ALLOWED_MIME_TYPES: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
     UPLOAD_DIR: 'uploads/'
 };

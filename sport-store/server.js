@@ -32,6 +32,7 @@ import emailRoutes from "./src/routes/emailRoutes.js";
 import chatRoutes from "./src/routes/chatRoutes.js";
 import reviewRoutes from "./src/routes/reviewRoutes.js";
 import questionRoutes from "./src/routes/questionRoutes.js";
+import brandRoutes from "./src/routes/brandRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -54,8 +55,8 @@ app.use(helmet({
 app.use(compression()); // Nén response
 app.use(cors(corsOptions));
 
-app.use(express.json()); // Parse JSON bodies
-app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+app.use(express.json({ limit: '10mb' })); // Parse JSON bodies with increased limit
+app.use(express.urlencoded({ extended: true, limit: '10mb' })); // Parse URL-encoded bodies with increased limit
 app.use(cookieParser()); // Parse cookies
 app.use(morgan("dev")); // Logging
 app.use(requestId); // Thêm request ID
@@ -78,6 +79,7 @@ app.use("/api/email", emailRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/questions", questionRoutes);
+app.use("/api", brandRoutes);
 
 // Error handling
 app.use(notFoundHandler);
