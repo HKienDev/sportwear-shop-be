@@ -2,6 +2,8 @@ import ChatMessage from '../models/ChatMessage.js';
 import User from '../models/User.js';
 import { logInfo, logError } from '../utils/logger.js';
 import { sendSuccessResponse, sendErrorResponse } from '../utils/responseUtils.js';
+import { getMembershipTier } from '../utils/membershipUtils.js';
+import mongoose from 'mongoose';
 
 // Lấy lịch sử tin nhắn theo session
 export const getMessageHistory = async (req, res) => {
@@ -92,26 +94,47 @@ export const getConversations = async (req, res) => {
                 
                 // Tìm thông tin user nếu có
                 let userInfo = null;
-                if (userId && !userId.startsWith('temp_')) {
+                let membershipTier = null;
+                
+                if (userId && !userId.startsWith('temp_') && !userId.startsWith('user_') && mongoose.Types.ObjectId.isValid(userId)) {
                     try {
-                        userInfo = await User.findById(userId).select('fullname email phone');
+                        userInfo = await User.findById(userId).select('fullname email phone totalSpent');
+                        
+                        if (userInfo) {
+                            // Tính toán hạng thành viên dựa trên totalSpent
+                            const totalSpent = userInfo.totalSpent || 0;
+                            membershipTier = getMembershipTier(totalSpent);
+                        }
                     } catch (error) {
                         logError(`Error finding user ${userId}:`, error);
                     }
+                } else {
+                    // Fallback cho temporary users
+                    userInfo = {
+                        fullname: userId.startsWith('temp_') ? 'Anonymous User' : 'Unknown User',
+                        email: null,
+                        phone: null
+                    };
                 }
 
                 return {
                     id: userId,
-                    name: userInfo?.fullname || conv.lastMessage.senderName || 'Unknown User',
-                    lastMessage: conv.lastMessage.text,
-                    unread: conv.unreadCount,
-                    messageCount: conv.messageCount,
+                    name: userInfo?.fullname || 'Unknown User',
+                    lastMessage: conv.lastMessage.text || 'No messages yet',
                     lastMessageTime: conv.lastMessage.createdAt,
-                    userInfo: userInfo ? {
-                        fullname: userInfo.fullname,
-                        email: userInfo.email,
-                        phone: userInfo.phone
-                    } : null
+                    unread: conv.unreadCount || 0,
+                    messageCount: conv.messageCount || 0,
+                    userInfo: {
+                        _id: userId,
+                        id: userId,
+                        name: userInfo?.fullname || 'Unknown User',
+                        email: userInfo?.email || null,
+                        phone: userInfo?.phone || null,
+                        totalSpent: userInfo?.totalSpent || 0
+                    },
+                    membershipTier: membershipTier || null,
+                    status: 'active',
+                    priority: 'normal'
                 };
             })
         );

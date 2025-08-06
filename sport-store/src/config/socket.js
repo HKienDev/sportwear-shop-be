@@ -7,20 +7,18 @@ import mongoose from 'mongoose';
 let io;
 
 export const initSocket = (server) => {
+    // Khởi tạo conversation tracker
+    if (!global.conversationTracker) {
+        global.conversationTracker = new Set();
+    }
+    
     io = new Server(server, {
         cors: {
-            origin: [
-                'http://localhost:3000',
-                'https://sport-store-fe-graduation.vercel.app',
-                'https://www.vjusport.com'
-            ],
-            methods: ['GET', 'POST'],
+            origin: process.env.FRONTEND_URL || "http://localhost:3000",
+            methods: ["GET", "POST"],
             credentials: true
         },
-        pingTimeout: 60000,
-        pingInterval: 25000,
-        transports: ['websocket', 'polling'],
-        allowEIO3: true // Cho phép Engine.IO v3
+        transports: ['websocket', 'polling']
     });
 
     // Lưu trữ thông tin user đã kết nối
@@ -33,18 +31,14 @@ export const initSocket = (server) => {
     const userInfo = new Map();
 
     io.on('connection', (socket) => {
-        logInfo(`Client connected: ${socket.id}`);
-
         // Xử lý khi client xác định danh tính
         socket.on('identifyUser', async (data) => {
             try {
-                const { userId, userName, isAdmin } = data;
-                logInfo(`IdentifyUser request from ${socket.id}:`, { userId, userName, isAdmin });
+                const { userId, userName, isAdmin, userInfo: userInfoData } = data;
                 
                 if (isAdmin) {
                     // Nếu là admin, thêm vào danh sách admin
                     connectedAdmins.add(socket.id);
-                    logInfo(`Admin identified with socket ${socket.id}`);
                     
                     // Gửi xác nhận lại cho admin
                     socket.emit('identified', { 
@@ -52,17 +46,29 @@ export const initSocket = (server) => {
                         role: 'admin',
                         socketId: socket.id
                     });
-                    
-                    // Log số lượng admin hiện tại
-                    logInfo(`Current admin count: ${connectedAdmins.size}`);
                 } else if (userId) {
+                    // Xóa thông tin socket cũ nếu có
+                    const oldUserId = socketToUserId.get(socket.id);
+                    if (oldUserId && oldUserId !== userId) {
+                        connectedUsers.delete(oldUserId);
+                    }
+                    
                     // Nếu là user, thêm vào danh sách user
                     connectedUsers.set(userId, socket.id);
                     socketToUserId.set(socket.id, userId);
                     
                     // Lấy thông tin user từ database nếu có
                     let userData = { name: userName || 'Unknown User' };
-                    if (userId && !userId.startsWith('temp_') && mongoose.Types.ObjectId.isValid(userId)) {
+                    
+                    // Nếu có userInfo từ frontend (user đã login), sử dụng thông tin đó
+                    if (userInfoData && userInfoData.fullname) {
+                        userData = { 
+                            name: userInfoData.fullname,
+                            email: userInfoData.email,
+                            phone: userInfoData.phone
+                        };
+                    } else if (userId && !userId.startsWith('temp_') && mongoose.Types.ObjectId.isValid(userId)) {
+                        // Nếu không có userInfo, thử lấy từ database
                         try {
                             const user = await User.findById(userId).select('fullname email phone');
                             if (user) {
@@ -77,11 +83,31 @@ export const initSocket = (server) => {
                         }
                     }
                     
+                    // Cập nhật thông tin user
                     userInfo.set(userId, userData);
                     const roomName = `user_${userId}`;
                     socket.join(roomName);
-                    logInfo(`✅ User ${userId} (${userData.name}) joined room: ${roomName}`);
-                    logInfo(`🔍 Current rooms for socket ${socket.id}:`, Array.from(socket.rooms));
+                    
+                    // Clear conversationTracker cho user này để có thể gửi newConversation event
+                    if (global.conversationTracker && global.conversationTracker.has(userId)) {
+                        global.conversationTracker.delete(userId);
+                    }
+                    
+                    // Gửi thông báo cho admin về user mới hoặc user đã cập nhật
+                    if (connectedAdmins.size > 0) {
+                        const userUpdateData = {
+                            type: 'userUpdate',
+                            userId: userId,
+                            userName: userData.name,
+                            userEmail: userData.email,
+                            userPhone: userData.phone,
+                            isOnline: true
+                        };
+                        
+                        connectedAdmins.forEach(adminSocketId => {
+                            io.to(adminSocketId).emit('userUpdate', userUpdateData);
+                        });
+                    }
                     
                     // Gửi xác nhận lại cho user
                     socket.emit('identified', { 
@@ -110,18 +136,15 @@ export const initSocket = (server) => {
         // Xử lý khi client join vào một room
         socket.on('join', (room) => {
             socket.join(room);
-            logInfo(`Client ${socket.id} joined room: ${room}`);
         });
 
         // Xử lý khi client leave một room
         socket.on('leave', (room) => {
             socket.leave(room);
-            logInfo(`Client ${socket.id} left room: ${room}`);
         });
 
         // Xử lý khi client gửi tin nhắn
         socket.on('sendMessage', async (data) => {
-            logInfo(`Message received from ${socket.id}:`, data);
             
             const { text, recipientId, userId, userName } = data;
             
@@ -137,9 +160,6 @@ export const initSocket = (server) => {
             
             if (isAdmin && recipientId) {
                 // Nếu người gửi là admin và có recipientId, gửi tin nhắn đến user cụ thể
-                logInfo(`🔍 Admin sending message to user ${recipientId}`);
-                logInfo(`🔍 Connected users:`, Array.from(connectedUsers.keys()));
-                logInfo(`🔍 User rooms:`, Array.from(connectedUsers.keys()).map(id => `user_${id}`));
                 
                 const messageData = {
                     senderId: 'admin',
@@ -159,29 +179,17 @@ export const initSocket = (server) => {
                         isAdmin: true,
                         sessionId: `admin_${recipientId}`
                     });
-                    logInfo(`✅ Admin message saved to database for user ${recipientId}`);
                 } catch (error) {
                     logError('Error saving admin message to database:', error);
                 }
                 
                 // Gửi tin nhắn đến user thông qua room (không cần kiểm tra socket ID)
                 const roomName = `user_${recipientId}`;
-                logInfo(`🔍 Emitting to room: ${roomName}`);
-                
-                // Kiểm tra xem có ai trong room không
-                const room = io.sockets.adapter.rooms.get(roomName);
-                if (room) {
-                    logInfo(`🔍 Room ${roomName} has ${room.size} members:`, Array.from(room));
-                } else {
-                    logInfo(`⚠️ Room ${roomName} is empty or doesn't exist`);
-                }
                 
                 io.to(roomName).emit('receiveMessage', messageData);
-                logInfo(`✅ Admin message sent to room ${roomName}`);
                 
                 // Cũng gửi lại cho admin để confirm
                 socket.emit('receiveMessage', messageData);
-                logInfo(`✅ Admin message confirmation sent back to admin`);
                 
             } else {
                 // Kiểm tra xem người gửi có phải là user không
@@ -212,7 +220,6 @@ export const initSocket = (server) => {
                         }
                     }
                     userInfo.set(userId, userData);
-                    logInfo(`User ${userId} (${userData.name}) identified with socket ${socket.id}`);
                 }
                 
                 if (senderId) {
@@ -229,13 +236,22 @@ export const initSocket = (server) => {
                     
                     // Lưu tin nhắn vào database
                     try {
-                        await ChatMessage.create({
+                        // Kiểm tra database connection
+                        const dbState = mongoose.connection.readyState;
+                        
+                        if (dbState !== 1) {
+                            logError('Database not connected! Cannot save message.');
+                            return;
+                        }
+                        
+                        const savedMessage = await ChatMessage.create({
                             senderId: senderId,
                             senderName: user.name,
+                            senderPhone: user.phone || null,
+                            senderEmail: user.email || null,
                             recipientId: 'admin',
                             text: text,
                             isAdmin: false,
-                            userId: senderId.startsWith('temp_') ? null : senderId,
                             sessionId: `admin_${senderId}`
                         });
                     } catch (error) {
@@ -244,12 +260,29 @@ export const initSocket = (server) => {
                     
                     // Nếu người gửi là user, gửi tin nhắn đến tất cả admin
                     if (connectedAdmins.size > 0) {
+                        // Gửi tin nhắn đến admin
                         connectedAdmins.forEach(adminSocketId => {
                             io.to(adminSocketId).emit('receiveMessage', messageData);
                         });
-                        logInfo(`User ${senderId} (${user.name}) message sent to all admins`);
-                    } else {
-                        logInfo(`No admins online to receive message from user ${senderId}`);
+                        
+                        // Gửi newConversation event nếu đây là tin nhắn đầu tiên từ user này
+                        if (!global.conversationTracker) {
+                            global.conversationTracker = new Set();
+                        }
+                        
+                        if (!global.conversationTracker.has(senderId)) {
+                            global.conversationTracker.add(senderId);
+                            
+                            const newConversationData = {
+                                conversationId: senderId,
+                                userId: senderId,
+                                userName: user.name
+                            };
+                            
+                            connectedAdmins.forEach(adminSocketId => {
+                                io.to(adminSocketId).emit('newConversation', newConversationData);
+                            });
+                        }
                     }
                 } else {
                     // Nếu không có senderId, tạo một ID tạm thời và lưu thông tin
@@ -261,8 +294,6 @@ export const initSocket = (server) => {
                     userInfo.set(tempUserId, { name: tempUserName });
                     socket.join(`user_${tempUserId}`);
                     
-                    logInfo(`Created temporary user ${tempUserId} (${tempUserName}) for socket ${socket.id}`);
-                    
                     const messageData = {
                         senderId: tempUserId,
                         senderName: tempUserName,
@@ -273,9 +304,11 @@ export const initSocket = (server) => {
                     
                     // Lưu tin nhắn vào database
                     try {
-                        await ChatMessage.create({
+                        const savedMessage = await ChatMessage.create({
                             senderId: tempUserId,
                             senderName: tempUserName,
+                            senderPhone: null, // Temporary users không có phone
+                            senderEmail: null, // Temporary users không có email
                             recipientId: 'admin',
                             text: text,
                             isAdmin: false,
@@ -290,9 +323,25 @@ export const initSocket = (server) => {
                         connectedAdmins.forEach(adminSocketId => {
                             io.to(adminSocketId).emit('receiveMessage', messageData);
                         });
-                        logInfo(`Temporary user ${tempUserId} (${tempUserName}) message sent to all admins`);
-                    } else {
-                        logInfo(`No admins online to receive message from temporary user ${tempUserId}`);
+                        
+                        // Gửi newConversation event cho temporary user
+                        if (!global.conversationTracker) {
+                            global.conversationTracker = new Set();
+                        }
+                        
+                        if (!global.conversationTracker.has(tempUserId)) {
+                            global.conversationTracker.add(tempUserId);
+                            
+                            const newConversationData = {
+                                conversationId: tempUserId,
+                                userId: tempUserId,
+                                userName: tempUserName
+                            };
+                            
+                            connectedAdmins.forEach(adminSocketId => {
+                                io.to(adminSocketId).emit('newConversation', newConversationData);
+                            });
+                        }
                     }
                 }
             }
@@ -318,7 +367,6 @@ export const initSocket = (server) => {
                     }));
                     
                     socket.emit('messageHistory', formattedMessages);
-                    logInfo(`Sent message history to client ${socket.id} for user ${userId}`);
                 } catch (error) {
                     logError(`Error fetching message history for user ${userId}:`, error);
                     socket.emit('messageHistory', []);
@@ -338,16 +386,29 @@ export const initSocket = (server) => {
                 // Chỉ xóa thông tin socket
                 connectedUsers.delete(userId);
                 socketToUserId.delete(socket.id);
-                logInfo(`User ${userId} disconnected`);
+                
+                // Thông báo cho admin về việc user offline
+                if (connectedAdmins.size > 0) {
+                    const userData = userInfo.get(userId);
+                    const userUpdateData = {
+                        type: 'userUpdate',
+                        userId: userId,
+                        userName: userData?.name || 'Unknown User',
+                        userEmail: userData?.email,
+                        userPhone: userData?.phone,
+                        isOnline: false
+                    };
+                    
+                    connectedAdmins.forEach(adminSocketId => {
+                        io.to(adminSocketId).emit('userUpdate', userUpdateData);
+                    });
+                }
             }
             
             // Xóa thông tin admin khi disconnect
             if (connectedAdmins.has(socket.id)) {
                 connectedAdmins.delete(socket.id);
-                logInfo(`Admin disconnected: ${socket.id}`);
             }
-            
-            logInfo(`Client disconnected: ${socket.id}`);
         });
 
         // Xử lý lỗi

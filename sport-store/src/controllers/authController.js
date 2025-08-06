@@ -130,7 +130,6 @@ const verifyOTPHelper = async (email, otp, purpose) => {
         } catch (redisError) {
             logError(`[verifyOTPHelper] Redis delete error: ${redisError.message}`);
         }
-        logInfo(`[verifyOTPHelper] Successfully verified OTP for: ${email}`);
 
         return user;
     } catch (error) {

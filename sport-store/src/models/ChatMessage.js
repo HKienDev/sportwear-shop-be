@@ -10,6 +10,16 @@ const chatMessageSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    senderPhone: {
+        type: String,
+        sparse: true,
+        index: true
+    },
+    senderEmail: {
+        type: String,
+        sparse: true,
+        index: true
+    },
     recipientId: {
         type: String,
         required: true,

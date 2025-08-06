@@ -52,12 +52,6 @@ export const uploadImage = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        logInfo(`[${requestId}] Upload request received:`, {
-            file: req.file,
-            headers: req.headers,
-            body: req.body
-        });
-        
         if (!req.file) {
             logError(`[${requestId}] No file received`);
             return res.status(400).json({ 
@@ -66,21 +60,11 @@ export const uploadImage = async (req, res) => {
             });
         }
 
-        logInfo(`[${requestId}] File received:`, {
-            filename: req.file.filename,
-            mimetype: req.file.mimetype,
-            size: req.file.size,
-            path: req.file.path
-        });
-
         // Đảm bảo thư mục uploads tồn tại
         ensureUploadDir();
 
         // Upload lên Cloudinary
-        logInfo(`[${requestId}] Uploading to Cloudinary...`);
         const result = await cloudinary.uploader.upload(req.file.path, CLOUDINARY_CONFIG);
-
-        logInfo(`[${requestId}] Cloudinary upload result:`, result);
 
         // Xóa file tạm sau khi upload thành công
         deleteTempFile(req.file.path, requestId);
@@ -93,11 +77,7 @@ export const uploadImage = async (req, res) => {
             }
         });
     } catch (error) {
-        logError(`[${requestId}] Upload error details:`, {
-            message: error.message,
-            stack: error.stack,
-            details: error
-        });
+        logError(`[${requestId}] Upload error:`, error);
 
         // Xóa file tạm nếu có lỗi
         if (req.file) {
@@ -113,12 +93,6 @@ export const uploadAvatar = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        logInfo(`[${requestId}] Avatar upload request received:`, {
-            file: req.file,
-            headers: req.headers,
-            body: req.body
-        });
-        
         if (!req.file) {
             logError(`[${requestId}] No file received`);
             return res.status(400).json({ 
@@ -127,43 +101,35 @@ export const uploadAvatar = async (req, res) => {
             });
         }
 
-        logInfo(`[${requestId}] File received:`, {
-            filename: req.file.filename,
-            mimetype: req.file.mimetype,
-            size: req.file.size,
-            path: req.file.path
-        });
-
         // Đảm bảo thư mục uploads tồn tại
         ensureUploadDir();
 
         // Upload lên Cloudinary với folder riêng cho avatar
-        logInfo(`[${requestId}] Uploading to Cloudinary...`);
         const result = await cloudinary.uploader.upload(req.file.path, {
             ...CLOUDINARY_CONFIG,
             folder: 'sport-store/avatars'
         });
-
-        logInfo(`[${requestId}] Cloudinary upload result:`, result);
 
         // Xóa file tạm sau khi upload thành công
         deleteTempFile(req.file.path, requestId);
 
         res.json({
             success: true,
-            message: SUCCESS_MESSAGES.AVATAR_UPLOAD_SUCCESS,
             data: {
                 url: result.secure_url,
                 public_id: result.public_id
             }
         });
     } catch (error) {
-        logError(`[${requestId}] Upload error details:`, {
-            message: error.message,
-            stack: error.stack,
-            details: error
-        });
-        res.status(500).json(handleError(error, requestId));
+        logError(`[${requestId}] Avatar upload error:`, error);
+
+        // Xóa file tạm nếu có lỗi
+        if (req.file) {
+            deleteTempFile(req.file.path, requestId);
+        }
+
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
     }
 };
 
@@ -171,12 +137,6 @@ export const uploadProductImage = async (req, res) => {
     const requestId = req.id || 'unknown';
     
     try {
-        logInfo(`[${requestId}] Product image upload request received:`, {
-            file: req.file,
-            headers: req.headers,
-            body: req.body
-        });
-        
         if (!req.file) {
             logError(`[${requestId}] No file received`);
             return res.status(400).json({ 
@@ -185,24 +145,14 @@ export const uploadProductImage = async (req, res) => {
             });
         }
 
-        logInfo(`[${requestId}] File received:`, {
-            filename: req.file.filename,
-            mimetype: req.file.mimetype,
-            size: req.file.size,
-            path: req.file.path
-        });
-
         // Đảm bảo thư mục uploads tồn tại
         ensureUploadDir();
 
         // Upload lên Cloudinary với folder riêng cho sản phẩm
-        logInfo(`[${requestId}] Uploading to Cloudinary...`);
         const result = await cloudinary.uploader.upload(req.file.path, {
             ...CLOUDINARY_CONFIG,
             folder: 'sport-store/products'
         });
-
-        logInfo(`[${requestId}] Cloudinary upload result:`, result);
 
         // Xóa file tạm sau khi upload thành công
         deleteTempFile(req.file.path, requestId);
@@ -216,11 +166,54 @@ export const uploadProductImage = async (req, res) => {
             }
         });
     } catch (error) {
-        logError(`[${requestId}] Upload error details:`, {
-            message: error.message,
-            stack: error.stack,
-            details: error
-        });
+        logError(`[${requestId}] Product image upload error:`, error);
         res.status(500).json(handleError(error, requestId));
+    }
+}; 
+
+// Upload file chung
+export const uploadFile = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'Không có file được upload'
+            });
+        }
+
+        const filePath = req.file.path;
+        
+        // Upload lên Cloudinary
+        const result = await cloudinary.uploader.upload(filePath, {
+            folder: 'uploads',
+            resource_type: 'auto'
+        });
+
+        // Xóa file tạm
+        fs.unlink(filePath, (err) => {
+            if (err) {
+                logError(`[${requestId}] Error deleting temp file:`, err);
+            }
+        });
+
+        return res.json({
+            success: true,
+            message: 'Upload thành công',
+            data: {
+                url: result.secure_url,
+                public_id: result.public_id,
+                format: result.format,
+                size: result.bytes
+            }
+        });
+
+    } catch (error) {
+        logError(`[${requestId}] Error in uploadFile:`, error);
+        return res.status(500).json({
+            success: false,
+            message: 'Lỗi upload file'
+        });
     }
 }; 

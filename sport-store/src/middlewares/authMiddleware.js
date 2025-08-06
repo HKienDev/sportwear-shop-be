@@ -42,8 +42,6 @@ export const verifyAccessTokenMiddleware = async (req, res, next) => {
     const requestId = req.id || 'unknown';
     
     try {
-        logInfo(`[${requestId}] Processing access token verification`);
-
         const token = extractToken(req);
         if (!token) {
             logError(`[${requestId}] ${ERROR_MESSAGES.NO_TOKEN}`);
@@ -83,8 +81,6 @@ export const verifyUser = async (req, res, next) => {
     const requestId = req.id || 'unknown';
     
     try {
-        logInfo(`[${requestId}] Processing user verification`);
-
         const token = extractToken(req);
         if (!token) {
             logError(`[${requestId}] ${ERROR_MESSAGES.NO_TOKEN}`);
@@ -97,12 +93,11 @@ export const verifyUser = async (req, res, next) => {
         const decoded = await verifyAccessToken(token);
         const user = await findAndVerifyUser(decoded.userId);
 
-        logInfo(`[${requestId}] User verified successfully: ${user._id}`);
         req.user = user;
         next();
     } catch (error) {
-        logError(`[${requestId}] User verification failed`, error);
-        return res.status(401).json({ 
+        logError(`[${requestId}] User verification failed: ${error.message}`);
+        return res.status(401).json({
             success: false,
             message: ERROR_MESSAGES.UNAUTHORIZED,
             errors: [{ message: error.message }]
@@ -115,8 +110,6 @@ export const verifyAdmin = async (req, res, next) => {
     const requestId = req.id || 'unknown';
     
     try {
-        logInfo(`[${requestId}] Processing admin verification`);
-
         const token = extractToken(req);
         if (!token) {
             logError(`[${requestId}] ${ERROR_MESSAGES.INVALID_TOKEN_FORMAT}`);
@@ -137,11 +130,10 @@ export const verifyAdmin = async (req, res, next) => {
             });
         }
 
-        logInfo(`[${requestId}] Admin verified successfully: ${user._id}`);
         req.user = user;
         next();
     } catch (error) {
-        logError(`[${requestId}] Admin verification failed`, error);
+        logError(`[${requestId}] Admin verification failed: ${error.message}`);
         res.status(401).json({ 
             success: false,
             message: error.message 
@@ -166,11 +158,10 @@ export const verifyRefreshTokenMiddleware = async (req, res, next) => {
         const decoded = await verifyRefreshToken(refreshToken);
         const user = await findAndVerifyUser(decoded.userId);
         
-        logInfo(`[${requestId}] Refresh token verified successfully: ${user._id}`);
         req.user = user;
         next();
     } catch (error) {
-        logError(`[${requestId}] Refresh token verification failed`, error);
+        logError(`[${requestId}] Refresh token verification failed: ${error.message}`);
         res.status(401).json({ 
             success: false,
             message: error.name === "TokenExpiredError" 
