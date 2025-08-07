@@ -397,7 +397,7 @@ productSchema.post('remove', async function(doc, next) {
 });
 
 // Indexes
-productSchema.index({ name: 1, description: 'text', brand: 'text', tags: 'text' });
+productSchema.index({ name: 1, description: 'text', brand: 'text', tags: 'text', sku: 'text' });
 productSchema.index({ categoryId: 1 });
 productSchema.index({ brand: 1 });
 productSchema.index({ slug: 1 }, { unique: true });

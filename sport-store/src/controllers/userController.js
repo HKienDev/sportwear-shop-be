@@ -562,6 +562,58 @@ export const getUserByPhone = async (req, res) => {
     }
 };
 
+// Kiểm tra email và phone có tồn tại trong database không
+export const checkUserExists = async (req, res) => {
+    const requestId = req.id || 'unknown';
+    
+    try {
+        const { email, phone } = req.body;
+        
+        if (!email && !phone) {
+            logError(`[${requestId}] Email or phone is required`);
+            return res.status(400).json({
+                success: false,
+                message: 'Email hoặc số điện thoại là bắt buộc'
+            });
+        }
+
+        const query = {};
+        if (email) query.email = email;
+        if (phone) query.phone = phone;
+
+        const user = await User.findOne(query).select('-password');
+        
+        if (user) {
+            let message = '';
+            if (email && phone && user.email === email && user.phone === phone) {
+                message = 'Email và số điện thoại đã được sử dụng';
+            } else if (email && user.email === email) {
+                message = 'Email đã được sử dụng';
+            } else if (phone && user.phone === phone) {
+                message = 'Số điện thoại đã được sử dụng';
+            }
+
+            logInfo(`[${requestId}] User exists with provided info: ${JSON.stringify({ email, phone })}`);
+            return res.status(200).json({
+                success: true,
+                exists: true,
+                message
+            });
+        }
+
+        logInfo(`[${requestId}] User info is available: ${JSON.stringify({ email, phone })}`);
+        return res.status(200).json({
+            success: true,
+            exists: false,
+            message: 'Thông tin hợp lệ'
+        });
+
+    } catch (error) {
+        const errorResponse = handleError(error, requestId);
+        res.status(500).json(errorResponse);
+    }
+};
+
 export const updateAllUsersOrderCount = async (req, res) => {
     const requestId = req.id || 'unknown';
     

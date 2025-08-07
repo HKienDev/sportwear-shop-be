@@ -17,6 +17,9 @@ router.get("/test", (req, res) => {
 // Route kiểm tra số điện thoại
 router.get("/check-phone/:phone", userController.getUserByPhone);
 
+// Route kiểm tra email và phone có tồn tại không
+router.post("/check-exists", userController.checkUserExists);
+
 // Protected routes (require authentication)
 router.get("/profile", verifyUser, userController.getUserProfile);
 router.put("/profile", verifyUser, validateRequest(updateProfileSchema), userController.updateProfile);

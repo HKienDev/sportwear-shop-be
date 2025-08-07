@@ -46,7 +46,13 @@ export const getProducts = async (req, res) => {
         const query = isAdminRoute ? {} : { isActive: true };
         
         if (keyword) {
-            query.$text = { $search: keyword };
+            // Tạo query OR để tìm kiếm trong nhiều trường (không dùng $text vì xung đột với $or)
+            query.$or = [
+                { sku: { $regex: keyword, $options: 'i' } },
+                { name: { $regex: keyword, $options: 'i' } },
+                { brand: { $regex: keyword, $options: 'i' } },
+                { description: { $regex: keyword, $options: 'i' } }
+            ];
         }
         if (categoryId) {
             // Sử dụng categoryId thay vì _id để tìm kiếm

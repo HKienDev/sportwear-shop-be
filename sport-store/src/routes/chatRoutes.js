@@ -1,5 +1,6 @@
 import express from 'express';
 import { logInfo, logError } from '../utils/logger.js';
+import { sendSuccessResponse, sendErrorResponse } from '../utils/responseUtils.js';
 import ChatMessage from '../models/ChatMessage.js';
 import { 
     getConversations, 
@@ -7,7 +8,8 @@ import {
     sendMessage, 
     markAsReadByConversation,
     getUnreadCount,
-    deleteConversation
+    deleteConversation,
+    clearGuestMessages
 } from '../controllers/chatController.js';
 import { verifyAdmin } from '../middlewares/authMiddleware.js';
 
@@ -46,19 +48,22 @@ router.get('/history/:userId', async (req, res) => {
 // GET /api/chat/conversations - Lấy danh sách cuộc trò chuyện cho admin
 router.get('/conversations', verifyAdmin, getConversations);
 
-// GET /api/chat/messages/:conversationId - Lấy tin nhắn theo conversation
-router.get('/messages/:conversationId', verifyAdmin, getMessagesByConversation);
+// GET /api/chat/messages/:conversationId - Lấy tin nhắn theo conversation (cho phép khách vãng lai)
+router.get('/messages/:conversationId', getMessagesByConversation);
 
-// POST /api/chat/send - Gửi tin nhắn
-router.post('/send', verifyAdmin, sendMessage);
+// POST /api/chat/send - Gửi tin nhắn (cho phép khách vãng lai)
+router.post('/send', sendMessage);
 
-// PUT /api/chat/mark-read/:conversationId - Đánh dấu đã đọc
-router.put('/mark-read/:conversationId', verifyAdmin, markAsReadByConversation);
+// PUT /api/chat/mark-read/:conversationId - Đánh dấu đã đọc (cho phép khách vãng lai)
+router.put('/mark-read/:conversationId', markAsReadByConversation);
 
 // GET /api/chat/unread/:recipientId - Lấy số tin nhắn chưa đọc
 router.get('/unread/:recipientId', getUnreadCount);
 
 // DELETE /api/chat/conversation/:userId - Xóa conversation
 router.delete('/conversation/:userId', verifyAdmin, deleteConversation);
+
+// DELETE /api/chat/clear-guest-messages - Xóa tin nhắn của khách vãng lai
+router.delete('/clear-guest-messages', clearGuestMessages);
 
 export default router;

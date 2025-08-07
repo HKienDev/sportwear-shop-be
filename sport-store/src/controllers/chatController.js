@@ -109,12 +109,42 @@ export const getConversations = async (req, res) => {
                         logError(`Error finding user ${userId}:`, error);
                     }
                 } else {
-                    // Fallback cho temporary users
-                    userInfo = {
-                        fullname: userId.startsWith('temp_') ? 'Anonymous User' : 'Unknown User',
-                        email: null,
-                        phone: null
-                    };
+                    // Tìm thông tin từ tin nhắn đầu tiên của user này
+                    try {
+                        const firstMessage = await ChatMessage.findOne({
+                            $or: [
+                                { senderId: userId },
+                                { recipientId: userId }
+                            ]
+                        }).sort({ createdAt: 1 });
+
+                        if (firstMessage) {
+                            // Lấy tên từ senderName nếu có
+                            const userName = firstMessage.senderName || 
+                                           (firstMessage.senderId === userId ? firstMessage.senderName : null) ||
+                                           'Khách vãng lai';
+                            
+                            userInfo = {
+                                fullname: userName,
+                                email: null,
+                                phone: null
+                            };
+                        } else {
+                            // Fallback cho temporary users
+                            userInfo = {
+                                fullname: 'Khách vãng lai',
+                                email: null,
+                                phone: null
+                            };
+                        }
+                    } catch (error) {
+                        logError(`Error finding first message for ${userId}:`, error);
+                        userInfo = {
+                            fullname: 'Khách vãng lai',
+                            email: null,
+                            phone: null
+                        };
+                    }
                 }
 
                 return {
@@ -303,6 +333,37 @@ export const deleteConversation = async (req, res) => {
 
     } catch (error) {
         logError('Error in deleteConversation:', error);
+        return sendErrorResponse(res, 500, 'Lỗi server');
+    }
+};
+
+// Xóa tin nhắn của khách vãng lai
+export const clearGuestMessages = async (req, res) => {
+    try {
+        const { userId } = req.body;
+        
+        if (!userId) {
+            return sendErrorResponse(res, 400, 'UserId là bắt buộc');
+        }
+
+        // Chỉ cho phép xóa tin nhắn của temp user (khách vãng lai)
+        if (!userId.startsWith('temp_')) {
+            return sendErrorResponse(res, 403, 'Chỉ có thể xóa tin nhắn của khách vãng lai');
+        }
+
+        // Xóa tất cả tin nhắn liên quan đến temp user này
+        const result = await ChatMessage.deleteMany({
+            $or: [
+                { senderId: userId },
+                { recipientId: userId }
+            ]
+        });
+        
+        logInfo(`Cleared ${result.deletedCount} messages for guest user: ${userId}`);
+        return sendSuccessResponse(res, 200, 'Xóa tin nhắn khách vãng lai thành công');
+
+    } catch (error) {
+        logError('Error in clearGuestMessages:', error);
         return sendErrorResponse(res, 500, 'Lỗi server');
     }
 }; 
