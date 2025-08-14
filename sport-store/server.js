@@ -33,6 +33,7 @@ import chatRoutes from "./src/routes/chatRoutes.js";
 import reviewRoutes from "./src/routes/reviewRoutes.js";
 import questionRoutes from "./src/routes/questionRoutes.js";
 import brandRoutes from "./src/routes/brandRoutes.js";
+import favoritesRoutes from "./src/routes/favoritesRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -80,6 +81,7 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/questions", questionRoutes);
 app.use("/api", brandRoutes);
+app.use("/api/favorites", favoritesRoutes);
 
 // Error handling
 app.use(notFoundHandler);

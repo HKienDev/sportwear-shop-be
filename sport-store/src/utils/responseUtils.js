@@ -70,4 +70,16 @@ export const sendValidationErrorResponse = (res, errors, requestId = 'unknown') 
     message: 'Validation error',
     errors
   });
+};
+
+/**
+ * Gửi response chung
+ * @param {Object} res - Response object
+ * @param {number} statusCode - HTTP status code
+ * @param {Object} data - Response data
+ * @returns {Object} Response object
+ */
+export const sendResponse = (res, statusCode, data) => {
+  logInfo(`[Response] ${data.message || 'Response sent'}`);
+  return res.status(statusCode).json(data);
 }; 
